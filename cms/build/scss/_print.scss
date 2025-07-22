@@ -1,0 +1,89 @@
+//
+// Misc: Print
+//
+
+@media print {
+  // Add to elements that you do not want to show when printing
+  .no-print {
+    display: none !important;
+  }
+
+  // Elements that we want to hide when printing
+  .main-sidebar,
+  .main-header,
+  .content-header {
+    display: none !important;
+  }
+
+  // This is the only element that should appear, so let's remove the margins
+  .content-wrapper,
+  .main-footer {
+    margin-left: 0 !important;
+    min-height: 0 !important;
+  }
+
+  .layout-fixed .content-wrapper {
+    padding-top: 0 !important;
+  }
+
+  // Invoice printing
+  .invoice {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+  }
+
+  .invoice-col {
+    float: left;
+    width: 33.3333333%;
+  }
+
+  // Make sure table content displays properly
+  .table-responsive {
+    overflow: auto;
+
+    > .table tr th,
+    > .table tr td {
+      white-space: normal !important;
+    }
+  }
+
+  // Print header styles
+  .print-header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .print-header h1 {
+    font-size: 24pt;
+    margin: 0;
+  }
+  .print-header p {
+    font-size: 12pt;
+    margin: 0;
+  }
+
+  // Ensure hidden divs are properly positioned
+  .print-address {
+    display: block !important;
+    white-space: pre-wrap;
+    margin-top: 0;
+  }
+
+  // Ensure labels are visible when printing
+  .control-label {
+    display: block !important;
+    margin: 0;
+  }
+
+  // Override text-light class for printing
+  .text-light {
+    color: #000 !important;
+  }
+
+  // Override bg-navy class for printing
+  .bg-navy {
+    background-color: #fff !important;
+  }
+  
+}

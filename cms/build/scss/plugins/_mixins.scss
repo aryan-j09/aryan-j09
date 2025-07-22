@@ -1,0 +1,116 @@
+//
+// General: Mixins
+//
+
+// Select2 Variant
+@mixin select2-variant($name, $color) {
+  .select2-#{$name} {
+
+    + .select2-container--default {
+      &.select2-container--open {
+        .select2-selection--single {
+          border-color: lighten($color, 25%);
+        }
+      }
+
+      .select2-dropdown {
+        z-index: 1050; // Ensure dropdown is on top of other elements
+      }
+    }
+
+      &.select2-container--focus .select2-selection--single {
+        border-color: lighten($color, 25%);
+      }
+    }
+
+    .select2-dropdown,
+      .select2-results {
+        z-index: 1050; // Ensure proper stacking
+        background: #fff; // Ensure dropdown visibility
+        pointer-events: auto; // Allow interactions
+      }
+    }
+
+    .select2-container--default & {
+      .select2-dropdown {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); // Optional: Improve aesthetics
+      }
+
+      .select2-results__option {
+        &:hover {
+          background-color: lighten($color, 20%);
+          color: color-yiq($color);
+        }
+      }
+
+      .select2-results__option--highlighted {
+        background-color: $color;
+        color: color-yiq($color);
+        pointer-events: auto; // Ensure interaction works
+      }
+
+      // Adjust styles for multiple selections
+      .select2-selection--multiple {
+        .select2-selection__choice {
+          &:hover {
+            background-color: darken($color, 10%);
+          }
+        }
+      }
+    }
+  
+
+
+    .select2-container--default &,
+    .select2-container--default {
+      &.select2-dropdown,
+      .select2-dropdown,
+      .select2-search--inline {
+        .select2-search__field {
+          &:focus {
+            border: $input-border-width solid lighten($color, 25%);
+          }
+        }
+      }
+
+      .select2-results__option--highlighted {
+        background-color: $color;
+        color: color-yiq($color);
+
+        &[aria-selected] {
+          &,
+          &:hover {
+            background-color: darken($color, 3%);
+            color: color-yiq(darken($color, 3%));
+          }
+        }
+      }
+
+      //Multiple select
+      & {
+        .select2-selection--multiple {
+          &:focus {
+            border-color: lighten($color, 25%);
+          }
+
+          .select2-selection__choice {
+            background-color: $color;
+            border-color: darken($color, 5%);
+            color: color-yiq($color);
+          }
+
+          .select2-selection__choice__remove {
+            color: rgba(color-yiq($color), 0.7);
+
+            &:hover {
+              color: color-yiq($color);
+            }
+          }
+        }
+
+        &.select2-container--focus .select2-selection--multiple {
+          border-color: lighten($color, 25%);
+        }
+      }
+    }
+
