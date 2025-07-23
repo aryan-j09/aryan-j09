@@ -83,12 +83,12 @@ $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
                   </p>
                 </a>
                 </li>
-                <li class="nav-item">
+                <!-- <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=quotations" class="nav-link nav-quotations">
                   <i class="nav-icon fas fa-file-invoice"></i>
                   <p>Quotations</p>
                 </a>
-              </li>
+              </li> -->
               <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=receiving" class="nav-link nav-receiving">
                   <i class="nav-icon fas fa-boxes"></i>

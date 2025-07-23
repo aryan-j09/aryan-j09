@@ -241,7 +241,7 @@ if(isset($_SESSION['success_msg'])){
                                 </button>
                             </div>
                         </div>
-                        <div class="row mt-3">
+                        <!--<div class="row mt-3">
                             <div class="col-8 mx-auto">
                                 <a href="<?php echo base_url ?>admin/?page=quotations/manage_quote&lead_id=<?php echo $id; ?>"
                                    class="btn btn-success btn-block"
@@ -249,7 +249,7 @@ if(isset($_SESSION['success_msg'])){
                                     <i class="fas fa-file-invoice"></i> Generate Quotation
                                 </a>
                             </div>
-                        </div>
+                        </div>-->
                     </div>
                 <?php endif; ?>
             </div>
