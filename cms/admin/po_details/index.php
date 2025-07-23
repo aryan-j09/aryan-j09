@@ -179,14 +179,14 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                             <td class="align-middle">
                                 <?php 
                                     if($row['total_amount'] > 0) {
-                                        $pending = $row['total_amount'] - $row['total_received'];
-                                        if($pending > 0) {
-                                            echo '<span class="badge badge-danger">' . getCurrencySymbol($row['currency'] ?? 'INR') . ' ' . formatIndianMoney($pending) . '</span>';
+                                        $balance = $row['total_amount'] - ($row['advance_received'] + $row['inspection_received'] + $row['installation_received'] + $row['credit_received']);
+                                        if($balance > 0) {
+                                            echo '<span class="badge badge-danger">' . getCurrencySymbol($row['currency'] ?? 'INR') . ' ' . formatIndianMoney($balance) . '</span>';
                                         } else {
-                                            echo '<span class="badge badge-success">Fully Paid</span>';
+                                            echo '<span class="badge badge-success">' . getCurrencySymbol($row['currency'] ?? 'INR') . ' 0.00</span>';
                                         }
                                     } else {
-                                        echo '<span class="badge badge-warning">Amount Not Set</span>';
+                                        echo '<span class="badge badge-warning">' . getCurrencySymbol($row['currency'] ?? 'INR') . ' 0.00</span>';
                                     }
                                 ?>
                             </td>
