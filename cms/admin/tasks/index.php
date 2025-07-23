@@ -265,27 +265,26 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                         <div class="col-md-7">
                             <ul class="list-group" id="daily-task-list">
                                 <?php
-                                // Fetch all daily tasks for the user, grouped by date (latest first)
-                                $all_daily_tasks = $conn->query("SELECT * FROM daily_tasks WHERE user_id = '{$user_id}' ORDER BY task_date DESC, id ASC");
-                                $current_date = '';
+                                // Fetch all daily tasks for the user, incomplete first, then completed, ordered by latest first
+                                $all_daily_tasks = $conn->query("SELECT * FROM daily_tasks WHERE user_id = '{$user_id}' ORDER BY completed ASC, task_date DESC, id DESC");
+                                $has_completed = false;
                                 while($row = $all_daily_tasks->fetch_assoc()):
-                                    if($current_date != $row['task_date']):
-                                        if($current_date != '') echo '<hr class="my-2">';
-                                        $current_date = $row['task_date'];
+                                    if (!$has_completed && $row['completed']) {
+                                        // First completed task, insert a divider or heading
+                                        echo '<li class="list-group-item bg-light font-weight-bold">Completed Tasks</li>';
+                                        $has_completed = true;
+                                    }
                                 ?>
-                                    <li class="list-group-item bg-light font-weight-bold" style="border-left: 4px solid #007bff;">
-                                        <?php echo date('l, d M Y', strtotime($current_date)); ?>
-                                    </li>
-                                <?php endif; ?>
                                     <li class="list-group-item d-flex align-items-center">
-                                        <input type="checkbox" class="mr-2 complete-daily-task" data-id="<?php echo $row['id']; ?>" <?php echo $row['completed'] ? 'checked disabled' : ''; ?>>
+                                        <input type="checkbox" class="mr-2 complete-daily-task"
+                                            data-id="<?php echo $row['id']; ?>"
+                                            <?php echo $row['completed'] ? 'checked disabled' : ''; ?>>
                                         <span style="<?php echo $row['completed'] ? 'color:gray;' : ''; ?>">
                                             <?php echo htmlspecialchars($row['task']); ?>
                                         </span>
-                                        <?php if($row['completed']): ?>
-                                            <small class="ml-2 text-success">Completed</small>
-                                        <?php endif; ?>
-                                        <button class="btn btn-sm btn-danger ml-auto delete_daily_task" data-id="<?php echo $row['id']; ?>" title="Delete Task">
+                                        <small class="ml-2 text-dark"><?php echo date('d M Y', strtotime($row['task_date'])); ?></small>
+                                        <button class="btn btn-sm btn-danger ml-auto delete_daily_task"
+                                            data-id="<?php echo $row['id']; ?>" title="Delete Task">
                                             <i class="fa fa-trash"></i>
                                         </button>
                                     </li>
