@@ -275,14 +275,36 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                                         $has_completed = true;
                                     }
                                 ?>
-                                    <li class="list-group-item d-flex align-items-center">
+                                    <?php
+                                    $task_time = strtotime($row['task_date']);
+                                    $today_time = strtotime(date('Y-m-d'));
+                                    $week_ago_time = strtotime('-7 days', $today_time);
+                                    if ($task_time == $today_time) {
+                                        $border_color = '#007bff'; // Blue for today
+                                        $border_title = 'Today\'s Task';
+                                    } elseif ($task_time < $today_time && $task_time >= $week_ago_time) {
+                                        $border_color = '#ffc107'; // Yellow for this week
+                                        $border_title = 'This Week\'s Task';
+                                    } elseif ($task_time < $week_ago_time) {
+                                        $border_color = '#dc3545'; // Red for older than a week
+                                        $border_title = 'Older Task';
+                                    } else {
+                                        $border_color = '#dee2e6'; // Default/gray for future or fallback
+                                        $border_title = '';
+                                    }
+                                    ?>
+                                    <li class="list-group-item d-flex align-items-center"
+                                        style="border-left: 4px solid <?php echo $border_color; ?>;"
+                                        title="<?php echo $border_title; ?>">
                                         <input type="checkbox" class="mr-2 complete-daily-task"
                                             data-id="<?php echo $row['id']; ?>"
                                             <?php echo $row['completed'] ? 'checked disabled' : ''; ?>>
                                         <span style="<?php echo $row['completed'] ? 'color:gray;' : ''; ?>">
                                             <?php echo htmlspecialchars($row['task']); ?>
                                         </span>
-                                        <small class="ml-2 text-dark"><?php echo date('d M Y', strtotime($row['task_date'])); ?></small>
+                                        <small class="ml-2 text-dark">
+                                            <?php echo date('d M Y', strtotime($row['task_date'])); ?>
+                                        </small>
                                         <button class="btn btn-sm btn-danger ml-auto delete_daily_task"
                                             data-id="<?php echo $row['id']; ?>" title="Delete Task">
                                             <i class="fa fa-trash"></i>
