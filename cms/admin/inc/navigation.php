@@ -8,7 +8,7 @@ $tasks_count = $conn->query("SELECT COUNT(*) as count FROM tasks
       AND due_date <= '{$today}'")->fetch_assoc()['count'];
 
 $followups_count = $conn->query("SELECT COUNT(*) as count FROM lead_activities 
-    WHERE DATE(next_followup) = '{$today}' AND created_by = '{$user_id}'")->fetch_assoc()['count'];
+    WHERE DATE(next_followup) <= '{$today}' AND created_by = '{$user_id}' AND (handled IS NULL OR handled = 0)")->fetch_assoc()['count'];
 
 $daily_tasks_count = $conn->query("SELECT COUNT(*) as count FROM daily_tasks 
     WHERE user_id = '{$user_id}' 

@@ -1329,9 +1329,10 @@ Class Master extends DBConnection {
 
             // Check if this is an edit operation
             $activity_id = isset($_POST['activity_id']) ? $_POST['activity_id'] : null;
+            $prev_activity_id = isset($_POST['prev_activity_id']) ? intval($_POST['prev_activity_id']) : null;
 
             if($activity_id) {
-                // Update existing activity
+                // Update existing activity (edit mode)
                 $sql = "UPDATE lead_activities SET 
                         activity_type = ?, 
                         description = ?, 
@@ -1340,14 +1341,11 @@ Class Master extends DBConnection {
                         time_from = ?,
                         time_to = ?
                         WHERE id = ?";
-                
                 $stmt = $this->conn->prepare($sql);
-                
                 $created_at = isset($_POST['created_at']) ? $_POST['created_at'] : date('Y-m-d H:i:s');
                 $next_followup = !empty($_POST['next_followup']) ? $_POST['next_followup'] : null;
                 $time_from = !empty($_POST['time_from']) ? $_POST['time_from'] : null;
                 $time_to = !empty($_POST['time_to']) ? $_POST['time_to'] : null;
-                
                 $stmt->bind_param("ssssssi", 
                     $_POST['activity_type'],
                     $_POST['description'],
@@ -1358,7 +1356,7 @@ Class Master extends DBConnection {
                     $activity_id
                 );
             } else {
-                // Insert new activity
+                // Insert new activity (always use current date/time for created_at)
                 $sql = "INSERT INTO lead_activities (
                     lead_id, 
                     activity_type, 
@@ -1369,14 +1367,11 @@ Class Master extends DBConnection {
                     time_from,
                     time_to
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-                
                 $stmt = $this->conn->prepare($sql);
-                
-                $created_at = isset($_POST['created_at']) ? $_POST['created_at'] : date('Y-m-d H:i:s');
+                $created_at = date('Y-m-d H:i:s'); // Always use current time
                 $next_followup = !empty($_POST['next_followup']) ? $_POST['next_followup'] : null;
                 $time_from = !empty($_POST['time_from']) ? $_POST['time_from'] : null;
                 $time_to = !empty($_POST['time_to']) ? $_POST['time_to'] : null;
-                
                 $stmt->bind_param("isssssss", 
                     $_POST['lead_id'],
                     $_POST['activity_type'],
@@ -1387,14 +1382,18 @@ Class Master extends DBConnection {
                     $time_from,
                     $time_to
                 );
+                // Mark the previous activity as handled if prev_activity_id is present
+                if ($prev_activity_id) {
+                    $this->conn->query("UPDATE lead_activities SET handled = 1 WHERE id = '{$prev_activity_id}'");
+                }
             }
             
             if(!$stmt->execute()) {
                 throw new Exception("Failed to save activity: " . $stmt->error);
             }
 
-            $activity_id = $activity_id ?: $this->conn->insert_id;
-    
+            $new_activity_id = $activity_id ?: $this->conn->insert_id;
+
             // Handle document uploads if any
             if(isset($_FILES['documents']) && !empty($_FILES['documents']['name'][0])) {
                 $upload_path = '../uploads/lead_documents/';
@@ -1430,7 +1429,7 @@ Class Master extends DBConnection {
                             
                             $stmt = $this->conn->prepare($sql);
                             $stmt->bind_param("issss", 
-                                $activity_id,
+                                $new_activity_id,
                                 $doc_type,
                                 $doc_desc,
                                 $_FILES['documents']['name'][$i],
@@ -1448,7 +1447,7 @@ Class Master extends DBConnection {
             }
     
             $this->conn->commit();
-            $_SESSION['success_msg'] = $activity_id ? "Activity updated successfully" : "Activity logged successfully";
+            $_SESSION['success_msg'] = $new_activity_id ? "Activity updated successfully" : "Activity logged successfully";
             $resp['status'] = 'success';
             
         } catch (Exception $e) {
@@ -2123,6 +2122,129 @@ function delete_quote_image() {
     return json_encode($resp);
 }
 
+function save_quotation() {
+    extract($_POST);
+    $resp = array();
+
+    try {
+        $this->conn->begin_transaction();
+
+        // Determine if this is an insert or update
+        if(empty($id)) {
+            // New Quotation
+            if (!empty($_POST['quotation_no'])) {
+                $quotation_code = $this->conn->real_escape_string($_POST['quotation_no']);
+            } else {
+                $prefix = "QT";
+                $code = sprintf("%'.04d", 1);
+                while(true) {
+                    $check_code = $this->conn->query("SELECT id FROM quotations WHERE quotation_code = '{$prefix}-{$code}'")->num_rows;
+                    if($check_code > 0) {
+                        $code = sprintf("%'.04d", intval($code) + 1);
+                    } else {
+                        break;
+                    }
+                }
+                $quotation_code = "{$prefix}-{$code}";
+            }
+
+            $sql = "INSERT INTO quotations (lead_id, quotation_code, created_by, created_at) VALUES (?, ?, ?, NOW())";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bind_param("isi", $lead_id, $quotation_code, $_SESSION['userdata']['id']);
+            if(!$stmt->execute()) {
+                throw new Exception("Failed to create quotation: " . $stmt->error);
+            }
+            $quotation_id = $this->conn->insert_id;
+
+        } else {
+            // Update Existing Quotation
+            $quotation_id = $id;
+            $quotation_code = $this->conn->real_escape_string($quotation_no);
+            $sql = "UPDATE quotations SET quotation_code = ?, lead_id = ? WHERE id = ?";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bind_param("sii", $quotation_code, $lead_id, $quotation_id);
+            if(!$stmt->execute()) {
+                throw new Exception("Failed to update quotation: " . $stmt->error);
+            }
+
+            // Clear old items for this quotation
+            $this->conn->query("DELETE FROM quotation_item_prices WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$quotation_id}')");
+            $this->conn->query("DELETE FROM quotation_item_accessories WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$quotation_id}')");
+            $this->conn->query("DELETE FROM quotation_items WHERE quotation_id = '{$quotation_id}'");
+        }
+
+        // Save selected machines and their details
+        if(isset($selected_machines) && is_array($selected_machines)) {
+            foreach($selected_machines as $machine_id) {
+                $sql = "INSERT INTO quotation_items (quotation_id, quote_item_id) VALUES (?, ?)";
+                $stmt = $this->conn->prepare($sql);
+                $stmt->bind_param("ii", $quotation_id, $machine_id);
+                if(!$stmt->execute()) {
+                    throw new Exception("Failed to save machine selection: " . $stmt->error);
+                }
+                $quotation_item_id = $this->conn->insert_id;
+
+                if(isset($prices) && isset($prices[$machine_id]) && is_array($prices[$machine_id])) {
+                    foreach($prices[$machine_id] as $price_id) {
+                        $sql = "INSERT INTO quotation_item_prices (quotation_item_id, price_id) VALUES (?, ?)";
+                        $stmt = $this->conn->prepare($sql);
+                        $stmt->bind_param("ii", $quotation_item_id, $price_id);
+                        if(!$stmt->execute()) throw new Exception("Failed to save price: " . $stmt->error);
+                    }
+                }
+
+                if(isset($accessories) && isset($accessories[$machine_id]) && is_array($accessories[$machine_id])) {
+                    foreach($accessories[$machine_id] as $accessory_id) {
+                        $sql = "INSERT INTO quotation_item_accessories (quotation_item_id, accessory_id) VALUES (?, ?)";
+                        $stmt = $this->conn->prepare($sql);
+                        $stmt->bind_param("ii", $quotation_item_id, $accessory_id);
+                        if(!$stmt->execute()) throw new Exception("Failed to save accessory: " . $stmt->error);
+                    }
+                }
+            }
+        }
+
+        $this->conn->commit();
+        $resp['status'] = 'success';
+        $resp['quotation_id'] = $quotation_id;
+        $flash_msg = empty($id) ? "Quotation generated successfully." : "Quotation updated successfully.";
+        $this->settings->set_flashdata('success', $flash_msg);
+
+    } catch (Exception $e) {
+        $this->conn->rollback();
+        $resp['status'] = 'failed';
+        $resp['msg'] = $e->getMessage();
+        error_log("Quotation Error: " . $e->getMessage());
+    }
+
+    return json_encode($resp);
+}
+
+function delete_quotation(){
+extract($_POST);
+
+try {
+    $this->conn->begin_transaction();
+
+    // Delete related records first
+    $this->conn->query("DELETE FROM quotation_item_prices WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$id}')");
+    $this->conn->query("DELETE FROM quotation_item_accessories WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$id}')");
+    $this->conn->query("DELETE FROM quotation_items WHERE quotation_id = '{$id}'");
+    $this->conn->query("DELETE FROM quotations WHERE id = '{$id}'");
+
+    $this->conn->commit();
+    $resp['status'] = 'success';
+    $this->settings->set_flashdata('success', "Quotation deleted successfully.");
+
+} catch (Exception $e) {
+    $this->conn->rollback();
+    $resp['status'] = 'failed';
+    $resp['msg'] = $e->getMessage();
+}
+
+return json_encode($resp);
+}
+
 function save_purchase_order_timeline()
 {
     try {
@@ -2400,6 +2522,12 @@ switch ($action) {
     break;
     case 'delete_quote_image':
         echo $Master->delete_quote_image();
+    break;
+    case 'save_quotation':
+        echo $Master->save_quotation();
+    break;
+    case 'delete_quotation':
+        echo $Master->delete_quotation();
     break;
     case 'save_purchase_order_timeline':
         echo $Master->save_purchase_order_timeline();

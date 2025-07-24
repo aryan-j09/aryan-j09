@@ -33,9 +33,10 @@ $daily_tasks = $conn->query("SELECT * FROM daily_tasks WHERE user_id = '{$user_i
 $today_followups = $conn->query("SELECT la.*, l.company_name 
     FROM lead_activities la 
     LEFT JOIN leads l ON la.lead_id = l.id 
-    WHERE DATE(la.next_followup) = '{$today}' 
+    WHERE DATE(la.next_followup) <= '{$today}' 
     AND la.created_by = '{$user_id}' 
-    ORDER BY la.next_followup ASC");
+    AND (la.handled IS NULL OR la.handled = 0)
+    ORDER BY la.next_followup DESC");
 
 // For viewing a single task (existing logic)
 if(isset($_GET['id']) && $_GET['id'] > 0){
@@ -65,18 +66,18 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
             <!-- Add tabs for better organization -->
             <ul class="nav nav-tabs mb-3" id="taskTabs" role="tablist">
                 <li class="nav-item">
-                    <a class="nav-link active" id="assigned-to-me-tab" data-toggle="tab" href="#assigned-to-me" role="tab">Assigned To Me</a>
+                    <a class="nav-link" id="assigned-to-me-tab" data-toggle="tab" href="#assigned-to-me" role="tab">Assigned To Me</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" id="assigned-by-me-tab" data-toggle="tab" href="#assigned-by-me" role="tab">Assigned By Me</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" id="daily-tasks-tab" data-toggle="tab" href="#daily-tasks" role="tab">My Daily Tasks</a>
+                    <a class="nav-link active" id="daily-tasks-tab" data-toggle="tab" href="#daily-tasks" role="tab">My Daily Tasks</a>
                 </li>
             </ul>
             <div class="tab-content" id="taskTabContent">
                 <!-- Tasks assigned to me -->
-                <div class="tab-pane fade show active" id="assigned-to-me" role="tabpanel">
+                <div class="tab-pane fade" id="assigned-to-me" role="tabpanel">
                     <table class="table table-bordered table-stripped" id="task-list-assigned-to">
                         <colgroup>
                             <col width="5%">
@@ -246,7 +247,7 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                     </table>
                 </div>
                 <!-- My Daily Tasks -->
-                <div class="tab-pane fade" id="daily-tasks" role="tabpanel">
+                <div class="tab-pane fade show active" id="daily-tasks" role="tabpanel">
                     <form method="POST" class="mb-3 d-flex">
                         <input type="text" name="task" class="form-control mr-2" placeholder="Add new daily task..." required>
                         <button class="btn btn-primary" name="add_daily_task" value="1">Add</button>
@@ -313,14 +314,21 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                                         <?php while($fu = $today_followups->fetch_assoc()): ?>
                                             <li class="list-group-item d-flex align-items-center">
                                                 <i class="fas fa-phone mr-2 text-primary"></i>
-                                                <span>
+                                                <span class="d-block">
                                                     <strong><?php echo htmlspecialchars($fu['company_name']); ?></strong>
-                                                    <small class="text-muted ml-2"><?php echo date('h:i A', strtotime($fu['next_followup'])); ?></small>
+                                                    <div class="text-muted small mt-1">
+                                                        <?php echo date('d M Y', strtotime($fu['next_followup'])); ?>
+                                                        <?php echo date('h:i A', strtotime($fu['next_followup'])); ?>
+                                                    </div>
                                                 </span>
                                                 <button class="btn btn-sm btn-outline-info ml-auto view-lead-btn"
                                                     data-url="<?php echo base_url ?>admin/?page=leads/view_lead&id=<?php echo $fu['lead_id'] ?>">
                                                     View Lead
                                                 </button>
+                                                <a class="btn btn-sm btn-success ml-2 log-activity-btn"
+                                                   href="<?php echo base_url ?>admin/?page=leads/view_lead&id=<?php echo $fu['lead_id'] ?>&log_activity=1&activity_id=<?php echo $fu['id']; ?>">
+                                                   Log Activity
+                                                </a>
                                             </li>
                                         <?php endwhile; ?>
                                     <?php else: ?>

@@ -20,6 +20,16 @@ if(isset($_SESSION['success_msg'])){
 }
 ?>
 
+<?php
+$prefill_activity = null;
+if (isset($_GET['activity_id'])) {
+    $activity_q = $conn->query("SELECT * FROM lead_activities WHERE id = '".intval($_GET['activity_id'])."'");
+    if ($activity_q && $activity_q->num_rows > 0) {
+        $prefill_activity = $activity_q->fetch_assoc();
+    }
+}
+?>
+
 <div class="row">
     <!-- Activity Log Section (Center) -->
     <div class="col-md-8">
@@ -268,6 +278,16 @@ if(isset($_SESSION['success_msg'])){
             <form id="activity-form" enctype="multipart/form-data">
                 <div class="modal-body">
                     <input type="hidden" name="lead_id" value="<?php echo $id ?>">
+                    <?php
+                    // Only add activity_id as a hidden field if editing (not via log_activity=1)
+                    if (isset($_GET['activity_id']) && (!isset($_GET['log_activity']) || $_GET['log_activity'] != 1)) {
+                        echo '<input type="hidden" name="activity_id" value="' . intval($_GET['activity_id']) . '">';
+                    }
+                    // If logging a new activity from a follow-up, include prev_activity_id
+                    if (isset($_GET['activity_id']) && isset($_GET['log_activity']) && $_GET['log_activity'] == 1) {
+                        echo '<input type="hidden" name="prev_activity_id" value="' . intval($_GET['activity_id']) . '">';
+                    }
+                    ?>
                     <div class="form-group">
                         <div class="row">
                             <div class="col-md-4">
@@ -394,6 +414,28 @@ function getActivityIcon($type) {
 }
 ?>
 
+<?php if (isset($_GET['log_activity']) && $_GET['log_activity'] == 1): ?>
+<script>
+$(document).ready(function(){
+    <?php if ($prefill_activity): ?>
+        $('#activity_type').val('<?php echo $prefill_activity['activity_type']; ?>');
+        $('textarea[name="description"]').val(`<?php echo htmlspecialchars($prefill_activity['description'], ENT_QUOTES); ?>`);
+        // Only prefill created_at if NOT logging a new activity from follow-up
+        <?php if (!isset($_GET['log_activity']) || $_GET['log_activity'] != 1): ?>
+        $('input[name="created_at"]').val('<?php echo date('Y-m-d\TH:i', strtotime($prefill_activity['created_at'])); ?>');
+        <?php else: ?>
+        // Prefill with current date/time
+        $('input[name="created_at"]').val('<?php echo date('Y-m-d\TH:i'); ?>');
+        <?php endif; ?>
+        $('input[name="next_followup"]').val('<?php echo $prefill_activity['next_followup'] ? date('Y-m-d\TH:i', strtotime($prefill_activity['next_followup'])) : ''; ?>');
+        $('input[name="time_from"]').val('<?php echo $prefill_activity['time_from']; ?>');
+        $('input[name="time_to"]').val('<?php echo $prefill_activity['time_to']; ?>');
+    <?php endif; ?>
+    $('#activityModal').modal('show');
+});
+</script>
+<?php endif; ?>
+
 <script>
 $(document).ready(function(){
     // Activity type change handler
@@ -482,7 +524,11 @@ $(document).ready(function(){
             success:function(resp){
                 if(resp.status == 'success'){
                     $('#activityModal').modal('hide');
-                    location.reload();
+                    // Remove log_activity and activity_id from URL before reloading
+                    let url = new URL(window.location.href);
+                    url.searchParams.delete('log_activity');
+                    url.searchParams.delete('activity_id');
+                    window.location.href = url.toString();
                 } else {
                     alert_toast(resp.msg,'error');
                     end_loader();
@@ -535,8 +581,9 @@ $(document).ready(function(){
         // Populate the form
         $('#activity_type').val(activity_type).trigger('change');
         $('textarea[name="description"]').val(description);
-        $('input[name="activity_datetime"]').val(createdAtFormatted);
-        $('input[name="next_followup"]').val(nextFollowupFormatted);
+        // The following lines are no longer needed as they are handled by the PHP prefill
+        // $('input[name="activity_datetime"]').val(createdAtFormatted); 
+        // $('input[name="next_followup"]').val(nextFollowupFormatted);
         
         // Set time range if exists
         if(time_from) $('input[name="time_from"]').val(time_from);
