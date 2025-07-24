@@ -4,16 +4,6 @@ $user_id = $_SESSION['userdata']['id'];
 $today = date('Y-m-d');
 $yesterday = date('Y-m-d', strtotime('-1 day'));
 
-
-// Carry forward only incomplete tasks from yesterday (already in your code)
-$conn->query("INSERT INTO daily_tasks (user_id, task, task_date)
-    SELECT user_id, task, '{$today}' FROM daily_tasks
-    WHERE user_id = '{$user_id}' AND task_date = '{$yesterday}' AND completed = 0
-    AND NOT EXISTS (
-        SELECT 1 FROM daily_tasks WHERE user_id = '{$user_id}' AND task = daily_tasks.task AND task_date = '{$today}'
-    )
-");
-
 // Add new daily task
 if (isset($_POST['add_daily_task']) && !empty($_POST['task'])) {
     $task = $conn->real_escape_string($_POST['task']);
