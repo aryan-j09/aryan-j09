@@ -233,6 +233,80 @@ Class Master extends DBConnection {
         return json_encode($resp);
     }
 
+    function save_client() {
+        
+        try {
+            extract($_POST);
+            $this->conn->begin_transaction();
+    
+            // Build data for client insert/update
+            $data = "";
+            foreach($_POST as $k => $v) {
+                if(!in_array($k, array('id', 'converted_from_lead'))) {
+                    $v = $this->conn->real_escape_string($v);
+                    if(!empty($data)) $data .= ", ";
+                    $data .= "`{$k}`='{$v}'";
+                }
+            }
+    
+            // Save client
+            if(empty($id)) {
+                $sql = "INSERT INTO clients SET {$data}";
+            } else {
+                $sql = "UPDATE clients SET {$data} WHERE id = '{$id}'";
+            }
+    
+            $save = $this->conn->query($sql);
+            if(!$save) {
+                throw new Exception("Failed to save client");
+            }
+    
+            // Update lead status if this is a conversion
+            if(isset($converted_from_lead) && !empty($converted_from_lead)) {
+                // First log the activity
+                $created_by = $_SESSION['userdata']['id'];
+                $activity_sql = "INSERT INTO lead_activities (lead_id, activity_type, description, created_by) 
+                               VALUES ('{$converted_from_lead}', 'status_change', 'Lead converted to client', '{$created_by}')";
+                
+                if(!$this->conn->query($activity_sql)) {
+                    throw new Exception("Failed to log conversion activity");
+                }
+    
+                // Then update the lead status
+                $update_sql = "UPDATE leads SET status = 'converted' WHERE id = '{$converted_from_lead}'";
+                if(!$this->conn->query($update_sql)) {
+                    throw new Exception("Failed to update lead status");
+                }
+            }
+    
+            $this->conn->commit();
+            $resp['status'] = 'success';
+            $this->settings->set_flashdata('success', empty($id) ? 
+                "New client successfully saved." : "Client successfully updated.");
+    
+        } catch (Exception $e) {
+            $this->conn->rollback();
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+            error_log("Save client error: " . $e->getMessage());
+        }
+    
+        return json_encode($resp);
+    }
+
+    function delete_client(){
+        extract($_POST);
+        $del = $this->conn->query("DELETE FROM `clients` where id = '{$id}'");
+        if($del){
+            $resp['status'] = 'success';
+            $this->settings->set_flashdata('success',"Client successfully deleted.");
+        }else{
+            $resp['status'] = 'failed';
+            $resp['error'] = $this->conn->error;
+        }
+        return json_encode($resp);
+    }
+
     function save_pi() {
     try {
         extract($_POST);
@@ -1954,8 +2028,11 @@ switch ($action) {
 	case 'delete_po':
 		echo $Master->delete_po();
 	break;
-	case 'delete_bo':
-        echo $Master->delete_bo();
+    case 'save_client':
+        echo $Master->save_client();
+    break;
+    case 'delete_client':
+        echo $Master->delete_client();
     break;
 	case 'save_pi':
         echo $Master->save_pi();
