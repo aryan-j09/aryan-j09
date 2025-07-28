@@ -58,7 +58,7 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
     <div class="card-header">
         <h3 class="card-title">List of Tasks</h3>
         <div class="card-tools">
-            <a href="?page=tasks/manage_task" class="btn btn-flat btn-primary"><span class="fas fa-plus"></span> Create New</a>
+            <button id="create_new" class="btn btn-flat btn-primary"><span class="fas fa-plus"></span> Create New</button>
         </div>
     </div>
     <div class="card-body">
@@ -151,7 +151,7 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                                     <div class="dropdown-menu" role="menu">
                                         <a class="dropdown-item" href="?page=tasks/view_task&id=<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
                                         <div class="dropdown-divider"></div>
-                                        <a class="dropdown-item" href="?page=tasks/manage_task&id=<?php echo $row['id'] ?>"><span class="fa fa-edit text-primary"></span> Edit</a>
+                                        <a class="dropdown-item edit_data" href="javascript:void(0)" data-id="<?php echo $row['id'] ?>"><span class="fa fa-edit text-primary"></span> Edit</a>
                                         <div class="dropdown-divider"></div>
                                         <a class="dropdown-item delete_data" href="javascript:void(0)" data-id="<?php echo $row['id'] ?>"><span class="fa fa-trash text-danger"></span> Delete</a>
                                     </div>
@@ -236,7 +236,7 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                                     <div class="dropdown-menu" role="menu">
                                         <a class="dropdown-item" href="?page=tasks/view_task&id=<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
                                         <div class="dropdown-divider"></div>
-                                        <a class="dropdown-item" href="?page=tasks/manage_task&id=<?php echo $row['id'] ?>"><span class="fa fa-edit text-primary"></span> Edit</a>
+                                        <a class="dropdown-item edit_data" href="javascript:void(0)" data-id="<?php echo $row['id'] ?>"><span class="fa fa-edit text-primary"></span> Edit</a>
                                         <div class="dropdown-divider"></div>
                                         <a class="dropdown-item delete_data" href="javascript:void(0)" data-id="<?php echo $row['id'] ?>"><span class="fa fa-trash text-danger"></span> Delete</a>
                                     </div>
@@ -296,7 +296,7 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                                         <small class="ml-2 text-dark">
                                             <?php echo date('d M Y', strtotime($row['task_date'])); ?>
                                         </small>
-                                        <a class="btn btn-sm btn-primary ml-auto" href="?page=tasks/manage_task&title=<?php echo urlencode($row['task']) ?>" title="Assign Task">
+                                        <a class="btn btn-sm btn-primary ml-auto manage_task" href="javascript:void(0)" data-title="<?php echo urlencode($row['task']) ?>" title="Assign Task">
                                             <i class="fas fa-user-plus"></i>
                                         </a>
                                         <button class="btn btn-sm btn-danger ml-1 delete_daily_task"
@@ -349,6 +349,12 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
 
 <script>
     $(document).ready(function(){
+        $('#create_new').click(function(){
+            uni_modal("<i class='fa fa-plus'></i> New Task", "tasks/manage_task.php", "large")
+        })
+        $('.edit_data').click(function(){
+            uni_modal("<i class='fa fa-edit'></i> Edit Task", "tasks/manage_task.php?id="+$(this).attr('data-id'), "large")
+        })
         $('.delete_data').click(function(){
             _conf("Are you sure to delete this task permanently?","delete_task",[$(this).attr('data-id')])
         })
@@ -369,6 +375,11 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
             var id = $(this).data('id');
             _conf("Are you sure you want to delete this daily task?", "delete_daily_task", [id]);
         });
+
+        $('#daily-task-list').on('click', '.manage_task', function(){
+            var title = $(this).data('title');
+            uni_modal("<i class='fa fa-plus'></i> New Task", "tasks/manage_task.php?title="+title, "large")
+        })
 
         // Activate correct tab if hash present
         if(window.location.hash){
