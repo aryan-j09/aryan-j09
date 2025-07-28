@@ -129,6 +129,9 @@ $(document).ready(function(){
             // Decode and set the description
             $('#description').val(decodeURIComponent(params.get('description')));
         }
+        if(params.has('title')){
+            $('#title').val(decodeURIComponent(params.get('title')));
+        }
     }
 });
 </script>

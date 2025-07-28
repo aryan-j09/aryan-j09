@@ -296,7 +296,10 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                                         <small class="ml-2 text-dark">
                                             <?php echo date('d M Y', strtotime($row['task_date'])); ?>
                                         </small>
-                                        <button class="btn btn-sm btn-danger ml-auto delete_daily_task"
+                                        <a class="btn btn-sm btn-primary ml-auto" href="?page=tasks/manage_task&title=<?php echo urlencode($row['task']) ?>" title="Assign Task">
+                                            <i class="fas fa-user-plus"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-danger ml-1 delete_daily_task"
                                             data-id="<?php echo $row['id']; ?>" title="Delete Task">
                                             <i class="fa fa-trash"></i>
                                         </button>
