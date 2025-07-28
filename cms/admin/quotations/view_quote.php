@@ -196,8 +196,12 @@ $machines_qry = $conn->query("
     .page-break {
         display: none !important; /* Hide manual breaks */
     }
+    /* Remove forced page break for .machine-section */
     .machine-section {
-        page-break-before: always !important;
+        /* page-break-before: always !important; */
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        margin-top: 0 !important;
     }
     .card {
         border-left: none !important;

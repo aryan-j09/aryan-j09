@@ -75,22 +75,11 @@ $items = $conn->query("SELECT * FROM quote_items ORDER BY name ASC");
                                     <div class="mb-2">
                                         <strong>Technical Specifications:</strong>
                                         <?php
-                                        $stmt_specs = $conn->prepare("SELECT * FROM quote_item_attributes WHERE quote_item_id = ?");
-                                        $stmt_specs->bind_param("i", $item['id']);
-                                        $stmt_specs->execute();
-                                        $stmt_specs->store_result();
-                                        $stmt_specs->bind_result($id, $quote_item_id, $attribute_name, $attribute_value);
                                         $specs = [];
-                                        while($stmt_specs->fetch()) {
-                                            $specs[] = [
-                                                'id' => $id,
-                                                'quote_item_id' => $quote_item_id,
-                                                'attribute_name' => $attribute_name,
-                                                'attribute_value' => $attribute_value
-                                            ];
+                                        $specs_q = $conn->query("SELECT * FROM quote_item_attributes WHERE quote_item_id = {$item['id']}");
+                                        while($row = $specs_q->fetch_assoc()) {
+                                            $specs[] = $row;
                                         }
-                                        $stmt_specs->close();
-
                                         if($specs): ?>
                                             <table class="table table-sm table-bordered w-auto mb-2 ml-3">
                                                 <thead>
@@ -120,22 +109,11 @@ $items = $conn->query("SELECT * FROM quote_items ORDER BY name ASC");
                                     <div class="mb-2">
                                         <strong>Pricing Details:</strong>
                                         <?php
-                                        $stmt_prices = $conn->prepare("SELECT * FROM quote_item_prices WHERE quote_item_id = ?");
-                                        $stmt_prices->bind_param("i", $item['id']);
-                                        $stmt_prices->execute();
-                                        $stmt_prices->store_result();
-                                        $stmt_prices->bind_result($id, $quote_item_id, $price, $description);
                                         $prices = [];
-                                        while($stmt_prices->fetch()) {
-                                            $prices[] = [
-                                                'id' => $id,
-                                                'quote_item_id' => $quote_item_id,
-                                                'price' => $price,
-                                                'description' => $description
-                                            ];
+                                        $prices_q = $conn->query("SELECT * FROM quote_item_prices WHERE quote_item_id = {$item['id']}");
+                                        while($row = $prices_q->fetch_assoc()) {
+                                            $prices[] = $row;
                                         }
-                                        $stmt_prices->close();
-
                                         if($prices): ?>
                                             <table class="table table-sm table-bordered w-auto mb-2 ml-3">
                                                 <thead>
@@ -173,22 +151,11 @@ $items = $conn->query("SELECT * FROM quote_items ORDER BY name ASC");
                                     <div class="mb-2">
                                         <strong>Accessories:</strong>
                                         <?php
-                                        $stmt_accessories = $conn->prepare("SELECT * FROM quote_item_accessories WHERE quote_item_id = ?");
-                                        $stmt_accessories->bind_param("i", $item['id']);
-                                        $stmt_accessories->execute();
-                                        $stmt_accessories->store_result();
-                                        $stmt_accessories->bind_result($id, $quote_item_id, $accessory_name, $accessory_value);
                                         $accessories = [];
-                                        while($stmt_accessories->fetch()) {
-                                            $accessories[] = [
-                                                'id' => $id,
-                                                'quote_item_id' => $quote_item_id,
-                                                'accessory_name' => $accessory_name,
-                                                'accessory_value' => $accessory_value
-                                            ];
+                                        $acc_q = $conn->query("SELECT * FROM quote_item_accessories WHERE quote_item_id = {$item['id']}");
+                                        while($row = $acc_q->fetch_assoc()) {
+                                            $accessories[] = $row;
                                         }
-                                        $stmt_accessories->close();
-
                                         if($accessories): ?>
                                             <table class="table table-sm table-bordered w-auto mb-2 ml-3">
                                                 <thead>
