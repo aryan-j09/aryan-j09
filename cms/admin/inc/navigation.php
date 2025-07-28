@@ -4,8 +4,7 @@ $today = date('Y-m-d');
 
 $tasks_count = $conn->query("SELECT COUNT(*) as count FROM tasks 
     WHERE assigned_to = '{$user_id}' 
-      AND status != 'completed'
-      AND due_date <= '{$today}'")->fetch_assoc()['count'];
+      AND status IN ('pending', 'in_progress')")->fetch_assoc()['count'];
 
 $followups_count = $conn->query("SELECT COUNT(*) as count FROM lead_activities 
     WHERE DATE(next_followup) <= '{$today}' AND created_by = '{$user_id}' AND (handled IS NULL OR handled = 0)")->fetch_assoc()['count'];
