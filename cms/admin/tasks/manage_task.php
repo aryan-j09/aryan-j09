@@ -115,14 +115,41 @@ $(function(){
 $(document).ready(function(){
     // Only prefill if not editing (no id in URL or PHP variable)
     var isEdit = <?php echo isset($id) ? 'true' : 'false'; ?>;
+    console.log('Is edit mode:', isEdit); // Debug log
     if(!isEdit){
-        const params = new URLSearchParams(window.location.search);
-        if(params.has('description')){
-            // Decode and set the description
-            $('#description').val(decodeURIComponent(params.get('description')));
+        // Check for global variable first (for daily task assignment)
+        if(typeof window.dailyTaskTitle !== 'undefined' && window.dailyTaskTitle){
+            console.log('Global daily task title found:', window.dailyTaskTitle); // Debug log
+            $('#title').val(window.dailyTaskTitle);
+            console.log('Title field value after setting from global:', $('#title').val()); // Debug log
+            // Clear the global variable after using it
+            window.dailyTaskTitle = null;
+        } else {
+            // Fallback to URL parameters
+            const params = new URLSearchParams(window.location.search);
+            console.log('URL params:', window.location.search); // Debug log
+            if(params.has('description')){
+                // Decode and set the description
+                $('#description').val(decodeURIComponent(params.get('description')));
+            }
+            if(params.has('title')){
+                console.log('Title param found:', params.get('title')); // Debug log
+                var titleValue = decodeURIComponent(params.get('title'));
+                console.log('Decoded title:', titleValue); // Debug log
+                $('#title').val(titleValue);
+                console.log('Title field value after setting:', $('#title').val()); // Debug log
+            }
         }
-        if(params.has('title')){
-            $('#title').val(decodeURIComponent(params.get('title')));
+        if(typeof window.dailyTaskId !== 'undefined' && window.dailyTaskId){
+            if($('#daily_task_id').length === 0) {
+                $('<input>').attr({
+                    type: 'hidden',
+                    id: 'daily_task_id',
+                    name: 'daily_task_id',
+                    value: window.dailyTaskId
+                }).appendTo('#task-form');
+            }
+            window.dailyTaskId = null;
         }
     }
 });

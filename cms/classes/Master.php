@@ -1490,7 +1490,16 @@ function delete_activity(){
             if(!in_array($k, array('id', 'assigned_by'))){
                 if(!empty($data)) $data .=",";
                 $v = $this->conn->real_escape_string($v);
-                $data .= " `{$k}`='{$v}' ";
+                // Only allow daily_task_id if it's numeric or null
+                if($k == 'daily_task_id') {
+                    if($v === '' || strtolower($v) === 'null') {
+                        $data .= " `daily_task_id`=NULL ";
+                    } else {
+                        $data .= " `daily_task_id`=".intval($v)." ";
+                    }
+                } else {
+                    $data .= " `{$k}`='{$v}' ";
+                }
             }
         }
         

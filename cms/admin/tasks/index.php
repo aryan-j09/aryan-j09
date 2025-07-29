@@ -257,7 +257,15 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                             <ul class="list-group" id="daily-task-list">
                                 <?php
                                 // Fetch all daily tasks for the user, incomplete first, then completed, ordered by latest first
-                                $all_daily_tasks = $conn->query("SELECT * FROM daily_tasks WHERE user_id = '{$user_id}' ORDER BY completed ASC, task_date DESC, id DESC");
+                                // Also check if any tasks have been created from this daily task
+                                $all_daily_tasks = $conn->query("SELECT dt.*, 
+                                    CASE WHEN EXISTS (
+                                        SELECT 1 FROM tasks t 
+                                        WHERE t.daily_task_id = dt.id
+                                    ) THEN 1 ELSE 0 END as is_assigned
+                                    FROM daily_tasks dt 
+                                    WHERE dt.user_id = '{$user_id}' 
+                                    ORDER BY dt.completed ASC, dt.task_date DESC, dt.id DESC");
                                 $has_completed = false;
                                 while($row = $all_daily_tasks->fetch_assoc()):
                                     if (!$has_completed && $row['completed']) {
@@ -296,9 +304,19 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                                         <small class="ml-2 text-dark">
                                             <?php echo date('d M Y', strtotime($row['task_date'])); ?>
                                         </small>
-                                        <a class="btn btn-sm btn-primary ml-auto manage_task" href="javascript:void(0)" data-title="<?php echo urlencode($row['task']) ?>" title="Assign Task">
-                                            <i class="fas fa-user-plus"></i>
-                                        </a>
+                                        <?php if($row['is_assigned']): ?>
+                                            <button class="btn btn-sm btn-success ml-auto" title="Task Assigned" disabled>
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                        <?php else: ?>
+                                            <a class="btn btn-sm btn-primary ml-auto manage_task"
+                                               href="javascript:void(0)"
+                                               data-title="<?php echo htmlspecialchars($row['task'], ENT_QUOTES) ?>"
+                                               data-daily-id="<?php echo $row['id']; ?>"
+                                               title="Assign Task">
+                                               <i class="fas fa-user-plus"></i>
+                                            </a>
+                                        <?php endif; ?>
                                         <button class="btn btn-sm btn-danger ml-1 delete_daily_task"
                                             data-id="<?php echo $row['id']; ?>" title="Delete Task">
                                             <i class="fa fa-trash"></i>
@@ -378,7 +396,10 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
 
         $('#daily-task-list').on('click', '.manage_task', function(){
             var title = $(this).data('title');
-            uni_modal("<i class='fa fa-plus'></i> New Task", "tasks/manage_task.php?title="+title, "large")
+            var dailyId = $(this).data('daily-id');
+            window.dailyTaskTitle = title;
+            window.dailyTaskId = dailyId;
+            uni_modal("<i class='fa fa-plus'></i> New Task", "tasks/manage_task.php", "large")
         })
 
         // Activate correct tab if hash present
