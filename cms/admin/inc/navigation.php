@@ -87,31 +87,7 @@ $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
                   <i class="nav-icon fas fa-file-invoice"></i>
                   <p>Quotations</p>
                 </a>
-              </li> -->
-              <li class="nav-item">
-                <a href="<?php echo base_url ?>admin/?page=receiving" class="nav-link nav-receiving">
-                  <i class="nav-icon fas fa-boxes"></i>
-                  <p>Receiving</p>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a href="<?php echo base_url ?>admin/?page=pending" class="nav-link nav-pending">
-                  <i class="nav-icon fas fa-exchange-alt"></i>
-                  <p>Pending Items</p>
-                </a>
-              </li>              
-              <!-- <li class="nav-item">
-                <a href="<?php echo base_url ?>admin/?page=return" class="nav-link nav-return">
-                  <i class="nav-icon fas fa-undo"></i>
-                  <p>Return List</p>
-                </a>
-              </li> -->
-              <li class="nav-item">
-                <a href="<?php echo base_url ?>admin/?page=stocks" class="nav-link nav-stocks">
-                  <i class="nav-icon fas fa-table"></i>
-                  <p>Stocks</p>
-                </a>
-              </li>
+              </li> -->              
               <?php if($_settings->userdata('type') == 1): ?>
               <li class="nav-item dropdown">
                 <a href="<?php echo base_url ?>admin/?page=clients" class="nav-link nav-clients">
