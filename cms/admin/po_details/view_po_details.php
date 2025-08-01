@@ -260,7 +260,7 @@ while($step = $steps_qry->fetch_assoc()) {
                     }
                     ?>
                 </div>
-                <div class="card-tools">                   
+                <div class="card-tools no-print">                   
                     <?php 
                     if(isset($_SESSION['userdata']) && $_SESSION['userdata']['type'] == '1'): 
                         // Check if any document exists
@@ -555,6 +555,7 @@ while($step = $steps_qry->fetch_assoc()) {
                 <div class="col-md-12 pt-2">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="m-0">Requirements & Specifications</h5>
+                        <div class="no-print">
                         <?php if(isset($_SESSION['userdata'])): ?>
                             <?php
                             // Calculate current content hash
@@ -580,6 +581,7 @@ while($step = $steps_qry->fetch_assoc()) {
                                 </div>
                             <?php endif; ?>
                         <?php endif; ?>
+                        </div>
                     </div>
                     
                     <dt>Requirement:</dt>
@@ -751,7 +753,7 @@ $(document).ready(function() {
 <!-- Add this after your existing rows -->
 <div class="row mt-4">
     <div class="col-md-12">
-        <div class="card card-outline card-primary">
+        <div class="card card-outline card-primary no-print">
             <div class="card-header">
                 <h3 class="card-title">Purchase Order Timeline</h3>
                 <div class="card-tools">
