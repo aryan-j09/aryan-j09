@@ -53,6 +53,12 @@ $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
                 </a>
               </li>
               <li class="nav-item">
+                <a href="<?php echo base_url ?>admin/?page=stock_orders" class="nav-link nav-stock_orders">
+                  <i class="nav-icon fas fa-shopping-cart"></i>
+                  <p>Stock Order</p>
+                </a>
+              </li>
+              <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=proforma_invoice" class="nav-link nav-proforma_invoice">
                   <i class="nav-icon fas fa-file-invoice-dollar"></i>
                   <p>Proforma Invoice</p>

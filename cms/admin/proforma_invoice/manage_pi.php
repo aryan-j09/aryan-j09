@@ -5,7 +5,7 @@ define('_base_url_', 'https://sbpanchal.com/cms/');
 $success_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    error_log("POST Data: " . print_r($_POST, true));
+    error_log("POST Data: " . print_r($_POST, true));    
     
     // Verify HSN codes are present
     if (isset($_POST['hsn_code'])) {
@@ -59,6 +59,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $abg_required = isset($_POST['abg_required']) ? 1 : 0;
     $pbg_required = isset($_POST['pbg_required']) ? 1 : 0;
 
+    // Generate work order number for new invoices
+    if (empty($id)) {
+        $query = "SELECT work_order_number FROM proforma_invoice_list 
+                  WHERE work_order_number LIKE 'WO%' 
+                  ORDER BY CAST(SUBSTRING(work_order_number, 3) AS UNSIGNED) DESC 
+                  LIMIT 1";
+        
+        $result = $conn->query($query);
+        $nextNumber = 1;
+
+        if ($result && $result->num_rows > 0) {
+            $lastNumber = $result->fetch_assoc()['work_order_number'];
+            $numericPart = intval(substr($lastNumber, 2));
+            $nextNumber = $numericPart + 1;
+        }
+        
+        $work_order_number = "WO" . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+        error_log("Generated Work Order Number for new PI: " . $work_order_number); // Debugging line
+    } else {
+        $work_order_number = isset($_POST['work_order_number']) ? $_POST['work_order_number'] : null; // Keep existing for updates
+    }
+
+
     // Update the form fields with calculated values
     echo "<script>
         document.getElementById('advance_payment_amount').value = $advance_payment_amount.toFixed(2);
@@ -73,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Insert new record
     $stmt = $conn->prepare("INSERT INTO proforma_invoice_list (
         po_code,
+        work_order_number,
         po_date_created,
         client_id,
         total_amount,
@@ -101,11 +125,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         abg_required,
         pbg_required,
         currency
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     $stmt->bind_param(
-        "ssidddddddddddddddddsddsssiis", 
+        "sssidddddddddddddddddsddsssiis", // Corrected 30-character string
         $po_code,
+        $work_order_number,
         $po_date_created,
         $client_id,
         $total_amount,
@@ -137,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     );
 
 } else {
-    // Update existing record
+    // Update existing record - work_order_number is not updated
     $stmt = $conn->prepare("UPDATE proforma_invoice_list SET 
         po_code = ?,
         po_date_created = ?,
@@ -243,6 +268,7 @@ if (isset($_GET['id'])) {
     if ($qry->num_rows > 0) {
         $result = $qry->fetch_assoc();
         $po_code = $result['po_code'];
+        $work_order_number = $result['work_order_number'];
         $po_date_created = $result['po_date_created'];
         $client_id = $result['client_id'];
         $company = $result['company']; // Add this line
@@ -395,6 +421,7 @@ while($row = $item_query->fetch_assoc()) {
                 <input type="text" name="po_code" id="po_code" class="form-control" placeholder="PO Code" value="<?php echo isset($po_code) ? $po_code : ''; ?>" required>
             </div>
         </div>
+
         <div class="col-md-6">
             <div class="form-group">
                 <label for="po_date_created">PO Date <span class="text-danger">*</span></label>
@@ -587,7 +614,7 @@ while($row = $item_query->fetch_assoc()) {
                     </div>
                     <div class="form-group">
                         <label for="freight_note" class="control-label">Freight Note:</label>
-                        <input type="text" name="freight_note" id="freight_note" class="form-control" value="<?php echo isset($freight_note) ? $freight_note : ''; ?>" required>
+                        <input type="text" name="freight_note" id="freight_note" class="form-control" value="<?php echo isset($freight_note) ? $freight_note : ''; ?>">
                     </div>                    
                 </div>
                 <!-- Middle Column - Taxes -->
@@ -628,7 +655,7 @@ while($row = $item_query->fetch_assoc()) {
                     </div>
                     <div class="form-group">
                         <label for="authorized_signatory" class="control-label pt-2">Authorized Signatory:</label>
-                        <input type="text" name="authorized_signatory" id="authorized_signatory" class="form-control" value="<?php echo isset($authorized_signatory) ? $authorized_signatory : ''; ?>" required>
+                        <input type="text" name="authorized_signatory" id="authorized_signatory" class="form-control" value="<?php echo isset($authorized_signatory) ? $authorized_signatory : ''; ?>">
                     </div>
                 </div>
                 <!-- Right Column - Payment Terms -->
@@ -1198,6 +1225,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Update the INSERT query with all fields including freight
 $query = "INSERT INTO proforma_invoice_list (
     po_code,
+    work_order_number,
     po_date_created,
     client_id,
     total_amount,
@@ -1224,37 +1252,9 @@ $query = "INSERT INTO proforma_invoice_list (
     authorized_signatory,
     inspection_payment_type,
     abg_required,
-    pbg_required
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON DUPLICATE KEY UPDATE    
-    po_code = VALUES(po_code),
-    po_date_created = VALUES(po_date_created),
-    client_id = VALUES(client_id),
-    total_amount = VALUES(total_amount),
-    packing_forwarding = VALUES(packing_forwarding),
-    freight = VALUES(freight),
-    tax = VALUES(tax),
-    cgst = VALUES(cgst),
-    sgst = VALUES(sgst),
-    advance_payment = VALUES(advance_payment),
-    advance_payment_amount = VALUES(advance_payment_amount),
-    inspection_payment = VALUES(inspection_payment),
-    inspection_payment_amount = VALUES(inspection_payment_amount),
-    installation_payment = VALUES(installation_payment),
-    installation_payment_amount = VALUES(installation_payment_amount),
-    sub_total = VALUES(sub_total),
-    sgst_amount = VALUES(sgst_amount),
-    cgst_amount = VALUES(cgst_amount),
-    tax_amount = VALUES(tax_amount),
-    packing_forwarding_amount = VALUES(packing_forwarding_amount),
-    company = VALUES(company),
-    credit_payment_days = VALUES(credit_payment_days),
-    credit_payment_amount = VALUES(credit_payment_amount),
-    freight_note = VALUES(freight_note),
-    authorized_signatory = VALUES(authorized_signatory),
-    inspection_payment_type = VALUES(inspection_payment_type),
-    abg_required = VALUES(abg_required),
-    pbg_required = VALUES(pbg_required)";
+    pbg_required,
+    work_order_number
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 $stmt = $conn->prepare($query);
 if ($stmt === false) {
@@ -1265,8 +1265,9 @@ if ($stmt === false) {
 
 // Update bind_param with correct number of parameters and types
 $stmt->bind_param(
-    "ssiddddddddddddddddsddsssii",  // 28 parameters: 3 strings, 1 integer, 16 decimals, 1 string, 2 decimals, 3 strings, 2 integers
+    "sssidddddddddddddddddsddsssiis",  // 28 parameters: 3 strings, 1 integer, 16 decimals, 1 string, 2 decimals, 3 strings, 2 integers
     $po_code,
+    $work_order_number,
     $po_date_created,
     $client_id,
     $total_amount,
@@ -1293,7 +1294,8 @@ $stmt->bind_param(
     $authorized_signatory,
     $inspection_payment_type,
     $abg_required,
-    $pbg_required
+    $pbg_required,
+    $work_order_number
 );
 
     $stmt->execute();
@@ -1333,4 +1335,3 @@ $stmt->bind_param(
     echo json_encode($response);
 }
 ?>
-
