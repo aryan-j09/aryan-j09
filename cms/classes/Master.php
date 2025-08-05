@@ -1,7 +1,7 @@
 <?php
-header('Content-Type: application/json');
-
 require_once('../config.php');
+
+date_default_timezone_set('Asia/Kolkata');
 Class Master extends DBConnection {
     private $settings;
     public function __construct(){
@@ -308,140 +308,147 @@ Class Master extends DBConnection {
     }
 
     function save_pi() {
-    try {
-        extract($_POST);
-        
-        // Add ABG/PBG handling here
-        $abg_required = isset($_POST['abg_required']) ? 1 : 0;
-        $pbg_required = isset($_POST['pbg_required']) ? 1 : 0;
-        
-        // Debug
-        error_log("POST data: " . print_r($_POST, true));
-        
-        // ...rest of existing save_pi code...
-        
-        // Make sure these are included in your database query
-        $data .= ", `abg_required` = '{$abg_required}'";
-        $data .= ", `pbg_required` = '{$pbg_required}'";
-        
-        // ...rest of existing save_pi code...
-        
-        // Debug
-        error_log("POST data: " . print_r($_POST, true));
-        
-        foreach ($_POST as $k => $v) {
-            if (!in_array($k, array('id', 'description', 'amount', 'employee_passcode', 'admin_passcode')) && !is_array($_POST[$k])) {
-                if (!is_numeric($v)) $v = $this->conn->real_escape_string($v);
-                if (!empty($data)) $data .= ", ";
-                $data .= " `{$k}` = '{$v}' ";
-            }
-        }
-
-		// Set default values if not provided
-		$packing_forwarding = isset($packing_forwarding) ? $packing_forwarding : 0;
-		$tax = isset($tax) ? $tax : 0;
-		$cgst = isset($cgst) ? $cgst : 0;
-		$sgst = isset($sgst) ? $sgst : 0;
-		$advance_payment = isset($advance_payment) ? $advance_payment : 0;
-		$inspection_payment = isset($inspection_payment) ? $inspection_payment : 0;
-		$installation_payment = isset($installation_payment) ? $installation_payment : 0;
-	
-
-            // Generate pi_code if not provided
-            if (empty($pi_code)) {
-                $result = $this->conn->query("SELECT MAX(id) AS max_id FROM proforma_invoice_list");
-                $row = $result->fetch_assoc();
-                $next_id = $row['max_id'] + 1;
-                $pi_code = 'PI-' . str_pad($next_id, 5, '0', STR_PAD_LEFT);
-                $data .= ", `pi_code` = '{$pi_code}'";
-            }
-
-            // Validate employee passcode
-            $employee_result = $this->conn->query("SELECT * FROM approvers WHERE role = 'employee' AND passcode = '{$employee_passcode}'");
-            if ($employee_result->num_rows > 0) {
-                $employee_approved = 1;
-                $employee_approved_by = $employee_result->fetch_assoc()['name'];
-            } else {
-                $employee_approved = 0;
-                $employee_approved_by = null;
-            }
-
-            // Validate admin passcode
-            $admin_result = $this->conn->query("SELECT * FROM approvers WHERE role = 'admin' AND passcode = '{$admin_passcode}'");
-            if ($admin_result->num_rows > 0) {
-                $admin_approved = 1;
-                $admin_approved_by = $admin_result->fetch_assoc()['name'];
-            } else {
-                $admin_approved = 0;
-                $admin_proved_by = null;
-            }
-
-            // Add approval passcodes to the data
-            $data .= ", `employee_approved` = '{$employee_approved}', `admin_approved` = '{$admin_approved}', `employee_approved_by` = '{$employee_approved_by}', `admin_approved_by` = '{$admin_approved_by}'";
-
-            // Debug
-            error_log("SQL data: " . $data);
-
+        try {
+            extract($_POST);
+            
+            // Generate work order number for new invoices
             if (empty($id)) {
-                $sql = "INSERT INTO `proforma_invoice_list` SET {$data}";
-            } else {
-                $sql = "UPDATE `proforma_invoice_list` SET {$data} WHERE id = '{$id}'";
-            }
-
-            // Debug
-            error_log("SQL query: " . $sql);
-            
-            $save = $this->conn->query($sql);
-            
-            if ($save) {
-                $resp['status'] = 'success';
-                if (empty($id)) {
-                    $resp['msg'] = "New Proforma Invoice successfully created.";
-                } else {
-                    $resp['msg'] = "Proforma Invoice successfully updated.";
+                $query = "SELECT work_order_number FROM proforma_invoice_list 
+                          WHERE work_order_number LIKE 'WO%' 
+                          ORDER BY CAST(SUBSTRING(work_order_number, 3) AS UNSIGNED) DESC 
+                          LIMIT 1";
+                
+                $result = $this->conn->query($query);
+                $nextNumber = 1;
+    
+                if ($result && $result->num_rows > 0) {
+                    $lastNumber = $result->fetch_assoc()['work_order_number'];
+                    $numericPart = intval(substr($lastNumber, 2));
+                    $nextNumber = $numericPart + 1;
                 }
-
-                // Save items
-                if(!empty($_POST['description'])) {
-                    $stmt = $this->conn->prepare("DELETE FROM proforma_invoice_items WHERE proforma_invoice_id = ?");
-                    $stmt->bind_param("i", $id);
-                    $stmt->execute();
-
-                    $stmt = $this->conn->prepare("INSERT INTO proforma_invoice_items (proforma_invoice_id, description, hsn_code, amount) VALUES (?, ?, ?, ?)");
-                    
-                    foreach ($_POST['description'] as $key => $description) {
-                        $amount = $_POST['amount'][$key];
-                        $hsn_code = $_POST['hsn_code'][$key];
+                
+                $formattedNumber = str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+                // Add the generated number directly to the $_POST array
+                $_POST['work_order_number'] = "WO{$formattedNumber}";
+                // Add a specific debug log to confirm generation
+                error_log("Generated Work Order Number: " . $_POST['work_order_number']);
+            }
+            
+            // Add ABG/PBG handling
+            $_POST['abg_required'] = isset($abg_required) ? 1 : 0;
+            $_POST['pbg_required'] = isset($pbg_required) ? 1 : 0;
+            
+            // Build the data string for the SQL query
+            $data = "";
+            foreach ($_POST as $k => $v) {
+                if (!in_array($k, array('id', 'description', 'amount', 'employee_passcode', 'admin_passcode')) && !is_array($v)) {
+                    $v = $this->conn->real_escape_string($v);
+                    if (!empty($data)) $data .= ", ";
+                    $data .= " `{$k}` = '{$v}' ";
+                }
+            }
+    
+            // Set default values if not provided
+            $packing_forwarding = isset($packing_forwarding) ? $packing_forwarding : 0;
+            $tax = isset($tax) ? $tax : 0;
+            $cgst = isset($cgst) ? $cgst : 0;
+            $sgst = isset($sgst) ? $sgst : 0;
+            $advance_payment = isset($advance_payment) ? $advance_payment : 0;
+            $inspection_payment = isset($inspection_payment) ? $inspection_payment : 0;
+            $installation_payment = isset($installation_payment) ? $installation_payment : 0;
+        
+    
+                // Generate pi_code if not provided
+                if (empty($pi_code)) {
+                    $result = $this->conn->query("SELECT MAX(id) AS max_id FROM proforma_invoice_list");
+                    $row = $result->fetch_assoc();
+                    $next_id = $row['max_id'] + 1;
+                    $pi_code = 'PI-' . str_pad($next_id, 5, '0', STR_PAD_LEFT);
+                    if (!empty($data)) $data .= ", ";
+                    $data .= " `pi_code` = '{$pi_code}'";
+                }
+    
+                // Validate employee passcode
+                $employee_result = $this->conn->query("SELECT * FROM approvers WHERE role = 'employee' AND passcode = '{$employee_passcode}'");
+                if ($employee_result->num_rows > 0) {
+                    $employee_approved = 1;
+                    $employee_approved_by = $employee_result->fetch_assoc()['name'];
+                } else {
+                    $employee_approved = 0;
+                    $employee_approved_by = null;
+                }
+    
+                // Validate admin passcode
+                $admin_result = $this->conn->query("SELECT * FROM approvers WHERE role = 'admin' AND passcode = '{$admin_passcode}'");
+                if ($admin_result->num_rows > 0) {
+                    $admin_approved = 1;
+                    $admin_approved_by = $admin_result->fetch_assoc()['name'];
+                } else {
+                    $admin_approved = 0;
+                    $admin_proved_by = null;
+                }
+    
+                // Add approval passcodes to the data
+                if (!empty($data)) $data .= ", ";
+                $data .= " `employee_approved` = '{$employee_approved}', `admin_approved` = '{$admin_approved}', `employee_approved_by` = '{$employee_approved_by}', `admin_approved_by` = '{$admin_approved_by}'";
+    
+                if (empty($id)) {
+                    $sql = "INSERT INTO `proforma_invoice_list` SET {$data}";
+                } else {
+                    $sql = "UPDATE `proforma_invoice_list` SET {$data} WHERE id = '{$id}'";
+                }
+                
+                // Add a debug log for the final query
+                error_log("Final SQL Query: " . $sql);
+                
+                $save = $this->conn->query($sql);
+                
+                if ($save) {
+                    $resp['status'] = 'success';
+                    $pi_id = empty($id) ? $this->conn->insert_id : $id;
+                    $resp['id'] = $pi_id;
+    
+                    if (empty($id)) {
+                        $resp['msg'] = "New Proforma Invoice successfully created.";
+                    } else {
+                        $resp['msg'] = "Proforma Invoice successfully updated.";
+                    }
+    
+                    // Save items
+                    if(!empty($_POST['description'])) {
+                        $stmt = $this->conn->prepare("DELETE FROM proforma_invoice_items WHERE proforma_invoice_id = ?");
+                        $stmt->bind_param("i", $pi_id);
+                        $stmt->execute();
+    
+                        $stmt = $this->conn->prepare("INSERT INTO proforma_invoice_items (proforma_invoice_id, description, hsn_code, amount) VALUES (?, ?, ?, ?)");
                         
-                        // Debug log
-                        error_log("Saving item - Description: $description, HSN: $hsn_code, Amount: $amount");
-                        
-                        $stmt->bind_param("issd", $id, $description, $hsn_code, $amount);
-                        if (!$stmt->execute()) {
-                            error_log("Error saving item: " . $stmt->error);
-                            throw new Exception("Failed to save item details: " . $stmt->error);
+                        foreach ($_POST['description'] as $key => $description) {
+                            $amount = $_POST['amount'][$key];
+                            $hsn_code = $_POST['hsn_code'][$key];
+                            
+                            $stmt->bind_param("issd", $pi_id, $description, $hsn_code, $amount);
+                            if (!$stmt->execute()) {
+                                throw new Exception("Failed to save item details: " . $stmt->error);
+                            }
                         }
                     }
+                    
+                    $resp['pi_code'] = $pi_code ?? null;
+                    
+                } else {
+                    $resp['status'] = 'failed';
+                    $resp['msg'] = "Error: " . $this->conn->error;
+                    error_log("SQL Error: " . $this->conn->error);
                 }
-                
-                $resp['msg'] = "Proforma Invoice saved successfully.";
-                $resp['id'] = $id;
-                $resp['pi_code'] = $pi_code;
-                
-            } else {
+    
+            } catch (Exception $e) {
                 $resp['status'] = 'failed';
-                $resp['msg'] = "Error: " . $this->conn->error;
-                error_log("SQL Error: " . $this->conn->error);
+                $resp['msg'] = "Exception: " . $e->getMessage();
+                error_log("Exception: " . $e->getMessage());
             }
-
-        } catch (Exception $e) {
-            $resp['status'] = 'failed';
-            $resp['msg'] = "Exception: " . $e->getMessage();
-            error_log("Exception: " . $e->getMessage());
+    
+            return json_encode($resp);
         }
-
-        return json_encode($resp);
-    }
 
     function delete_pi(){
         extract($_POST);
@@ -1372,7 +1379,7 @@ function delete_activity(){
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = $this->conn->prepare($sql);
                 $created_by = $_SESSION['userdata']['id'];
-                $stmt->bind_param('ississsi', 
+                $stmt->bind_param('isssssss', 
                     $po_id, 
                     $step_name, 
                     $step_category, 
@@ -1473,539 +1480,195 @@ function delete_activity(){
         }
     }
 
-    function save_task(){
-        extract($_POST);
-        $data = "";
-        
-        // Check if this is an update and status has changed
-        if(!empty($id)){
-            $old_status = $this->conn->query("SELECT status FROM tasks WHERE id = '{$id}'")->fetch_assoc()['status'];
-            if($old_status != $status){
-                if(!empty($data)) $data .= ",";
-                $data .= " status_updated_at = CURRENT_TIMESTAMP ";
-            }
-        }
-        
-        foreach($_POST as $k =>$v){
-            if(!in_array($k, array('id', 'assigned_by'))){
-                if(!empty($data)) $data .=",";
-                $v = $this->conn->real_escape_string($v);
-                // Only allow daily_task_id if it's numeric or null
-                if($k == 'daily_task_id') {
-                    if($v === '' || strtolower($v) === 'null') {
-                        $data .= " `daily_task_id`=NULL ";
-                    } else {
-                        $data .= " `daily_task_id`=".intval($v)." ";
-                    }
-                } else {
-                    $data .= " `{$k}`='{$v}' ";
-                }
-            }
-        }
-        
-        if(empty($id)){
-            $data .= ", `assigned_by`='{$_SESSION['userdata']['id']}'";
-            $sql = "INSERT INTO `tasks` set {$data}";
-        }else{
-            $sql = "UPDATE `tasks` set {$data} where id = '{$id}'";
-        }
-        
-        $save = $this->conn->query($sql);
-        if($save){
-            // Get updated task count
-            $user_id = $assigned_to;
-            $count_query = $this->conn->query("SELECT COUNT(*) as count FROM tasks 
-                WHERE assigned_to = '{$user_id}' AND status != 'completed'");
-            $count = $count_query->fetch_assoc()['count'];
-            
-            $resp['status'] = 'success';
-            $resp['task_count'] = $count;
-            if(empty($id))
-                $this->settings->set_flashdata('success',"New Task successfully saved.");
-            else
-                $this->settings->set_flashdata('success',"Task successfully updated.");
-        }else{
-            $resp['status'] = 'failed';
-            $resp['err'] = $this->conn->error;
-        }
-        return json_encode($resp);
-    }
+    function save_stock_order(){
+    // Set JSON header
+    header('Content-Type: application/json');
+    $resp = array('status' => 'failed', 'msg' => '');
     
-    function delete_task(){
-        extract($_POST);
-        
-        // Get assigned_to before deleting
-        $assigned_to = $this->conn->query("SELECT assigned_to FROM tasks WHERE id = '{$id}'")->fetch_assoc()['assigned_to'];
-        
-        $del = $this->conn->query("DELETE FROM `tasks` where id = '{$id}'");
-        if($del){
-            // Get updated count
-            $count_query = $this->conn->query("SELECT COUNT(*) as count FROM tasks 
-                WHERE assigned_to = '{$assigned_to}' AND status != 'completed'");
-            $count = $count_query->fetch_assoc()['count'];
-            
-            $resp['status'] = 'success';
-            $resp['task_count'] = $count;
-            $this->settings->set_flashdata('success',"Task successfully deleted.");
-        }else{
-            $resp['status'] = 'failed';
-            $resp['error'] = $this->conn->error;
-        }
-        return json_encode($resp);
-    }
-    
-    function get_task_count() {
-        $user_id = $_SESSION['userdata']['id'];
-        $qry = $this->conn->query("SELECT COUNT(*) as count FROM tasks 
-            WHERE assigned_to = '{$user_id}' AND status != 'completed'");
-        $row = $qry->fetch_assoc();
-        return json_encode(['status' => 'success', 'count' => $row['count']]);
-    }
-
-    function save_quote_item() {
     try {
+        // Extract POST data
         extract($_POST);
+        
+        // Basic validation
+        if(empty($channel) || empty($order_date) || empty($supplier_id) || empty($order_type)) {
+            throw new Exception("Please fill all required fields");
+        }
+
+        // Set po_code to NULL for non-purchase_order channels
+        $po_code = ($channel === 'purchase_order' && !empty($_POST['po_code'])) ? $_POST['po_code'] : null;
+
+        // Start transaction
         $this->conn->begin_transaction();
 
-        // Basic item data
-        $data = "name = '" . $this->conn->real_escape_string($name) . "', 
-                 description = '" . $this->conn->real_escape_string($description) . "'";
+        // Set timezone to India
+        date_default_timezone_set('Asia/Kolkata');
+        $current_time = date('Y-m-d H:i:s');
 
-        // Insert or Update main item data
         if(empty($id)) {
-            $sql = "INSERT INTO quote_items SET {$data}";
-            $save = $this->conn->query($sql);
-            $item_id = $this->conn->insert_id;
-        } else {
-            $sql = "UPDATE quote_items SET {$data} WHERE id = '{$id}'";
-            $save = $this->conn->query($sql);
-            $item_id = $id;
-        }
-
-        if(!$save) throw new Exception("Failed to save item data");
-
-        // Handle image uploads with descriptions
-        if(isset($_FILES['item_images'])) {
-            $upload_path = '../uploads/quote_items/';
-            if(!is_dir($upload_path)) mkdir($upload_path, 0777, true);
-
-            foreach($_FILES['item_images']['tmp_name'] as $key => $tmp_name) {
-                if($_FILES['item_images']['error'][$key] == 0) {
-                    $ext = pathinfo($_FILES['item_images']['name'][$key], PATHINFO_EXTENSION);
-                    $fname = 'item_' . time() . '_' . $key . '.' . $ext;
-                    $image_path = 'uploads/quote_items/' . $fname;
-                    
-                    if(move_uploaded_file($tmp_name, $upload_path . $fname)) {
-                        $description = isset($_POST['image_descriptions'][$key]) ? 
-                            $this->conn->real_escape_string($_POST['image_descriptions'][$key]) : '';
-
-                        $img_sql = "INSERT INTO quote_item_images (quote_item_id, image_path, description) 
-                                  VALUES ('{$item_id}', '{$image_path}', '{$description}')";
-                        if(!$this->conn->query($img_sql)) {
-                            throw new Exception("Failed to save image record");
-                        }
-                    }
-                }
+            // Insert new stock order
+            $stmt = $this->conn->prepare("INSERT INTO stock_orders (
+                order_code, po_code, channel, order_date, supplier_id, 
+                work_order_number, order_type, total_amount, negotiated_amount, 
+                remarks, created_by, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            
+            if(!$stmt) {
+                throw new Exception("Failed to prepare INSERT statement: " . $this->conn->error);
             }
-        }
-
-        // Save Technical Specifications
-        if(isset($_POST['attr_name'])) {
-            if(!empty($id)) {
-                $this->conn->query("DELETE FROM quote_item_attributes WHERE quote_item_id = $item_id");
-            }
-            $attr_stmt = $this->conn->prepare("INSERT INTO quote_item_attributes (quote_item_id, attribute_name, attribute_value) VALUES (?, ?, ?)");
-            foreach($_POST['attr_name'] as $key => $attr_name) {
-                if(empty($attr_name)) continue;
-                $attr_value = $_POST['attr_value'][$key];
-                $attr_stmt->bind_param("iss", $item_id, $attr_name, $attr_value);
-                $attr_stmt->execute();
-            }
-        }
-
-        // Save Pricing Details
-        if(isset($_POST['price_desc'])) {
-            if(!empty($id)) {
-                $this->conn->query("DELETE FROM quote_item_prices WHERE quote_item_id = $item_id");
-            }
-            $price_stmt = $this->conn->prepare("INSERT INTO quote_item_prices (quote_item_id, description, price) VALUES (?, ?, ?)");
-            foreach($_POST['price_desc'] as $key => $price_desc) {
-                if(empty($price_desc)) continue;
-                $price = floatval($_POST['price_amount'][$key]);
-                $price_stmt->bind_param("isd", $item_id, $price_desc, $price);
-                $price_stmt->execute();
-            }
-        }
-
-        // Save Accessories
-        if(isset($_POST['acc_name'])) {
-            if(!empty($id)) {
-                $this->conn->query("DELETE FROM quote_item_accessories WHERE quote_item_id = $item_id");
-            }
-            $acc_stmt = $this->conn->prepare("INSERT INTO quote_item_accessories (quote_item_id, name, price) VALUES (?, ?, ?)");
-            foreach($_POST['acc_name'] as $key => $acc_name) {
-                if(empty($acc_name)) continue;
-                $acc_price = floatval($_POST['acc_price'][$key]);
-                $acc_stmt->bind_param("isd", $item_id, $acc_name, $acc_price);
-                $acc_stmt->execute();
-            }
-        }
-
-        $this->conn->commit();
-        $resp['status'] = 'success';
-        $resp['msg'] = empty($id) ? "Quote item added successfully!" : "Quote item updated successfully!";
-        $resp['redirect'] = './?page=quote_items';
-        $this->settings->set_flashdata('success', $resp['msg']);
-
-    } catch (Exception $e) {
-        $this->conn->rollback();
-        $resp['status'] = 'failed';
-        $resp['msg'] = $e->getMessage();
-        error_log("Save quote item error: " . $e->getMessage());
-    }
-    
-    return json_encode($resp);
-}
-function delete_quote_item() {
-    try {
-        extract($_POST);
-        $this->conn->begin_transaction();
-
-        // Fetch all image paths for this item
-        $images = $this->conn->query("SELECT image_path FROM quote_item_images WHERE quote_item_id = '{$id}'");
-        while($img = $images->fetch_assoc()) {
-            $file_path = '../' . $img['image_path'];
-            if(file_exists($file_path)) {
-                @unlink($file_path);
-            }
-        }
-
-        // Delete all associated records
-        $tables = [
-            'quote_item_images',
-            'quote_item_attributes',
-            'quote_item_prices',
-            'quote_item_accessories'
-        ];
-        foreach($tables as $table) {
-            $this->conn->query("DELETE FROM {$table} WHERE quote_item_id = '{$id}'");
-        }
-
-        // Delete the main item
-        $this->conn->query("DELETE FROM quote_items WHERE id = '{$id}'");
-
-        $this->conn->commit();
-        $resp['status'] = 'success';
-        $this->settings->set_flashdata('success', "Item deleted successfully.");
-
-    } catch (Exception $e) {
-        $this->conn->rollback();
-        $resp['status'] = 'failed';
-        $resp['error'] = $e->getMessage();
-        error_log("Delete quote item error: " . $e->getMessage());
-    }
-
-    return json_encode($resp);
-}
-
-function delete_quote_image() {
-    try {
-        extract($_POST);
-        $img = $this->conn->query("SELECT * FROM quote_item_images WHERE id = '{$id}'")->fetch_assoc();
-        if(!$img) throw new Exception('Image not found');
-        $file_path = '../' . $img['image_path'];
-        if(file_exists($file_path)) @unlink($file_path);
-        $delete = $this->conn->query("DELETE FROM quote_item_images WHERE id = '{$id}'");
-        if(!$delete) throw new Exception("Failed to delete image record");
-        $resp['status'] = 'success';
-        $resp['msg'] = 'Image deleted successfully';
-    } catch (Exception $e) {
-        $resp['status'] = 'failed';
-        $resp['msg'] = $e->getMessage();
-    }
-    return json_encode($resp);
-}
-
-function save_quotation() {
-    extract($_POST);
-    $resp = array();
-
-    try {
-        $this->conn->begin_transaction();
-
-        // Determine if this is an insert or update
-        if(empty($id)) {
-            // New Quotation
-            if (!empty($_POST['quotation_no'])) {
-                $quotation_code = $this->conn->real_escape_string($_POST['quotation_no']);
-            } else {
-                $prefix = "QT";
-                $code = sprintf("%'.04d", 1);
-                while(true) {
-                    $check_code = $this->conn->query("SELECT id FROM quotations WHERE quotation_code = '{$prefix}-{$code}'")->num_rows;
-                    if($check_code > 0) {
-                        $code = sprintf("%'.04d", intval($code) + 1);
-                    } else {
-                        break;
-                    }
-                }
-                $quotation_code = "{$prefix}-{$code}";
-            }
-
-            $sql = "INSERT INTO quotations (lead_id, quotation_code, created_by, created_at) VALUES (?, ?, ?, NOW())";
-            $stmt = $this->conn->prepare($sql);
-            $stmt->bind_param("isi", $lead_id, $quotation_code, $_SESSION['userdata']['id']);
-            if(!$stmt->execute()) {
-                throw new Exception("Failed to create quotation: " . $stmt->error);
-            }
-            $quotation_id = $this->conn->insert_id;
-
-        } else {
-            // Update Existing Quotation
-            $quotation_id = $id;
-            $quotation_code = $this->conn->real_escape_string($quotation_no);
-            $sql = "UPDATE quotations SET quotation_code = ?, lead_id = ? WHERE id = ?";
-            $stmt = $this->conn->prepare($sql);
-            $stmt->bind_param("sii", $quotation_code, $lead_id, $quotation_id);
-            if(!$stmt->execute()) {
-                throw new Exception("Failed to update quotation: " . $stmt->error);
-            }
-
-            // Clear old items for this quotation
-            $this->conn->query("DELETE FROM quotation_item_prices WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$quotation_id}')");
-            $this->conn->query("DELETE FROM quotation_item_accessories WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$quotation_id}')");
-            $this->conn->query("DELETE FROM quotation_items WHERE quotation_id = '{$quotation_id}'");
-        }
-
-        // Save selected machines and their details
-        if(isset($selected_machines) && is_array($selected_machines)) {
-            foreach($selected_machines as $machine_id) {
-                $sql = "INSERT INTO quotation_items (quotation_id, quote_item_id) VALUES (?, ?)";
-                $stmt = $this->conn->prepare($sql);
-                $stmt->bind_param("ii", $quotation_id, $machine_id);
-                if(!$stmt->execute()) {
-                    throw new Exception("Failed to save machine selection: " . $stmt->error);
-                }
-                $quotation_item_id = $this->conn->insert_id;
-
-                if(isset($prices) && isset($prices[$machine_id]) && is_array($prices[$machine_id])) {
-                    foreach($prices[$machine_id] as $price_id) {
-                        $sql = "INSERT INTO quotation_item_prices (quotation_item_id, price_id) VALUES (?, ?)";
-                        $stmt = $this->conn->prepare($sql);
-                        $stmt->bind_param("ii", $quotation_item_id, $price_id);
-                        if(!$stmt->execute()) throw new Exception("Failed to save price: " . $stmt->error);
-                    }
-                }
-
-                if(isset($accessories) && isset($accessories[$machine_id]) && is_array($accessories[$machine_id])) {
-                    foreach($accessories[$machine_id] as $accessory_id) {
-                        $sql = "INSERT INTO quotation_item_accessories (quotation_item_id, accessory_id) VALUES (?, ?)";
-                        $stmt = $this->conn->prepare($sql);
-                        $stmt->bind_param("ii", $quotation_item_id, $accessory_id);
-                        if(!$stmt->execute()) throw new Exception("Failed to save accessory: " . $stmt->error);
-                    }
-                }
-            }
-        }
-
-        $this->conn->commit();
-        $resp['status'] = 'success';
-        $resp['quotation_id'] = $quotation_id;
-        $flash_msg = empty($id) ? "Quotation generated successfully." : "Quotation updated successfully.";
-        $this->settings->set_flashdata('success', $flash_msg);
-
-    } catch (Exception $e) {
-        $this->conn->rollback();
-        $resp['status'] = 'failed';
-        $resp['msg'] = $e->getMessage();
-        error_log("Quotation Error: " . $e->getMessage());
-    }
-
-    return json_encode($resp);
-}
-
-function delete_quotation(){
-extract($_POST);
-
-try {
-    $this->conn->begin_transaction();
-
-    // Delete related records first
-    $this->conn->query("DELETE FROM quotation_item_prices WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$id}')");
-    $this->conn->query("DELETE FROM quotation_item_accessories WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$id}')");
-    $this->conn->query("DELETE FROM quotation_items WHERE quotation_id = '{$id}'");
-    $this->conn->query("DELETE FROM quotations WHERE id = '{$id}'");
-
-    $this->conn->commit();
-    $resp['status'] = 'success';
-    $this->settings->set_flashdata('success', "Quotation deleted successfully.");
-
-} catch (Exception $e) {
-    $this->conn->rollback();
-    $resp['status'] = 'failed';
-    $resp['msg'] = $e->getMessage();
-}
-
-return json_encode($resp);
-}
-
-function save_purchase_order_timeline()
-{
-    try {
-        extract($_POST);
-        $this->conn->begin_transaction();
-
-        // Validate required fields
-        if (empty($po_id) || empty($step_name) || empty($step_date)) {
-            throw new Exception("Required fields are missing");
-        }
-
-        // Handle file uploads
-        $uploaded_files = [];
-        if (isset($_FILES['documents'])) {
-            $upload_path = '../uploads/purchase_order_timeline/';
-            if (!is_dir($upload_path)) {
-                if (!mkdir($upload_path, 0777, true)) {
-                    throw new Exception("Failed to create upload directory");
-                }
-            }
-            foreach ($_FILES['documents']['tmp_name'] as $key => $tmp_name) {
-                if ($_FILES['documents']['error'][$key] == 0) {
-                    $file_ext = pathinfo($_FILES['documents']['name'][$key], PATHINFO_EXTENSION);
-                    $file_name = 'purchase_timeline_' . time() . '_' . $key . '.' . $file_ext;
-                    $file_path = 'uploads/purchase_order_timeline/' . $file_name;
-                    $full_path = $upload_path . $file_name;
-                    if (move_uploaded_file($tmp_name, $full_path)) {
-                        $doc_desc = isset($_POST['document_description'][$key]) ? $_POST['document_description'][$key] : '';
-                        $uploaded_files[] = [
-                            'path' => $file_path,
-                            'description' => $doc_desc
-                        ];
-                    } else {
-                        throw new Exception("Failed to upload file: " . $_FILES['documents']['name'][$key]);
-                    }
-                }
-            }
-        }
-
-        // UPDATE if timeline_id is set, otherwise INSERT
-        if (isset($timeline_id) && !empty($timeline_id)) {
-            $sql = "UPDATE purchase_order_timeline SET 
-                        step_name = ?, 
-                        step_date = ?, 
-                        remarks = ?
-                    WHERE id = ?";
-            $stmt = $this->conn->prepare($sql);
-            $stmt->bind_param(
-                'sssi',
-                $step_name,
-                $step_date,
-                $remarks,
-                $timeline_id
-            );
-            if (!$stmt->execute()) {
-                throw new Exception("Failed to update timeline entry");
-            }
-            $current_timeline_id = $timeline_id;
-        } else {
-            $sql = "INSERT INTO purchase_order_timeline (
-                        po_id, step_name, step_date, remarks, created_by
-                    ) VALUES (?, ?, ?, ?, ?)";
-            $stmt = $this->conn->prepare($sql);
+            
             $created_by = $_SESSION['userdata']['id'];
+            $total_amount = 0;
+            $negotiated_amount = 0;
+            
             $stmt->bind_param(
-                'isssi',
-                $po_id,
-                $step_name,
-                $step_date,
-                $remarks,
-                $created_by
+                "ssssissddsis",
+                $order_code,      // s - string
+                $po_code,         // s - string (can be null)
+                $channel,         // s - string
+                $order_date,      // s - string
+                $supplier_id,     // i - integer
+                $work_order_numbers, // s - string
+                $order_type,      // s - string
+                $total_amount,    // d - double
+                $negotiated_amount, // d - double
+                $remarks,         // s - string
+                $created_by,      // i - integer
+                $current_time     // s - string (current timestamp)
             );
-            if (!$stmt->execute()) {
-                throw new Exception("Failed to save timeline entry");
+
+        } else {
+            // Update existing stock order
+            $stmt = $this->conn->prepare("UPDATE stock_orders SET 
+                order_code = ?, 
+                po_code = ?,
+                channel = ?, 
+                order_date = ?, 
+                supplier_id = ?, 
+                work_order_number = ?,
+                order_type = ?,
+                total_amount = ?,
+                negotiated_amount = ?,
+                remarks = ?,
+                updated_at = ?
+                WHERE id = ?");
+            
+            if(!$stmt) {
+                throw new Exception("Failed to prepare UPDATE statement: " . $this->conn->error);
             }
-            $current_timeline_id = $this->conn->insert_id;
+            
+            $total_amount = 0;
+            $negotiated_amount = 0;
+            
+            $stmt->bind_param(
+                "ssssissddsssi",
+                $order_code,      // s - string
+                $po_code,         // s - string (can be null)
+                $channel,         // s - string
+                $order_date,      // s - string
+                $supplier_id,     // i - integer
+                $work_order_numbers, // s - string
+                $order_type,      // s - string
+                $total_amount,    // d - double
+                $negotiated_amount, // d - double
+                $remarks,         // s - string
+                $current_time,    // s - string (current timestamp)
+                $id              // i - integer
+            );
         }
 
-        // Save uploaded files
-        if (!empty($uploaded_files)) {
-            $sql = "INSERT INTO purchase_order_timeline_files (timeline_id, file_path, description) VALUES (?, ?, ?)";
-            $stmt = $this->conn->prepare($sql);
-            foreach ($uploaded_files as $file) {
-                $stmt->bind_param('iss', $current_timeline_id, $file['path'], $file['description']);
-                if (!$stmt->execute()) {
-                    throw new Exception("Failed to save file record");
+        if(!$stmt->execute()) {
+            throw new Exception("Failed to save stock order: " . $stmt->error);
+        }
+        
+        $order_id = empty($id) ? $this->conn->insert_id : $id;
+        
+        // Delete existing items if updating
+        if(!empty($id)) {
+            $this->conn->query("DELETE FROM stock_order_items WHERE order_id = '$order_id'");
+        }
+        
+        // Save stock order items
+        if(isset($_POST['item_id']) && is_array($_POST['item_id'])) {
+            $total_amount = 0;
+            $negotiated_amount = 0;
+            
+            foreach($_POST['item_id'] as $index => $item_id) {
+                $quantity = $_POST['quantity'][$index];
+                $unit = $_POST['unit'][$index];
+                $unit_price = $_POST['unit_price'][$index];
+                $total_price = $_POST['total_price'][$index];
+                $negotiated_total = $_POST['negotiated_total'][$index];
+                $item_remarks = $_POST['item_remarks'][$index];
+                
+                $stmt = $this->conn->prepare("INSERT INTO stock_order_items (
+                    order_id, item_id, quantity, unit, unit_price, 
+                    total_price, negotiated_total, remarks
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                
+                $stmt->bind_param(
+                    "iissddds",
+                    $order_id,        // i - integer
+                    $item_id,         // i - integer
+                    $quantity,        // s - string
+                    $unit,           // s - string
+                    $unit_price,     // d - double
+                    $total_price,    // d - double
+                    $negotiated_total, // d - double
+                    $item_remarks    // s - string
+                );
+                
+                if(!$stmt->execute()) {
+                    throw new Exception("Failed to save stock order item: " . $stmt->error);
                 }
+                
+                $total_amount += $total_price;
+                $negotiated_amount += $negotiated_total;
+            }
+            
+            // Update order totals
+            $stmt = $this->conn->prepare("UPDATE stock_orders SET 
+                total_amount = ?, negotiated_amount = ? 
+                WHERE id = ?");
+            
+            $stmt->bind_param("ddi", $total_amount, $negotiated_amount, $order_id);
+            
+            if(!$stmt->execute()) {
+                throw new Exception("Failed to update order totals: " . $stmt->error);
             }
         }
 
         $this->conn->commit();
-        $this->settings->set_flashdata('success', "Entry saved successfully.");
-        return json_encode(['status' => 'success']);
+        
+        // Set success message in session
+        $this->settings->set_flashdata('success', empty($id) ? 'Stock order successfully created.' : 'Stock order successfully updated.');
+
+        // Set success response
+        $resp['status'] = 'success';
+        $resp['msg'] = empty($id) ? 'Stock order successfully created.' : 'Stock order successfully updated.';
+        $resp['id'] = $order_id;
+        $resp['redirect'] = 'admin/?page=stock_orders/view_order&id=' . $order_id;
+
     } catch (Exception $e) {
-        error_log("Purchase Order Timeline Error: " . $e->getMessage());
         $this->conn->rollback();
-        // Clean up any uploaded files
-        if (isset($uploaded_files)) {
-            foreach ($uploaded_files as $file) {
-                if (file_exists('../' . $file['path'])) {
-                    unlink('../' . $file['path']);
-                }
-            }
-        }
-        return json_encode([
-            'status' => 'failed',
-            'msg' => $e->getMessage()
-        ]);
+        $resp['status'] = 'failed';
+        $resp['msg'] = $e->getMessage();
+        error_log("Stock order save error: " . $e->getMessage());
     }
+    
+    return json_encode($resp);
 }
-
-function delete_purchase_order_timeline()
-{
-    try {
-        extract($_POST);
-        $this->conn->begin_transaction();
-
-        if (!isset($id)) {
-            throw new Exception("Timeline ID is required");
-        }
-
-        // Get all files associated with this timeline entry before deletion
-        $files_query = $this->conn->query("SELECT file_path FROM purchase_order_timeline_files WHERE timeline_id = '{$id}'");
-        $files_to_delete = [];
-        while ($file = $files_query->fetch_assoc()) {
-            if (!empty($file['file_path'])) {
-                $files_to_delete[] = $file['file_path'];
-            }
-        }
-
-        // Delete files from DB
-        $this->conn->query("DELETE FROM purchase_order_timeline_files WHERE timeline_id = '{$id}'");
-
-        // Delete the timeline entry
-        $delete_timeline = $this->conn->query("DELETE FROM purchase_order_timeline WHERE id = '{$id}'");
-
-        if ($delete_timeline) {
-            // Delete physical files from directory
-            foreach ($files_to_delete as $file_path) {
-                $full_path = '../' . $file_path;
-                if (file_exists($full_path)) {
-                    unlink($full_path);
-                }
-            }
-            $this->conn->commit();
-            $this->settings->set_flashdata('success', "Timeline entry deleted successfully.");
-            return json_encode(['status' => 'success']);
-        }
-
-        throw new Exception('Failed to delete timeline entry');
-    } catch (Exception $e) {
-        $this->conn->rollback();
-        return json_encode([
-            'status' => 'failed',
-            'msg' => $e->getMessage()
-        ]);
+function delete_stock_order(){
+    extract($_POST);
+    $delete = $this->conn->query("DELETE FROM `stock_orders` where id = '{$id}'");
+    if($delete){
+        $this->capture_err();
+        $resp['status'] = 'success';
+        $resp['msg'] = 'Stock order successfully deleted.';
+    }else{
+        $resp['status'] = 'failed';
+        $resp['msg'] = 'An error occurred. Error: '.$this->conn->error;
     }
+    return json_encode($resp);
 }
 }
 
@@ -2111,6 +1774,12 @@ switch ($action) {
     break;
     case 'delete_purchase_order_timeline':
         echo $Master->delete_purchase_order_timeline();
+    break;
+    case 'save_stock_order':
+        echo $Master->save_stock_order();
+    break;
+    case 'delete_stock_order':
+        echo $Master->delete_stock_order();
     break;
 	default:
 		// echo $sysset->index();
