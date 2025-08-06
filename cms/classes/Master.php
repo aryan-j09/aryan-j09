@@ -1480,6 +1480,85 @@ function delete_activity(){
         }
     }
 
+    function save_task(){
+        extract($_POST);
+        $data = "";
+        
+        // Check if this is an update and status has changed
+        if(!empty($id)){
+            $old_status = $this->conn->query("SELECT status FROM tasks WHERE id = '{$id}'")->fetch_assoc()['status'];
+            if($old_status != $status){
+                if(!empty($data)) $data .= ",";
+                $data .= " status_updated_at = CURRENT_TIMESTAMP ";
+            }
+        }
+        
+        foreach($_POST as $k =>$v){
+            if(!in_array($k, array('id', 'assigned_by'))){
+                if(!empty($data)) $data .=",";
+                $v = $this->conn->real_escape_string($v);
+                $data .= " `{$k}`='{$v}' ";
+            }
+        }
+        
+        if(empty($id)){
+            $data .= ", `assigned_by`='{$_SESSION['userdata']['id']}'";
+            $sql = "INSERT INTO `tasks` set {$data}";
+        }else{
+            $sql = "UPDATE `tasks` set {$data} where id = '{$id}'";
+        }
+        
+        $save = $this->conn->query($sql);
+        if($save){
+            // Get updated task count
+            $user_id = $assigned_to;
+            $count_query = $this->conn->query("SELECT COUNT(*) as count FROM tasks 
+                WHERE assigned_to = '{$user_id}' AND status != 'completed'");
+            $count = $count_query->fetch_assoc()['count'];
+            
+            $resp['status'] = 'success';
+            $resp['task_count'] = $count;
+            if(empty($id))
+                $this->settings->set_flashdata('success',"New Task successfully saved.");
+            else
+                $this->settings->set_flashdata('success',"Task successfully updated.");
+        }else{
+            $resp['status'] = 'failed';
+            $resp['err'] = $this->conn->error;
+        }
+        return json_encode($resp);
+    }
+    
+    function delete_task(){
+        extract($_POST);
+        
+        // Get assigned_to before deleting
+        $assigned_to = $this->conn->query("SELECT assigned_to FROM tasks WHERE id = '{$id}'")->fetch_assoc()['assigned_to'];
+        
+        $del = $this->conn->query("DELETE FROM `tasks` where id = '{$id}'");
+        if($del){
+            // Get updated count
+            $count_query = $this->conn->query("SELECT COUNT(*) as count FROM tasks 
+                WHERE assigned_to = '{$assigned_to}' AND status != 'completed'");
+            $count = $count_query->fetch_assoc()['count'];
+            
+            $resp['status'] = 'success';
+            $resp['task_count'] = $count;
+            $this->settings->set_flashdata('success',"Task successfully deleted.");
+        }else{
+            $resp['status'] = 'failed';
+            $resp['error'] = $this->conn->error;
+        }
+        return json_encode($resp);
+    }
+    function get_task_count() {
+        $user_id = $_SESSION['userdata']['id'];
+        $qry = $this->conn->query("SELECT COUNT(*) as count FROM tasks 
+            WHERE assigned_to = '{$user_id}' AND status != 'completed'");
+        $row = $qry->fetch_assoc();
+        return json_encode(['status' => 'success', 'count' => $row['count']]);
+    }
+
     function save_stock_order(){
     // Set JSON header
     header('Content-Type: application/json');
