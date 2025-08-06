@@ -1200,21 +1200,22 @@ $(document).ready(function(){
                  alert_toast("An error occurred", 'error');
                  end_loader();
              },
-             success: function(resp){
-                 if (typeof resp == 'object' && resp.status == 'success') {
-                     location.href = _base_url_ + 'admin/?page=stock_orders';
-                 } else if (resp.status == 'failed' && !!resp.msg) {
-                     var el = $('<div>');
-                     el.addClass("alert alert-danger err-msg").text(resp.msg);
-                     _this.prepend(el);
-                     el.show('slow');
-                     $("html, body").animate({ scrollTop: _this.closest('.card').offset().top }, "fast");
-                     end_loader();
-                 } else {
-                     alert_toast("An error occurred", 'error');
-                     end_loader();
-                 }
-             }
+            success: function(resp){
+                if (typeof resp == 'object' && resp.status == 'success') {
+                    // Use the redirect URL from the response
+                    location.href = resp.redirect;
+                } else if (resp.status == 'failed' && !!resp.msg) {
+                    var el = $('<div>');
+                    el.addClass("alert alert-danger err-msg").text(resp.msg);
+                    _this.prepend(el);
+                    el.show('slow');
+                    $("html, body").animate({ scrollTop: _this.closest('.card').offset().top }, "fast");
+                    end_loader();
+                } else {
+                    alert_toast("An error occurred", 'error');
+                    end_loader();
+                }
+            }
          });
      });
     

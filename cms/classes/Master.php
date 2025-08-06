@@ -1646,7 +1646,7 @@ function delete_activity(){
         $resp['status'] = 'success';
         $resp['msg'] = empty($id) ? 'Stock order successfully created.' : 'Stock order successfully updated.';
         $resp['id'] = $order_id;
-        $resp['redirect'] = 'admin/?page=stock_orders/view_order&id=' . $order_id;
+        $resp['redirect'] = base_url . 'admin/?page=stock_orders/view_order&id=' . $order_id;
 
     } catch (Exception $e) {
         $this->conn->rollback();
@@ -1664,6 +1664,7 @@ function delete_stock_order(){
         $this->capture_err();
         $resp['status'] = 'success';
         $resp['msg'] = 'Stock order successfully deleted.';
+        $this->settings->set_flashdata('success', 'Stock order successfully deleted.');
     }else{
         $resp['status'] = 'failed';
         $resp['msg'] = 'An error occurred. Error: '.$this->conn->error;
