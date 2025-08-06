@@ -233,7 +233,7 @@ while($row = $item_query->fetch_assoc()) {
         <div class="header-right text-left">
             <p style="font-size: 18px;">Regd Office: 8, Jogani Industrial Estate,<br> 
             541 Senapati Bapat Marg, Dadar (W), Mumbai 400028<br>
-            Tel: 9820537200 Email: sales@sbpanchal.com<br>
+            Mob: 9869415083 Email: sales@sbpanchal.com<br>
             Works: Plot No TS 20, MIDC Phase 2, Sagaon,<br>
             Manpada Road, Dombivli (E) 421203</p>
             GSTIN:27AACCH1711N1ZM
