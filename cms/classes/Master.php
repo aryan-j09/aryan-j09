@@ -1750,6 +1750,47 @@ function delete_stock_order(){
     }
     return json_encode($resp);
 }
+
+function save_utility_supplier(){
+    extract($_POST);
+    $data = "";
+    foreach($_POST as $k =>$v){
+        if(!in_array($k,array('id'))){
+            if(!empty($data)) $data .= ",";
+            $data .= " `{$k}`='{$v}' ";
+        }
+    }
+    if(empty($id)){
+        $sql = "INSERT INTO `utility_supplier_list` set {$data}";
+    }else{
+        $sql = "UPDATE `utility_supplier_list` set {$data} where id = '{$id}'";
+    }
+    $save = $this->conn->query($sql);
+    if($save){
+        $resp['status'] = 'success';
+        if(empty($id))
+            $this->settings->set_flashdata('success',"New Utility Supplier successfully saved.");
+        else
+            $this->settings->set_flashdata('success',"Utility Supplier successfully updated.");
+    }else{
+        $resp['status'] = 'failed';
+        $resp['err'] = $this->conn->error."[{$sql}]";
+    }
+    return json_encode($resp);
+}
+
+function delete_utility_supplier(){
+    extract($_POST);
+    $del = $this->conn->query("DELETE FROM `utility_supplier_list` where id = '{$id}'");
+    if($del){
+        $resp['status'] = 'success';
+        $this->settings->set_flashdata('success',"Utility Supplier successfully deleted.");
+    }else{
+        $resp['status'] = 'failed';
+        $resp['error'] = $this->conn->error;
+    }
+    return json_encode($resp);
+}
 }
 
 $Master = new Master();
@@ -1860,6 +1901,12 @@ switch ($action) {
     break;
     case 'delete_stock_order':
         echo $Master->delete_stock_order();
+    break;
+    case 'save_utility_supplier':   
+        echo $Master->save_utility_supplier();
+    break;
+    case 'delete_utility_supplier':
+        echo $Master->delete_utility_supplier();
     break;
 	default:
 		// echo $sysset->index();

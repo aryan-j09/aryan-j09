@@ -107,6 +107,12 @@ $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
                   <p>Supplier List</p>
                 </a>
               </li>
+              <li class="nav-item dropdown">
+                <a href="<?php echo base_url ?>admin/?page=utility" class="nav-link nav-utility">
+                  <i class="nav-icon fas fa-bolt"></i>
+                  <p>Utility Suppliers</p>
+                </a>
+              </li>
               <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=machine_items" class="nav-link nav-machine_items">
                   <i class="nav-icon fas fa-cogs"></i>
