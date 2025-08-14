@@ -1751,6 +1751,165 @@ function delete_stock_order(){
     return json_encode($resp);
 }
 
+    function save_purchase_order_timeline()
+    {
+        try {
+            extract($_POST);
+            $this->conn->begin_transaction();
+
+            // Validate required fields
+            if (empty($po_id) || empty($step_name) || empty($step_date)) {
+                throw new Exception("Required fields are missing");
+            }
+
+            // Handle file uploads
+            $uploaded_files = [];
+            if (isset($_FILES['documents'])) {
+                $upload_path = '../uploads/purchase_order_timeline/';
+                if (!is_dir($upload_path)) {
+                    if (!mkdir($upload_path, 0777, true)) {
+                        throw new Exception("Failed to create upload directory");
+                    }
+                }
+                foreach ($_FILES['documents']['tmp_name'] as $key => $tmp_name) {
+                    if ($_FILES['documents']['error'][$key] == 0) {
+                        $file_ext = pathinfo($_FILES['documents']['name'][$key], PATHINFO_EXTENSION);
+                        $file_name = 'purchase_timeline_' . time() . '_' . $key . '.' . $file_ext;
+                        $file_path = 'uploads/purchase_order_timeline/' . $file_name;
+                        $full_path = $upload_path . $file_name;
+                        if (move_uploaded_file($tmp_name, $full_path)) {
+                            $doc_desc = isset($_POST['document_description'][$key]) ? $_POST['document_description'][$key] : '';
+                            $uploaded_files[] = [
+                                'path' => $file_path,
+                                'description' => $doc_desc
+                            ];
+                        } else {
+                            throw new Exception("Failed to upload file: " . $_FILES['documents']['name'][$key]);
+                        }
+                    }
+                }
+            }
+
+            // UPDATE if timeline_id is set, otherwise INSERT
+            if (isset($timeline_id) && !empty($timeline_id)) {
+                $sql = "UPDATE purchase_order_timeline SET 
+                        step_name = ?, 
+                        step_date = ?, 
+                        remarks = ?
+                    WHERE id = ?";
+                $stmt = $this->conn->prepare($sql);
+                $stmt->bind_param(
+                    'sssi',
+                    $step_name,
+                    $step_date,
+                    $remarks,
+                    $timeline_id
+                );
+                if (!$stmt->execute()) {
+                    throw new Exception("Failed to update timeline entry");
+                }
+                $current_timeline_id = $timeline_id;
+            } else {
+                $sql = "INSERT INTO purchase_order_timeline (
+                        po_id, step_name, step_date, remarks, created_by
+                    ) VALUES (?, ?, ?, ?, ?)";
+                $stmt = $this->conn->prepare($sql);
+                $created_by = $_SESSION['userdata']['id'];
+                $stmt->bind_param(
+                    'isssi',
+                    $po_id,
+                    $step_name,
+                    $step_date,
+                    $remarks,
+                    $created_by
+                );
+                if (!$stmt->execute()) {
+                    throw new Exception("Failed to save timeline entry");
+                }
+                $current_timeline_id = $this->conn->insert_id;
+            }
+
+            // Save uploaded files
+            if (!empty($uploaded_files)) {
+                $sql = "INSERT INTO purchase_order_timeline_files (timeline_id, file_path, description) VALUES (?, ?, ?)";
+                $stmt = $this->conn->prepare($sql);
+                foreach ($uploaded_files as $file) {
+                    $stmt->bind_param('iss', $current_timeline_id, $file['path'], $file['description']);
+                    if (!$stmt->execute()) {
+                        throw new Exception("Failed to save file record");
+                    }
+                }
+            }
+
+            $this->conn->commit();
+            $this->settings->set_flashdata('success', "Entry saved successfully.");
+            return json_encode(['status' => 'success']);
+        } catch (Exception $e) {
+            error_log("Purchase Order Timeline Error: " . $e->getMessage());
+            $this->conn->rollback();
+            // Clean up any uploaded files
+            if (isset($uploaded_files)) {
+                foreach ($uploaded_files as $file) {
+                    if (file_exists('../' . $file['path'])) {
+                        unlink('../' . $file['path']);
+                    }
+                }
+            }
+            return json_encode([
+                'status' => 'failed',
+                'msg' => $e->getMessage()
+            ]);
+        }
+    }
+
+    function delete_purchase_order_timeline()
+    {
+        try {
+            extract($_POST);
+            $this->conn->begin_transaction();
+
+            if (!isset($id)) {
+                throw new Exception("Timeline ID is required");
+            }
+
+            // Get all files associated with this timeline entry before deletion
+            $files_query = $this->conn->query("SELECT file_path FROM purchase_order_timeline_files WHERE timeline_id = '{$id}'");
+            $files_to_delete = [];
+            while ($file = $files_query->fetch_assoc()) {
+                if (!empty($file['file_path'])) {
+                    $files_to_delete[] = $file['file_path'];
+                }
+            }
+
+            // Delete files from DB
+            $this->conn->query("DELETE FROM purchase_order_timeline_files WHERE timeline_id = '{$id}'");
+
+            // Delete the timeline entry
+            $delete_timeline = $this->conn->query("DELETE FROM purchase_order_timeline WHERE id = '{$id}'");
+
+            if ($delete_timeline) {
+                // Delete physical files from directory
+                foreach ($files_to_delete as $file_path) {
+                    $full_path = '../' . $file_path;
+                    if (file_exists($full_path)) {
+                        unlink($full_path);
+                    }
+                }
+                $this->conn->commit();
+                $this->settings->set_flashdata('success', "Timeline entry deleted successfully.");
+                return json_encode(['status' => 'success']);
+            }
+
+            throw new Exception('Failed to delete timeline entry');
+        } catch (Exception $e) {
+            $this->conn->rollback();
+            return json_encode([
+                'status' => 'failed',
+                'msg' => $e->getMessage()
+            ]);
+        }
+    }
+
 function save_utility_supplier(){
     extract($_POST);
     $data = "";
