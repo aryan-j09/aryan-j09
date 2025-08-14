@@ -1480,52 +1480,68 @@ function delete_activity(){
         }
     }
 
-    function save_task(){
-        extract($_POST);
-        $data = "";
-        
-        // Check if this is an update and status has changed
-        if(!empty($id)){
-            $old_status = $this->conn->query("SELECT status FROM tasks WHERE id = '{$id}'")->fetch_assoc()['status'];
-            if($old_status != $status){
-                if(!empty($data)) $data .= ",";
-                $data .= " status_updated_at = CURRENT_TIMESTAMP ";
+    function save_task()
+    {
+        try {
+            extract($_POST);
+
+            // Validate required fields
+            if (empty($title) || empty($assigned_to) || empty($due_date) || empty($status) || empty($priority)) {
+                throw new Exception("Please fill in all required fields");
             }
-        }
-        
-        foreach($_POST as $k =>$v){
-            if(!in_array($k, array('id', 'assigned_by'))){
-                if(!empty($data)) $data .=",";
-                $v = $this->conn->real_escape_string($v);
-                $data .= " `{$k}`='{$v}' ";
+
+            // Build data string
+            $data = "";
+            foreach ($_POST as $k => $v) {
+                if (!in_array($k, array('id', 'assigned_by'))) {
+                    if (!empty($data)) $data .= ",";
+                    $v = $this->conn->real_escape_string($v);
+                    $data .= " `{$k}`='{$v}' ";
+                }
             }
-        }
-        
-        if(empty($id)){
-            $data .= ", `assigned_by`='{$_SESSION['userdata']['id']}'";
-            $sql = "INSERT INTO `tasks` set {$data}";
-        }else{
-            $sql = "UPDATE `tasks` set {$data} where id = '{$id}'";
-        }
-        
-        $save = $this->conn->query($sql);
-        if($save){
-            // Get updated task count
-            $user_id = $assigned_to;
-            $count_query = $this->conn->query("SELECT COUNT(*) as count FROM tasks 
+
+            // Check if this is an update and status has changed
+            if (!empty($id)) {
+                $old_status = $this->conn->query("SELECT status FROM tasks WHERE id = '{$id}'")->fetch_assoc()['status'];
+                if ($old_status != $status) {
+                    if (!empty($data)) $data .= ",";
+                    $data .= " status_updated_at = CURRENT_TIMESTAMP ";
+                }
+            }
+
+            // Add assigned_by for new tasks
+            if (empty($id)) {
+                $data .= ", `assigned_by`='{$_SESSION['userdata']['id']}'";
+                $sql = "INSERT INTO `tasks` set {$data}";
+            } else {
+                $sql = "UPDATE `tasks` set {$data} where id = '{$id}'";
+            }
+
+            error_log("Task SQL Query: " . $sql); // Debug log
+
+            $save = $this->conn->query($sql);
+            if ($save) {
+                // Get updated task count
+                $user_id = $assigned_to;
+                $count_query = $this->conn->query("SELECT COUNT(*) as count FROM tasks 
                 WHERE assigned_to = '{$user_id}' AND status != 'completed'");
-            $count = $count_query->fetch_assoc()['count'];
-            
-            $resp['status'] = 'success';
-            $resp['task_count'] = $count;
-            if(empty($id))
-                $this->settings->set_flashdata('success',"New Task successfully saved.");
-            else
-                $this->settings->set_flashdata('success',"Task successfully updated.");
-        }else{
+                $count = $count_query->fetch_assoc()['count'];
+
+                $resp['status'] = 'success';
+                $resp['task_count'] = $count;
+                if (empty($id))
+                    $this->settings->set_flashdata('success', "New Task successfully saved.");
+                else
+                    $this->settings->set_flashdata('success', "Task successfully updated.");
+            } else {
+                throw new Exception("Database Error: " . $this->conn->error);
+            }
+        } catch (Exception $e) {
+            error_log("Task Save Error: " . $e->getMessage());
             $resp['status'] = 'failed';
-            $resp['err'] = $this->conn->error;
+            $resp['msg'] = $e->getMessage();
         }
+
         return json_encode($resp);
     }
     
