@@ -1926,6 +1926,293 @@ function delete_stock_order(){
         }
     }
 
+    function save_quotation()
+    {
+        extract($_POST);
+        $resp = array();
+
+        try {
+            $this->conn->begin_transaction();
+
+            // Determine if this is an insert or update
+            if (empty($id)) {
+                // New Quotation
+                if (!empty($_POST['quotation_no'])) {
+                    $quotation_code = $this->conn->real_escape_string($_POST['quotation_no']);
+                } else {
+                    $prefix = "QT";
+                    $code = sprintf("%'.04d", 1);
+                    while (true) {
+                        $check_code = $this->conn->query("SELECT id FROM quotations WHERE quotation_code = '{$prefix}-{$code}'")->num_rows;
+                        if ($check_code > 0) {
+                            $code = sprintf("%'.04d", intval($code) + 1);
+                        } else {
+                            break;
+                        }
+                    }
+                    $quotation_code = "{$prefix}-{$code}";
+                }
+
+                $sql = "INSERT INTO quotations (lead_id, quotation_code, created_by, created_at) VALUES (?, ?, ?, NOW())";
+                $stmt = $this->conn->prepare($sql);
+                $stmt->bind_param("isi", $lead_id, $quotation_code, $_SESSION['userdata']['id']);
+                if (!$stmt->execute()) {
+                    throw new Exception("Failed to create quotation: " . $stmt->error);
+                }
+                $quotation_id = $this->conn->insert_id;
+            } else {
+                // Update Existing Quotation
+                $quotation_id = $id;
+                $quotation_code = $this->conn->real_escape_string($quotation_no);
+                $sql = "UPDATE quotations SET quotation_code = ?, lead_id = ? WHERE id = ?";
+                $stmt = $this->conn->prepare($sql);
+                $stmt->bind_param("sii", $quotation_code, $lead_id, $quotation_id);
+                if (!$stmt->execute()) {
+                    throw new Exception("Failed to update quotation: " . $stmt->error);
+                }
+
+                // Clear old items for this quotation
+                $this->conn->query("DELETE FROM quotation_item_prices WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$quotation_id}')");
+                $this->conn->query("DELETE FROM quotation_item_accessories WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$quotation_id}')");
+                $this->conn->query("DELETE FROM quotation_items WHERE quotation_id = '{$quotation_id}'");
+            }
+
+            // Save selected machines and their details
+            if (isset($selected_machines) && is_array($selected_machines)) {
+                foreach ($selected_machines as $machine_id) {
+                    $sql = "INSERT INTO quotation_items (quotation_id, quote_item_id) VALUES (?, ?)";
+                    $stmt = $this->conn->prepare($sql);
+                    $stmt->bind_param("ii", $quotation_id, $machine_id);
+                    if (!$stmt->execute()) {
+                        throw new Exception("Failed to save machine selection: " . $stmt->error);
+                    }
+                    $quotation_item_id = $this->conn->insert_id;
+
+                    if (isset($prices) && isset($prices[$machine_id]) && is_array($prices[$machine_id])) {
+                        foreach ($prices[$machine_id] as $price_id) {
+                            $sql = "INSERT INTO quotation_item_prices (quotation_item_id, price_id) VALUES (?, ?)";
+                            $stmt = $this->conn->prepare($sql);
+                            $stmt->bind_param("ii", $quotation_item_id, $price_id);
+                            if (!$stmt->execute()) throw new Exception("Failed to save price: " . $stmt->error);
+                        }
+                    }
+
+                    if (isset($accessories) && isset($accessories[$machine_id]) && is_array($accessories[$machine_id])) {
+                        foreach ($accessories[$machine_id] as $accessory_id) {
+                            $sql = "INSERT INTO quotation_item_accessories (quotation_item_id, accessory_id) VALUES (?, ?)";
+                            $stmt = $this->conn->prepare($sql);
+                            $stmt->bind_param("ii", $quotation_item_id, $accessory_id);
+                            if (!$stmt->execute()) throw new Exception("Failed to save accessory: " . $stmt->error);
+                        }
+                    }
+                }
+            }
+
+            $this->conn->commit();
+            $resp['status'] = 'success';
+            $resp['quotation_id'] = $quotation_id;
+            $flash_msg = empty($id) ? "Quotation generated successfully." : "Quotation updated successfully.";
+            $this->settings->set_flashdata('success', $flash_msg);
+        } catch (Exception $e) {
+            $this->conn->rollback();
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+            error_log("Quotation Error: " . $e->getMessage());
+        }
+
+        return json_encode($resp);
+    }
+
+    function delete_quotation()
+    {
+        extract($_POST);
+
+        try {
+            $this->conn->begin_transaction();
+
+            // Delete related records first
+            $this->conn->query("DELETE FROM quotation_item_prices WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$id}')");
+            $this->conn->query("DELETE FROM quotation_item_accessories WHERE quotation_item_id IN (SELECT id FROM quotation_items WHERE quotation_id = '{$id}')");
+            $this->conn->query("DELETE FROM quotation_items WHERE quotation_id = '{$id}'");
+            $this->conn->query("DELETE FROM quotations WHERE id = '{$id}'");
+
+            $this->conn->commit();
+            $resp['status'] = 'success';
+            $this->settings->set_flashdata('success', "Quotation deleted successfully.");
+        } catch (Exception $e) {
+            $this->conn->rollback();
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+        }
+
+        return json_encode($resp);
+    }
+
+    function save_quote_item()
+    {
+        try {
+            extract($_POST);
+            $this->conn->begin_transaction();
+
+            // Basic item data
+            $data = "name = '" . $this->conn->real_escape_string($name) . "', 
+                 description = '" . $this->conn->real_escape_string($description) . "'";
+
+            // Insert or Update main item data
+            if (empty($id)) {
+                $sql = "INSERT INTO quote_items SET {$data}";
+                $save = $this->conn->query($sql);
+                $item_id = $this->conn->insert_id;
+            } else {
+                $sql = "UPDATE quote_items SET {$data} WHERE id = '{$id}'";
+                $save = $this->conn->query($sql);
+                $item_id = $id;
+            }
+
+            if (!$save) throw new Exception("Failed to save item data");
+
+            // Handle image uploads with descriptions
+            if (isset($_FILES['item_images'])) {
+                $upload_path = '../uploads/quote_items/';
+                if (!is_dir($upload_path)) mkdir($upload_path, 0777, true);
+
+                foreach ($_FILES['item_images']['tmp_name'] as $key => $tmp_name) {
+                    if ($_FILES['item_images']['error'][$key] == 0) {
+                        $ext = pathinfo($_FILES['item_images']['name'][$key], PATHINFO_EXTENSION);
+                        $fname = 'item_' . time() . '_' . $key . '.' . $ext;
+                        $image_path = 'uploads/quote_items/' . $fname;
+
+                        if (move_uploaded_file($tmp_name, $upload_path . $fname)) {
+                            $description = isset($_POST['image_descriptions'][$key]) ?
+                                $this->conn->real_escape_string($_POST['image_descriptions'][$key]) : '';
+
+                            $img_sql = "INSERT INTO quote_item_images (quote_item_id, image_path, description) 
+                                  VALUES ('{$item_id}', '{$image_path}', '{$description}')";
+                            if (!$this->conn->query($img_sql)) {
+                                throw new Exception("Failed to save image record");
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Save Technical Specifications
+            if (isset($_POST['attr_name'])) {
+                if (!empty($id)) {
+                    $this->conn->query("DELETE FROM quote_item_attributes WHERE quote_item_id = $item_id");
+                }
+                $attr_stmt = $this->conn->prepare("INSERT INTO quote_item_attributes (quote_item_id, attribute_name, attribute_value) VALUES (?, ?, ?)");
+                foreach ($_POST['attr_name'] as $key => $attr_name) {
+                    if (empty($attr_name)) continue;
+                    $attr_value = $_POST['attr_value'][$key];
+                    $attr_stmt->bind_param("iss", $item_id, $attr_name, $attr_value);
+                    $attr_stmt->execute();
+                }
+            }
+
+            // Save Pricing Details
+            if (isset($_POST['price_desc'])) {
+                if (!empty($id)) {
+                    $this->conn->query("DELETE FROM quote_item_prices WHERE quote_item_id = $item_id");
+                }
+                $price_stmt = $this->conn->prepare("INSERT INTO quote_item_prices (quote_item_id, description, price) VALUES (?, ?, ?)");
+                foreach ($_POST['price_desc'] as $key => $price_desc) {
+                    if (empty($price_desc)) continue;
+                    $price = floatval($_POST['price_amount'][$key]);
+                    $price_stmt->bind_param("isd", $item_id, $price_desc, $price);
+                    $price_stmt->execute();
+                }
+            }
+
+            // Save Accessories
+            if (isset($_POST['acc_name'])) {
+                if (!empty($id)) {
+                    $this->conn->query("DELETE FROM quote_item_accessories WHERE quote_item_id = $item_id");
+                }
+                $acc_stmt = $this->conn->prepare("INSERT INTO quote_item_accessories (quote_item_id, name, price) VALUES (?, ?, ?)");
+                foreach ($_POST['acc_name'] as $key => $acc_name) {
+                    if (empty($acc_name)) continue;
+                    $acc_price = floatval($_POST['acc_price'][$key]);
+                    $acc_stmt->bind_param("isd", $item_id, $acc_name, $acc_price);
+                    $acc_stmt->execute();
+                }
+            }
+
+            $this->conn->commit();
+            $resp['status'] = 'success';
+            $resp['msg'] = empty($id) ? "Quote item added successfully!" : "Quote item updated successfully!";
+            $resp['redirect'] = './?page=quote_items';
+            $this->settings->set_flashdata('success', $resp['msg']);
+        } catch (Exception $e) {
+            $this->conn->rollback();
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+            error_log("Save quote item error: " . $e->getMessage());
+        }
+
+        return json_encode($resp);
+    }
+    function delete_quote_item()
+    {
+        try {
+            extract($_POST);
+            $this->conn->begin_transaction();
+
+            // Fetch all image paths for this item
+            $images = $this->conn->query("SELECT image_path FROM quote_item_images WHERE quote_item_id = '{$id}'");
+            while ($img = $images->fetch_assoc()) {
+                $file_path = '../' . $img['image_path'];
+                if (file_exists($file_path)) {
+                    @unlink($file_path);
+                }
+            }
+
+            // Delete all associated records
+            $tables = [
+                'quote_item_images',
+                'quote_item_attributes',
+                'quote_item_prices',
+                'quote_item_accessories'
+            ];
+            foreach ($tables as $table) {
+                $this->conn->query("DELETE FROM {$table} WHERE quote_item_id = '{$id}'");
+            }
+
+            // Delete the main item
+            $this->conn->query("DELETE FROM quote_items WHERE id = '{$id}'");
+
+            $this->conn->commit();
+            $resp['status'] = 'success';
+            $this->settings->set_flashdata('success', "Item deleted successfully.");
+        } catch (Exception $e) {
+            $this->conn->rollback();
+            $resp['status'] = 'failed';
+            $resp['error'] = $e->getMessage();
+            error_log("Delete quote item error: " . $e->getMessage());
+        }
+
+        return json_encode($resp);
+    }
+
+    function delete_quote_image()
+    {
+        try {
+            extract($_POST);
+            $img = $this->conn->query("SELECT * FROM quote_item_images WHERE id = '{$id}'")->fetch_assoc();
+            if (!$img) throw new Exception('Image not found');
+            $file_path = '../' . $img['image_path'];
+            if (file_exists($file_path)) @unlink($file_path);
+            $delete = $this->conn->query("DELETE FROM quote_item_images WHERE id = '{$id}'");
+            if (!$delete) throw new Exception("Failed to delete image record");
+            $resp['status'] = 'success';
+            $resp['msg'] = 'Image deleted successfully';
+        } catch (Exception $e) {
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+        }
+        return json_encode($resp);
+    }
+
 function save_utility_supplier(){
     extract($_POST);
     $data = "";
