@@ -18,7 +18,7 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
     <div class="card-header">
         <h3 class="card-title">Task Details</h3>
         <div class="card-tools">
-            <a class="btn btn-flat btn-primary" href="?page=tasks/manage_task&id=<?php echo isset($id) ? $id : '' ?>">Edit</a>
+            <button class="btn btn-flat btn-primary edit_task" data-id="<?php echo isset($id) ? $id : '' ?>">Edit</button>
             <a class="btn btn-flat btn-default" href="?page=tasks">Back</a>
         </div>
     </div>
@@ -93,3 +93,12 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
         </div>
     </div>
 </div>
+
+<script>
+$(document).ready(function(){
+    // Handle edit button click
+    $('.edit_task').click(function(){
+        uni_modal("<i class='fa fa-edit'></i> Edit Task", "tasks/manage_task.php?id="+$(this).attr('data-id'), "large")
+    })
+})
+</script>
