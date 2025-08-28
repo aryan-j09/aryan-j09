@@ -1,7 +1,7 @@
 <?php 
 if(isset($_GET['id'])){
     $qry = $conn->query("SELECT pi.*, c.company_name as client, c.billing_address as client_address, 
-        c.shipping_address, c.contact_person, c.contact_no, c.cperson_acc, c.cperson_no_acc, c.cperson_pur, c.cperson_no_pur, c.gst_number, c.email 
+        c.shipping_address, c.contact_person, c.contact_no, c.cperson_acc, cperson_no_acc, c.cperson_pur, cperson_no_pur, c.gst_number, c.email 
         FROM clients c 
         JOIN proforma_invoice_list pi ON c.id = pi.client_id 
         WHERE pi.id = '{$_GET['id']}'");
@@ -18,6 +18,25 @@ if(isset($_GET['id'])){
 } else {
     echo "No invoice ID provided.";
     exit;
+}
+
+function format_indian_number($number)
+{
+    $decimal = (string)($number - floor($number));
+    $decimal = substr($decimal, 1);
+    $number = floor($number);
+
+    $len = strlen($number);
+    $m = '';
+    $number = strrev($number);
+    for ($i = 0; $i < $len; $i++) {
+        if (($i == 3 || ($i > 3 && ($i - 1) % 2 == 0)) && $i != $len) {
+            $m .= ',';
+        }
+        $m .= $number[$i];
+    }
+    $result = strrev($m);
+    return $result . $decimal;
 }
 ?>
 
@@ -309,14 +328,14 @@ if(isset($_GET['id'])){
                                 <td class="text-center"><?php echo $i++; ?>)</td>
                                 <td><?php echo nl2br(htmlspecialchars($item['description'])); ?></td>
                                 <td class="text-center"><?php echo $item['hsn_code']; ?></td>
-                                <td style="text-align: right"><?php echo number_format($item['amount'], 2); ?></td>
+                                <td style="text-align: right"><?php echo format_indian_number($item['amount']); ?></td>
                             </tr>
                         <?php endwhile; ?>
                     </tbody>
                     <tfoot>
                         <tr>
                             <th class="text-right" colspan="3">Sub Total:</th>
-                            <td class="text-right"><?php echo number_format($totalAmount, 2); ?></td>
+                            <td class="text-right"><?php echo format_indian_number($totalAmount); ?></td>
                         </tr>
                         <tr>
                             <th class="text-right" colspan="3">Packing Forwarding:
@@ -326,7 +345,7 @@ if(isset($_GET['id'])){
                             </th>
                             <td class="text-right">
                                 <?php if ($invoice['packing_forwarding_amount'] > 0) {
-                                    echo number_format($invoice['packing_forwarding_amount'], 2);
+                                    echo format_indian_number($invoice['packing_forwarding_amount']);
                                 } else {
                                     echo "Included";
                                 }
@@ -336,30 +355,30 @@ if(isset($_GET['id'])){
                         <tr>
                             <?php if ($invoice['freight'] > 0): ?>
                                 <th class="text-right" colspan="3">Freight Charges:</th>
-                                <td class="text-right"><?php echo number_format($invoice['freight'], 2); ?></td>
+                                <td class="text-right"><?php echo format_indian_number($invoice['freight']); ?></td>
                             <?php endif; ?>
                         </tr>
                         <tr>
                             <?php if ($invoice['tax'] > 0): ?>
                                 <th class="text-right" colspan="3">IGST (<?php echo $invoice['tax']; ?>%):</th>
-                                <td class="text-right"><?php echo number_format($invoice['tax_amount'], 2);?></td>
+                                <td class="text-right"><?php echo format_indian_number($invoice['tax_amount']);?></td>
                             <?php endif; ?>
                         </tr>
                         <tr>
                             <?php if ($invoice['cgst'] > 0): ?>
                                 <th class="text-right" colspan="3">CGST (<?php echo $invoice['cgst']; ?>%)</th>
-                                <td class="text-right"><?php echo number_format($invoice['cgst_amount'], 2);?></td>
+                                <td class="text-right"><?php echo format_indian_number($invoice['cgst_amount']);?></td>
                             <?php endif; ?>
                         </tr>
                         <tr>
                             <?php if ($invoice['sgst'] > 0): ?>
                                 <th class="text-right" colspan="3">SGST (<?php echo $invoice['sgst']; ?>%):</th>
-                                <td class="text-right"><?php echo number_format($invoice['sgst_amount'], 2); ?></td>
+                                <td class="text-right"><?php echo format_indian_number($invoice['sgst_amount']); ?></td>
                             <?php endif; ?>
                         </tr>
                         <tr>
                             <th class="text-right" style="color: red;" colspan="3"><u>Grand Total:</u></th>
-                            <th class="text-right"><?php echo number_format($invoice['total_amount'], 2); ?></th>
+                            <th class="text-right"><?php echo format_indian_number($invoice['total_amount']); ?></th>
                         </tr>
                         <tr>
                             <td colspan="4" style="text-align: center; font-size: 1.25em;"><strong><u>Payment Terms</u></strong></td>
@@ -372,7 +391,7 @@ if(isset($_GET['id'])){
                                     <?php endif; ?>
                                     Advance Payment(<?php echo $invoice['advance_payment']; ?>%):
                                 </th>
-                                <th class="text-right"><?php echo number_format($invoice['advance_payment_amount'], 2);?></th>
+                                <th class="text-right"><?php echo format_indian_number($invoice['advance_payment_amount']);?></th>
                             <?php endif; ?>
                         </tr>
                         <tr>
@@ -381,7 +400,7 @@ if(isset($_GET['id'])){
                                     <?php echo ($invoice['inspection_payment_type'] == 'delivery' ? 'Against Delivery' : 'Against Inspection Prior to Dispatch'); ?>
                                     (<?php echo $invoice['inspection_payment']; ?>%):
                                 </th>
-                                <th class="text-right"><?php echo number_format($invoice['inspection_payment_amount'], 2);?></th>
+                                <th class="text-right"><?php echo format_indian_number($invoice['inspection_payment_amount']);?></th>
                             <?php endif; ?>
                         </tr>
                         <tr>
@@ -392,13 +411,13 @@ if(isset($_GET['id'])){
                                     <?php endif; ?>
                                     Within 15 Days from Date of Installation(<?php echo $invoice['installation_payment']; ?>%):
                                 </th>
-                                <th class="text-right"><?php echo number_format($invoice['installation_payment_amount'], 2);?></th>
+                                <th class="text-right"><?php echo format_indian_number($invoice['installation_payment_amount']);?></th>
                             <?php endif; ?>
                         </tr>
                         <tr>
                             <?php if($invoice['credit_payment_amount'] > 0): ?>
                                 <th class="text-right" colspan="3"><?php echo($invoice ['credit_payment_days']) ?> days from Date of Invoice:</th>
-                                <th class="text-right"><?php echo number_format($invoice['credit_payment_amount'], 2); ?></th>
+                                <th class="text-right"><?php echo format_indian_number($invoice['credit_payment_amount']); ?></th>
                             <?php endif; ?>
                         </tr>
                     </tfoot>
