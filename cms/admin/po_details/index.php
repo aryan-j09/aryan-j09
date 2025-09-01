@@ -1,13 +1,18 @@
 <?php
-function getCurrencySymbol($currency) {
+function getCurrencySymbol($currency)
+{
     switch (strtoupper($currency)) {
-        case 'USD': return '$';
-        case 'EUR': return '€';
+        case 'USD':
+            return '$';
+        case 'EUR':
+            return '€';
         case 'INR':
-        default: return '₹';
+        default:
+            return '₹';
     }
 }
-function formatIndianMoney($num) {
+function formatIndianMoney($num)
+{
     $parts = explode('.', number_format($num, 2, '.', ''));
     $whole = $parts[0];
     $decimal = $parts[1];
@@ -20,11 +25,13 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PO Records</title>
 </head>
+
 <body>
     <div class="card card-outline card-primary">
         <div class="card-header">
@@ -80,8 +87,8 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                     <col width="10%">
                     <col width="10%">
                     <col width="8%">
-                    <?php if(isset($_SESSION['userdata']) && $_SESSION['userdata']['type'] == '1'): ?>
-                    <col width="10%">
+                    <?php if (isset($_SESSION['userdata']) && $_SESSION['userdata']['type'] == '1'): ?>
+                        <col width="10%">
                     <?php endif; ?>
                     <col width="4%">
                 </colgroup>
@@ -94,8 +101,8 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                         <th>PO Date</th>
                         <th>Delivery Date</th>
                         <th>Status</th>
-                        <?php if(isset($_SESSION['userdata']) && $_SESSION['userdata']['type'] == '1'): ?>
-                        <th>Payment Status</th>
+                        <?php if (isset($_SESSION['userdata']) && $_SESSION['userdata']['type'] == '1'): ?>
+                            <th>Payment Status</th>
                         <?php endif; ?>
                         <th>Actions</th>
                     </tr>
@@ -104,10 +111,10 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                     <?php
                     // Build conditions array
                     $conditions = array();
-                    if(!empty($from_date) && !empty($to_date)) {
+                    if (!empty($from_date) && !empty($to_date)) {
                         $conditions[] = "pil.po_date_created BETWEEN '$from_date-01' AND LAST_DAY('$to_date-01')";
                     }
-                    if(!empty($selected_company)) {
+                    if (!empty($selected_company)) {
                         $conditions[] = "pil.company = '$selected_company'";
                     }
                     $where_clause = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
@@ -153,7 +160,7 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                             $progress = min(100, max(0, ($days_passed / $total_days) * 100));
                         }
                     ?>
-                        <tr class="data-row">
+                        <tr class="data-row" data-company="<?php echo $row['company']; ?>">
                             <td class="align-middle"><?php echo $i++; ?>.</td>
                             <td class="align-middle"><?php echo $row['po_code']; ?></td>
                             <td class="align-middle"><?php echo $row['client_name']; ?></td>
@@ -161,26 +168,26 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                             <td class="align-middle"><?php echo $row['po_date']; ?></td>
                             <td class="align-middle"><?php echo date("d-M-Y", strtotime($row['expected_delivery'])); ?></td>
                             <td class="align-middle">
-                                <?php 
-                                    if ($row['status'] == 'completed') {
-                                        echo '<span class="badge badge-success">Delivered: ' . date("d-M-Y", strtotime($row['actual_delivery_date'])) . '</span>';
+                                <?php
+                                if ($row['status'] == 'completed') {
+                                    echo '<span class="badge badge-success">Delivered: ' . date("d-M-Y", strtotime($row['actual_delivery_date'])) . '</span>';
+                                } else {
+                                    if ($days_left < 0) {
+                                        echo '<span class="badge ' . $badge_class . '">Overdue by ' . abs($days_left) . ' days</span>';
+                                    } elseif ($days_left == 0) {
+                                        echo '<span class="badge ' . $badge_class . '">Due Today</span>';
                                     } else {
-                                        if ($days_left < 0) {
-                                            echo '<span class="badge ' . $badge_class . '">Overdue by ' . abs($days_left) . ' days</span>';
-                                        } elseif ($days_left == 0) {
-                                            echo '<span class="badge ' . $badge_class . '">Due Today</span>';
-                                        } else {
-                                            echo '<span class="badge ' . $badge_class . '">' . $days_left . ' days left</span>';
-                                        }
+                                        echo '<span class="badge ' . $badge_class . '">' . $days_left . ' days left</span>';
                                     }
+                                }
                                 ?>
                             </td>
-                            <?php if(isset($_SESSION['userdata']) && $_SESSION['userdata']['type'] == '1'): ?>
-                            <td class="align-middle">
-                                <?php 
-                                    if($row['total_amount'] > 0) {
+                            <?php if (isset($_SESSION['userdata']) && $_SESSION['userdata']['type'] == '1'): ?>
+                                <td class="align-middle">
+                                    <?php
+                                    if ($row['total_amount'] > 0) {
                                         $balance = $row['total_amount'] - ($row['advance_received'] + $row['inspection_received'] + $row['installation_received'] + $row['credit_received']);
-                                        if($balance > 0) {
+                                        if ($balance > 0) {
                                             echo '<span class="badge badge-danger">' . getCurrencySymbol($row['currency'] ?? 'INR') . ' ' . formatIndianMoney($balance) . '</span>';
                                         } else {
                                             echo '<span class="badge badge-success">' . getCurrencySymbol($row['currency'] ?? 'INR') . ' 0.00</span>';
@@ -188,8 +195,8 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                                     } else {
                                         echo '<span class="badge badge-warning">' . getCurrencySymbol($row['currency'] ?? 'INR') . ' 0.00</span>';
                                     }
-                                ?>
-                            </td>
+                                    ?>
+                                </td>
                             <?php endif; ?>
                             <td class="align-middle text-center">
                                 <button type="button" class="btn btn-flat btn-default btn-sm dropdown-toggle dropdown-icon" data-toggle="dropdown">
@@ -205,11 +212,11 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                                         <span class="fa fa-edit text-primary"></span> Edit
                                     </a>
                                     <div class="dropdown-divider"></div>
-                                    <?php if($row['status'] != 'completed'): ?>
-                                    <a class="dropdown-item finish-project" href="javascript:void(0);" data-id="<?php echo $row['id']; ?>" data-po="<?php echo $row['po_code']; ?>">
-                                        <span class="fa fa-check text-success"></span> Finish Project
-                                    </a>
-                                    <div class="dropdown-divider"></div>
+                                    <?php if ($row['status'] != 'completed'): ?>
+                                        <a class="dropdown-item finish-project" href="javascript:void(0);" data-id="<?php echo $row['id']; ?>" data-po="<?php echo $row['po_code']; ?>">
+                                            <span class="fa fa-check text-success"></span> Finish Project
+                                        </a>
+                                        <div class="dropdown-divider"></div>
                                     <?php endif; ?>
                                     <a class="dropdown-item delete-po" href="javascript:void(0);" data-id="<?php echo $row['id']; ?>">
                                         <span class="fa fa-trash text-danger"></span> Delete
@@ -219,10 +226,10 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                         </tr>
                         <div id="progress_<?php echo $row['id']; ?>" class="progress-container d-none">
                             <div class="progress rounded-0" style="height: 4px;">
-                                <div class="progress-bar <?php echo $progress_class ?>" 
-                                     role="progressbar" 
-                                     style="width: <?php echo $progress ?>%" 
-                                     title="<?php echo round($progress) ?>% time elapsed">
+                                <div class="progress-bar <?php echo $progress_class ?>"
+                                    role="progressbar"
+                                    style="width: <?php echo $progress ?>%"
+                                    title="<?php echo round($progress) ?>% time elapsed">
                                 </div>
                             </div>
                         </div>
@@ -235,6 +242,24 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
         .progress {
             background-color: #f8f9fa;
         }
+
+        .progress-wrapper {
+            background: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-top: 0 !important;
+        }
+
+        .hugopharm-row {
+            background-color: rgba(0, 123, 255, 0.1) !important;
+            /* Light blue */
+        }
+
+        .sbpanchal-row {
+            background-color: rgba(255, 153, 0, 0.1) !important;
+            /* Light orange */
+        }
+
         .progress-wrapper {
             background: none !important;
             margin: 0 !important;
@@ -255,20 +280,32 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
             return formatIndianNumber(parseFloat(num));
         }
 
-        $(document).ready(function () {
+        $(document).ready(function() {
             // Initialize DataTable
             var table = $('#po_details_table').DataTable({
                 "ordering": true,
                 "pageLength": 10,
-                "columnDefs": [
-                    {
+                "columnDefs": [{
                         "targets": [4, 5], // PO Date and Delivery Date columns
                         "type": "date",
                         "render": function(data, type, row) {
                             if (type !== 'sort') return data;
                             // Convert d-M-Y to YYYY-MM-DD for proper sorting
                             const parts = data.split('-');
-                            const months = {Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+                            const months = {
+                                Jan: 1,
+                                Feb: 2,
+                                Mar: 3,
+                                Apr: 4,
+                                May: 5,
+                                Jun: 6,
+                                Jul: 7,
+                                Aug: 8,
+                                Sep: 9,
+                                Oct: 10,
+                                Nov: 11,
+                                Dec: 12
+                            };
                             const month = months[parts[1]] || 1;
                             return `${parts[2]}-${month.toString().padStart(2,'0')}-${parts[0]}`;
                         }
@@ -279,11 +316,11 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                         "orderable": true,
                         "render": function(data, type, row) {
                             if (type !== 'sort') return data;
-                            
+
                             // Extract days for sorting only when status column is clicked
                             if (data.includes('Delivered')) return 999999;
                             if (data.includes('Due Today')) return 0;
-                            
+
                             const match = data.match(/-?\d+/);
                             if (match) {
                                 const days = parseInt(match[0]);
@@ -298,10 +335,10 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                         "type": "num",
                         "render": function(data, type, row) {
                             if (type !== 'sort') return data;
-                            
+
                             if (data.includes('Fully Paid')) return 0;
                             if (data.includes('Amount Not Set')) return 999999;
-                            
+
                             // Extract amount for sorting
                             const match = data.match(/₹\s*([\d,]+\.?\d*)/);
                             if (match) {
@@ -316,8 +353,17 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                     // Remove previous progress bars to prevent duplicates
                     $('.progress-wrapper').remove();
                     
-                    // Handle progress bars
+                    // Add company-specific row colors and handle progress bars
                     $('.data-row').each(function() {
+                        // Add color coding based on company
+                        const company = $(this).data('company');
+                        if(company === 'Hugopharm') {
+                            $(this).addClass('hugopharm-row');
+                        } else if(company === 'S.B. Panchal') {
+                            $(this).addClass('sbpanchal-row');
+                        }
+                        
+                        // Handle progress bars (keeping existing functionality)
                         var id = $(this).find('.finish-project').data('id');
                         if(id) {
                             var progressBar = $('#progress_' + id).clone().removeClass('d-none');
@@ -336,12 +382,9 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                         const id = $(this).data('id');
                         const po = $(this).data('po');
                         
-                        // Reset form and set values
                         $('#projectCompletionForm')[0].reset();
                         $('#po_id').val(id);
                         $('#po_code').val(po);
-                        
-                        // Show modal
                         $('#projectCompletionModal').modal('show');
                     });
                 }
@@ -349,30 +392,30 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
 
             // Remove the existing document-level handler
             $(document).off('click', '.finish-project');
-            
+
             // Add a single delegated event handler
             $(document).on('click', '.finish-project', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 const id = $(this).data('id');
                 const po = $(this).data('po');
-                
+
                 // Reset form and set values
                 $('#projectCompletionForm')[0].reset();
                 $('#po_id').val(id);
                 $('#po_code').val(po);
-                
+
                 // Show modal
                 $('#projectCompletionModal').modal('show');
             });
 
             // Rest of your existing event handlers
-            $('.delete-po').click(function () {
+            $('.delete-po').click(function() {
                 const id = $(this).data('id');
                 _conf("Are you sure to delete this Purchase Order permanently?", "delete_po_details", [id]);
             });
-            
+
             $('.table td,.table th').addClass('py-1 px-2 align-middle');
 
             // Add filter handling code
@@ -382,16 +425,16 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                 var to_date = $('#to_date').val();
                 var company = $('#company').val();
                 var url = '<?php echo base_url ?>admin/?page=po_details';
-                
+
                 var params = [];
-                if(company) params.push('company=' + encodeURIComponent(company));
-                if(from_date) params.push('from_date=' + from_date);
-                if(to_date) params.push('to_date=' + to_date);
-                
-                if(params.length > 0) {
+                if (company) params.push('company=' + encodeURIComponent(company));
+                if (from_date) params.push('from_date=' + from_date);
+                if (to_date) params.push('to_date=' + to_date);
+
+                if (params.length > 0) {
                     url += '&' + params.join('&');
                 }
-                
+
                 window.location.href = url;
             });
 
@@ -415,7 +458,9 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
             $.ajax({
                 url: _base_url_ + "classes/Master.php?f=delete_po_details",
                 method: "POST",
-                data: { id: id },
+                data: {
+                    id: id
+                },
                 dataType: 'json',
                 success: function(resp) {
                     if (resp.status == 'success') {
@@ -446,17 +491,17 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                     <div class="modal-body">
                         <input type="hidden" name="po_id" id="po_id">
                         <input type="hidden" name="po_code" id="po_code">
-                        
+
                         <div class="form-group">
                             <label for="delivery_date">Actual Delivery Date</label>
                             <input type="date" class="form-control" name="delivery_date" id="delivery_date" required>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="bill_file">Bill Copy</label>
                             <input type="file" class="form-control-file" name="bill_file" id="bill_file" accept=".pdf,.jpg,.jpeg,.png" required>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="challan_file">Delivery Challan</label>
                             <input type="file" class="form-control-file" name="challan_file" id="challan_file" accept=".pdf,.jpg,.jpeg,.png" required>
@@ -475,14 +520,14 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
         $(document).ready(function() {
             $('#projectCompletionForm').submit(function(e) {
                 e.preventDefault();
-                
+
                 const formData = new FormData(this);
-                
+
                 // Debug: Log form data
                 for (var pair of formData.entries()) {
-                    console.log(pair[0]+ ': ' + pair[1]); 
+                    console.log(pair[0] + ': ' + pair[1]);
                 }
-                
+
                 $.ajax({
                     url: _base_url_ + "classes/Master.php?f=complete_project",
                     type: "POST",
@@ -537,4 +582,5 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
     }
     ?>
 </body>
+
 </html>
