@@ -190,7 +190,7 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                                         if ($balance > 0) {
                                             echo '<span class="badge badge-danger">' . getCurrencySymbol($row['currency'] ?? 'INR') . ' ' . formatIndianMoney($balance) . '</span>';
                                         } else {
-                                            echo '<span class="badge badge-success">' . getCurrencySymbol($row['currency'] ?? 'INR') . ' 0.00</span>';
+                                            echo '<span class="badge badge-success">Paid</span>';
                                         }
                                     } else {
                                         echo '<span class="badge badge-warning">' . getCurrencySymbol($row['currency'] ?? 'INR') . ' 0.00</span>';
