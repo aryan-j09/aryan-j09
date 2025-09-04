@@ -1,7 +1,7 @@
 <?php
 // Add indexes if they don't exist
 $check_indexes = $conn->query("SHOW INDEX FROM proforma_invoice_list WHERE Key_name IN ('idx_company', 'idx_date', 'idx_client')");
-if($check_indexes->num_rows < 3) {
+if ($check_indexes->num_rows < 3) {
     $conn->query("ALTER TABLE `proforma_invoice_list` ADD INDEX `idx_company` (`company`)");
     $conn->query("ALTER TABLE `proforma_invoice_list` ADD INDEX `idx_date` (`po_date_created`)");
     $conn->query("ALTER TABLE `proforma_invoice_list` ADD INDEX `idx_client` (`client_id`)");
@@ -33,10 +33,10 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
 $date_condition = "";
 $conditions = array();
 
-if(!empty($from_date) && !empty($to_date)) {
+if (!empty($from_date) && !empty($to_date)) {
     $conditions[] = "pi.po_date_created BETWEEN '$from_date-01' AND LAST_DAY('$to_date-01')";
 }
-if(!empty($selected_company)) {
+if (!empty($selected_company)) {
     $conditions[] = "pi.company = '$selected_company'";
 }
 
@@ -53,7 +53,7 @@ $query = "SELECT SQL_NO_CACHE pi.id, pi.po_code, pi.po_date_created,
           FROM proforma_invoice_list pi FORCE INDEX (idx_date, idx_company)
           JOIN clients c ON c.id = pi.client_id";
 
-if(!empty($conditions)) {
+if (!empty($conditions)) {
     $query .= " WHERE " . implode(" AND ", $conditions);
 }
 
@@ -61,7 +61,7 @@ $query .= " ORDER BY pi.po_date_created DESC, pi.id DESC LIMIT {$offset}, {$reco
 
 // Get total count using optimized count query
 $count_query = "SELECT COUNT(*) FROM proforma_invoice_list pi";
-if(!empty($conditions)) {
+if (!empty($conditions)) {
     $count_query .= " WHERE " . implode(" AND ", $conditions);
 }
 $total_records = $conn->query($count_query)->fetch_row()[0];
@@ -69,6 +69,19 @@ $total_pages = ceil($total_records / $records_per_page);
 
 $result = $conn->query($query);
 ?>
+
+<style>
+    .hugopharm-row {
+        background-color: rgba(0, 123, 255, 0.1) !important;
+        /* Light blue */
+    }
+
+    .sbpanchal-row {
+        background-color: rgba(255, 153, 0, 0.1) !important;
+        /* Light orange */
+    }
+</style>
+
 <div class="card card-outline card-primary">
     <div class="card-header">
         <h3 class="card-title">List of Proforma Invoices</h3>
@@ -120,51 +133,40 @@ $result = $conn->query($query);
                 <?php unset($_SESSION['flashdata']); ?>
             <?php endif; ?>
             <table class="table table-bordered table-striped" id="proforma_invoice_table">
-                <colgroup>
-                    <col width="5%">                    
-                    <col width="25%">
-                    <col width="20%">
-                    <col width="10%">
-                    <col width="10%">
-                    <col width="15%">
-                    <col width="15%">                        
-                </colgroup>
                 <thead>
                     <tr>
-                        <th>Sr.</th>                        
+                        <th>Sr.</th>
                         <th>Client Name</th>
                         <th>PO Code</th>
                         <th>PO Date</th>
                         <th>Total Amt.</th>
-                        <th>Company</th>                        
                         <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php 
+                    <?php
                     $i = 1;
-                    while($row = $result->fetch_assoc()):
+                    while ($row = $result->fetch_assoc()):
                     ?>
-                        <tr>
+                        <tr class="<?php echo $row['company'] === 'Hugopharm' ? 'hugopharm-row' : 'sbpanchal-row'; ?>">
                             <td class="text-center"><?php echo $i++; ?>.</td>
                             <td><?php echo $row['client'] ?></td>
                             <td><?php echo $row['po_code'] ?></td>
-                            <td><?php echo date("d-M-Y",strtotime($row['po_date_created'])) ?></td>
+                            <td><?php echo date("d-M-Y", strtotime($row['po_date_created'])) ?></td>
                             <td><?php echo number_format($row['total_amount'], 2) ?></td>
-                            <td><?php echo $row['company'] ?></td>
                             <td align="center">
                                 <button type="button" class="btn btn-flat btn-default btn-sm dropdown-toggle dropdown-icon" data-toggle="dropdown">
                                     Action
                                     <span class="sr-only">Toggle Dropdown</span>
                                 </button>
                                 <div class="dropdown-menu" role="menu">
-                                    <?php if($row['company'] == 'S.B. Panchal'): ?>
-                                        <a class="dropdown-item" href="<?php echo base_url.'admin?page=proforma_invoice/sbp_pi&id='.$row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
+                                    <?php if ($row['company'] == 'S.B. Panchal'): ?>
+                                        <a class="dropdown-item" href="<?php echo base_url . 'admin?page=proforma_invoice/sbp_pi&id=' . $row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
                                     <?php else: ?>
-                                        <a class="dropdown-item" href="<?php echo base_url.'admin?page=proforma_invoice/view_pi&id='.$row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
+                                        <a class="dropdown-item" href="<?php echo base_url . 'admin?page=proforma_invoice/view_pi&id=' . $row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
                                     <?php endif; ?>
                                     <div class="dropdown-divider"></div>
-                                    <a class="dropdown-item" href="<?php echo base_url.'admin?page=proforma_invoice/manage_pi&id='.$row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-edit text-primary"></span> Edit</a>
+                                    <a class="dropdown-item" href="<?php echo base_url . 'admin?page=proforma_invoice/manage_pi&id=' . $row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-edit text-primary"></span> Edit</a>
                                     <a class="dropdown-item delete_data" href="javascript:void(0)" data-id="<?php echo $row['id'] ?>"><span class="fa fa-trash text-danger"></span> Delete</a>
                                 </div>
                             </td>
@@ -172,31 +174,31 @@ $result = $conn->query($query);
                     <?php endwhile; ?>
                 </tbody>
             </table>
-        </div>  
+        </div>
     </div>
 </div>
 <script>
-    $(document).ready(function(){
-        $('#filter_date').click(function(e){
+    $(document).ready(function() {
+        $('#filter_date').click(function(e) {
             e.preventDefault();
             var from_date = $('#from_date').val();
             var to_date = $('#to_date').val();
             var company = $('#company').val();
             var url = '<?php echo base_url ?>admin/?page=proforma_invoice';
-            
+
             var params = [];
-            if(company) params.push('company=' + encodeURIComponent(company));
-            if(from_date) params.push('from_date=' + from_date);
-            if(to_date) params.push('to_date=' + to_date);
-            
-            if(params.length > 0) {
+            if (company) params.push('company=' + encodeURIComponent(company));
+            if (from_date) params.push('from_date=' + from_date);
+            if (to_date) params.push('to_date=' + to_date);
+
+            if (params.length > 0) {
                 url += '&' + params.join('&');
             }
-            
+
             window.location.href = url;
         });
 
-        $('#clearFilter').click(function(e){
+        $('#clearFilter').click(function(e) {
             e.preventDefault();
             e.stopPropagation(); // Prevent event bubbling
             $('#from_date').val('');
@@ -205,34 +207,47 @@ $result = $conn->query($query);
         });
 
         // Prevent dropdown from closing when clicking inside
-        $('.dropdown-menu').click(function(e){
+        $('.dropdown-menu').click(function(e) {
             e.stopPropagation();
         });
 
         // Existing code
-        $('.delete_data').click(function(){
-            _conf("Are you sure to delete this Proforma Invoice permanently?","delete_pi",[$(this).attr('data-id')])
+        $('.delete_data').click(function() {
+            _conf("Are you sure to delete this Proforma Invoice permanently?", "delete_pi", [$(this).attr('data-id')])
         })
         $('.table td,.table th').addClass('py-1 px-2 align-middle')
-        $('#proforma_invoice_table').dataTable();
+        $('#proforma_invoice_table').dataTable({
+            "ordering": true,
+            "pageLength": 10,
+            "rowCallback": function(row, data, index) {
+                if ($(row).find('td:eq(5)').find('.dropdown-menu a:first').attr('href').includes('sbp_pi')) {
+                    $(row).addClass('sbpanchal-row');
+                } else {
+                    $(row).addClass('hugopharm-row');
+                }
+            }
+        });
     })
-    function delete_pi($id){
+
+    function delete_pi($id) {
         start_loader();
         $.ajax({
-            url:_base_url_+"classes/Master.php?f=delete_pi",
-            method:"POST",
-            data:{id: $id},
-            dataType:"json",
-            error:err=>{
+            url: _base_url_ + "classes/Master.php?f=delete_pi",
+            method: "POST",
+            data: {
+                id: $id
+            },
+            dataType: "json",
+            error: err => {
                 console.log(err)
-                alert_toast("An error occured.",'error');
+                alert_toast("An error occured.", 'error');
                 end_loader();
             },
-            success:function(resp){
-                if(typeof resp== 'object' && resp.status == 'success'){
+            success: function(resp) {
+                if (typeof resp == 'object' && resp.status == 'success') {
                     location.reload();
-                }else{
-                    alert_toast("An error occured.",'error');
+                } else {
+                    alert_toast("An error occured.", 'error');
                     end_loader();
                 }
             }
