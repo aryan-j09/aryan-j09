@@ -466,6 +466,8 @@ Class Master extends DBConnection {
     try {
         extract($_POST);
 
+        $tds_amount = isset($_POST['tds_amount']) ? floatval($_POST['tds_amount']) : 0;
+
         // Handle file upload
         $uploadedFile = '';
         if(isset($_FILES['po_file']) && $_FILES['po_file']['error'] == 0) {
@@ -585,11 +587,11 @@ Class Master extends DBConnection {
                     client_id, po_code, requirement, specification, 
                     expected_delivery, remarks, advance_received,
                     inspection_received, installation_received,
-                    credit_received, po_file, eway_file, lr_file, quotation_file
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    credit_received, tds_amount, po_file, eway_file, lr_file, quotation_file
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             
             $stmt = $this->conn->prepare($sql);
-            $stmt->bind_param("isssssddddssss", 
+            $stmt->bind_param("isssssdddddssss", 
                 $client_id,
                 $po_code,
                 $requirement,
@@ -600,6 +602,7 @@ Class Master extends DBConnection {
                 $insp_received,
                 $inst_received,
                 $cred_received,
+                $tds_amount,
                 $uploadedFile,
                 $uploadedEwayFile,
                 $uploadedLrFile,
@@ -615,7 +618,8 @@ Class Master extends DBConnection {
                 "advance_received = ?",
                 "inspection_received = ?",
                 "installation_received = ?",
-                "credit_received = ?"
+                "credit_received = ?",
+                "tds_amount = ?"
             ];
             $params = [
                 $requirement,
@@ -625,9 +629,10 @@ Class Master extends DBConnection {
                 $adv_received,
                 $insp_received,
                 $inst_received,
-                $cred_received
+                $cred_received,
+                $tds_amount
             ];
-            $types = "ssssdddd";
+            $types = "ssssddddd";
 
             if($uploadedFile) {
                 $updateFields[] = "po_file = ?";
