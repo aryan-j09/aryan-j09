@@ -804,24 +804,20 @@ $(document).ready(function(){
         let installationPaymentAmount = 0;
         let creditPaymentAmount = 0;
 
-        // Condition 1: 100% single payment
+        // Case 1: Single 100% payments
         if (advance_payment === 100) {
             advancePaymentAmount = totalWithTax;
-            inspectionPaymentAmount = 0;
-            installationPaymentAmount = 0;
-            creditPaymentAmount = 0;
         }
         else if (inspection_payment === 100) {
-            advancePaymentAmount = 0;
             inspectionPaymentAmount = totalWithTax;
-            installationPaymentAmount = 0;
-            creditPaymentAmount = 0;
         }
         else if (installation_payment === 100) {
-            advancePaymentAmount = 0;
-            inspectionPaymentAmount = 0;
             installationPaymentAmount = totalWithTax;
-            creditPaymentAmount = 0;
+        }
+        // Case 2: Split payments (like 90/10)
+        else if (inspection_payment > 0 && installation_payment > 0 && (inspection_payment + installation_payment === 100)) {
+            inspectionPaymentAmount = (totalWithTax * (inspection_payment / 100));
+            installationPaymentAmount = (totalWithTax * (installation_payment / 100));
         }
         // Condition 2: Split payments (40/50/10 or 40/60/0)
         else if (advance_payment > 0 && inspection_payment > 0) {
@@ -843,15 +839,23 @@ $(document).ready(function(){
             }
             creditPaymentAmount = 0;
         }
-        // Condition 3: All payments are 0 (full credit)
-        else if (advance_payment === 0 && inspection_payment === 0 && installation_payment === 0) {
-            creditPaymentAmount = totalWithTax;
+        // Handle remaining cases
+        else {
+            // Calculate individual payments if they exist
+            if (advance_payment > 0) {
+                advancePaymentAmount = (totalWithTax * (advance_payment / 100));
+            }
+            if (inspection_payment > 0) {
+                inspectionPaymentAmount = (totalWithTax * (inspection_payment / 100));
+            }
+            if (installation_payment > 0) {
+                installationPaymentAmount = (totalWithTax * (installation_payment / 100));
+            }
         }
-        // Condition 4: Only advance payment with remaining as credit
-        else if (advance_payment > 0 && inspection_payment === 0 && installation_payment === 0) {
-            advancePaymentAmount = (subTotal * (advance_payment / 100));
-            creditPaymentAmount = totalWithTax - advancePaymentAmount;
-        }
+        
+        // Calculate credit payment as remaining amount
+        const totalPayments = advancePaymentAmount + inspectionPaymentAmount + installationPaymentAmount;
+        creditPaymentAmount = Math.max(0, totalWithTax - totalPayments);
 
         // Update form fields
         $('#advance_payment_amount').val(advancePaymentAmount.toFixed(2));
