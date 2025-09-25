@@ -795,81 +795,75 @@ $(document).ready(function(){
     }
 
     function calculatePaymentTerms(subTotal, totalWithPacking, totalWithTax, taxAmount, cgstAmount, sgstAmount, packingForwardingAmount, freight) {
-        const advance_payment = parseFloat($('#advance_payment').val()) || 0;
-        const inspection_payment = parseFloat($('#inspection_payment').val()) || 0;
-        const installation_payment = parseFloat($('#installation_payment').val()) || 0;
+    const advance_payment = parseFloat($('#advance_payment').val()) || 0;
+    const inspection_payment = parseFloat($('#inspection_payment').val()) || 0;
+    const installation_payment = parseFloat($('#installation_payment').val()) || 0;
 
-        let advancePaymentAmount = 0;
-        let inspectionPaymentAmount = 0;
-        let installationPaymentAmount = 0;
-        let creditPaymentAmount = 0;
+    let advancePaymentAmount = 0;
+    let inspectionPaymentAmount = 0;
+    let installationPaymentAmount = 0;
+    let creditPaymentAmount = 0;
 
-        // Case 1: Single 100% payments
-        if (advance_payment === 100) {
-            advancePaymentAmount = totalWithTax;
-        }
-        else if (inspection_payment === 100) {
-            inspectionPaymentAmount = totalWithTax;
-        }
-        else if (installation_payment === 100) {
-            installationPaymentAmount = totalWithTax;
-        }
-        // Case 2: Split payments (like 90/10)
-        else if (inspection_payment > 0 && installation_payment > 0 && (inspection_payment + installation_payment === 100)) {
-            inspectionPaymentAmount = (totalWithTax * (inspection_payment / 100));
-            installationPaymentAmount = (totalWithTax * (installation_payment / 100));
-        }
-        // Condition 2: Split payments (40/50/10 or 40/60/0)
-        else if (advance_payment > 0 && inspection_payment > 0) {
-            // Advance is always from subtotal
-            advancePaymentAmount = (subTotal * (advance_payment / 100));
-            
-            // Inspection includes base amount plus all extra charges
-            const extraCharges = parseFloat(packingForwardingAmount) + 
-                               parseFloat(freight) + 
-                               parseFloat(taxAmount) + 
-                               parseFloat(cgstAmount) + 
-                               parseFloat(sgstAmount);
-            
-            inspectionPaymentAmount = (subTotal * (inspection_payment / 100)) + extraCharges;
-            
-            // Installation if exists (for 40/50/10)
-            if (installation_payment > 0) {
-                installationPaymentAmount = (subTotal * (installation_payment / 100));
-            }
-            creditPaymentAmount = 0;
-        }
-        // Handle remaining cases
-        else {
-            // Calculate individual payments if they exist
-            if (advance_payment > 0) {
-                advancePaymentAmount = (totalWithTax * (advance_payment / 100));
-            }
-            if (inspection_payment > 0) {
-                inspectionPaymentAmount = (totalWithTax * (inspection_payment / 100));
-            }
-            if (installation_payment > 0) {
-                installationPaymentAmount = (totalWithTax * (installation_payment / 100));
-            }
-        }
-        
-        // Calculate credit payment as remaining amount
-        const totalPayments = advancePaymentAmount + inspectionPaymentAmount + installationPaymentAmount;
-        creditPaymentAmount = Math.max(0, totalWithTax - totalPayments);
+    // All extra charges
+    const extraCharges = parseFloat(packingForwardingAmount) + 
+                         parseFloat(freight) + 
+                         parseFloat(taxAmount) + 
+                         parseFloat(cgstAmount) + 
+                         parseFloat(sgstAmount);
 
-        // Update form fields
-        $('#advance_payment_amount').val(advancePaymentAmount.toFixed(2));
-        $('#hidden_advance_payment_amount').val(advancePaymentAmount.toFixed(2));
-        
-        $('#inspection_payment_amount').val(inspectionPaymentAmount.toFixed(2));
-        $('#hidden_inspection_payment_amount').val(inspectionPaymentAmount.toFixed(2));
-        
-        $('#installation_payment_amount').val(installationPaymentAmount.toFixed(2));
-        $('#hidden_installation_payment_amount').val(installationPaymentAmount.toFixed(2));
-        
-        $('#credit_payment_amount').val(creditPaymentAmount.toFixed(2));
-        $('#hidden_credit_payment_amount').val(creditPaymentAmount.toFixed(2));
+    // 100% single payments
+    if (advance_payment === 100) {
+        advancePaymentAmount = subTotal;
+        inspectionPaymentAmount = 0;
+        installationPaymentAmount = 0;
+    } else if (inspection_payment === 100) {
+        inspectionPaymentAmount = subTotal + extraCharges;
+        advancePaymentAmount = 0;
+        installationPaymentAmount = 0;
+    } else if (installation_payment === 100) {
+        installationPaymentAmount = subTotal;
+        advancePaymentAmount = 0;
+        inspectionPaymentAmount = 0;
     }
+    // Split payments (e.g. 40/50/10, 90/10, etc.)
+    else if ((advance_payment > 0 || inspection_payment > 0 || installation_payment > 0) && (advance_payment + inspection_payment + installation_payment === 100)) {
+        // Advance on subtotal
+        advancePaymentAmount = (subTotal * (advance_payment / 100));
+        // Inspection on subtotal + all extra charges
+        inspectionPaymentAmount = (subTotal * (inspection_payment / 100)) + extraCharges;
+        // Installation on subtotal
+        installationPaymentAmount = (subTotal * (installation_payment / 100));
+    }
+    // Handle other cases (partial payments)
+    else {
+        if (advance_payment > 0) {
+            advancePaymentAmount = (subTotal * (advance_payment / 100));
+        }
+        if (inspection_payment > 0) {
+            inspectionPaymentAmount = (subTotal * (inspection_payment / 100)) + extraCharges;
+        }
+        if (installation_payment > 0) {
+            installationPaymentAmount = (subTotal * (installation_payment / 100));
+        }
+    }
+
+    // Calculate credit payment as remaining amount
+    const totalPayments = advancePaymentAmount + inspectionPaymentAmount + installationPaymentAmount;
+    creditPaymentAmount = Math.max(0, (subTotal + extraCharges) - totalPayments);
+
+    // Update form fields
+    $('#advance_payment_amount').val(advancePaymentAmount.toFixed(2));
+    $('#hidden_advance_payment_amount').val(advancePaymentAmount.toFixed(2));
+    
+    $('#inspection_payment_amount').val(inspectionPaymentAmount.toFixed(2));
+    $('#hidden_inspection_payment_amount').val(inspectionPaymentAmount.toFixed(2));
+    
+    $('#installation_payment_amount').val(installationPaymentAmount.toFixed(2));
+    $('#hidden_installation_payment_amount').val(installationPaymentAmount.toFixed(2));
+    
+    $('#credit_payment_amount').val(creditPaymentAmount.toFixed(2));
+    $('#hidden_credit_payment_amount').val(creditPaymentAmount.toFixed(2));
+}
 
     // Trigger calculations on input changes
     $(document).on('input', 
