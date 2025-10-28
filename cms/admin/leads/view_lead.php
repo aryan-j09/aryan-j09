@@ -486,22 +486,31 @@ $(document).ready(function(){
         
         var formData = new FormData(this);
         
-        // Convert datetime-local to MySQL format with timezone handling
+        // Convert datetime-local inputs to server-friendly format WITHOUT timezone conversion
+        // Keep the exact date/time the user entered. datetime-local inputs come as "YYYY-MM-DDTHH:MM" (no timezone).
+        // We simply replace the 'T' with a space and append ':00' for seconds so server receives "YYYY-MM-DD HH:MM:SS".
         var createdAt = formData.get('created_at');
-        if(createdAt) {
-            // Create date object and adjust for local timezone
-            var date = new Date(createdAt);
-            
-            // Format date in YYYY-MM-DD HH:mm:ss format
-            var year = date.getFullYear();
-            var month = (date.getMonth() + 1).toString().padStart(2, '0');
-            var day = date.getDate().toString().padStart(2, '0');
-            var hours = date.getHours().toString().padStart(2, '0');
-            var minutes = date.getMinutes().toString().padStart(2, '0');
-            var seconds = date.getSeconds().toString().padStart(2, '0');
-            
-            var formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-            formData.set('created_at', formattedDate);
+        if (createdAt) {
+            if (createdAt.indexOf('T') !== -1) {
+                var parts = createdAt.split('T');
+                var formattedDate = parts[0] + ' ' + parts[1] + (parts[1].length === 5 ? ':00' : '');
+                formData.set('created_at', formattedDate);
+            } else {
+                // Fallback: if someone posts already formatted string, keep it
+                formData.set('created_at', createdAt);
+            }
+        }
+
+        // Handle next_followup similarly so the exact user input is preserved
+        var nextFollowup = formData.get('next_followup');
+        if (nextFollowup) {
+            if (nextFollowup.indexOf('T') !== -1) {
+                var nf = nextFollowup.split('T');
+                var formattedNext = nf[0] + ' ' + nf[1] + (nf[1].length === 5 ? ':00' : '');
+                formData.set('next_followup', formattedNext);
+            } else {
+                formData.set('next_followup', nextFollowup);
+            }
         }
         
         // Always use log_activity endpoint
@@ -552,20 +561,16 @@ $(document).ready(function(){
         var time_from = $(this).data('time_from');
         var time_to = $(this).data('time_to');
 
-        // Convert created_at to datetime-local format with timezone handling
-        if(created_at) {
-            var date = new Date(created_at + ' UTC'); // Treat the date as UTC
-            var localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
-            var createdAtFormatted = localDate.toISOString().slice(0, 16);
-            $('input[name="created_at"]').val(createdAtFormatted);
+        // Convert server-stored "YYYY-MM-DD HH:MM:SS" to input-friendly "YYYY-MM-DDTHH:MM"
+        // Do NOT perform timezone arithmetic here. We want to show the exact stored datetime.
+        if (created_at) {
+            var createdAtLocal = created_at.replace(' ', 'T').slice(0, 16);
+            $('input[name="created_at"]').val(createdAtLocal);
         }
 
-        // Convert next_followup with timezone handling
-        if(next_followup) {
-            var date = new Date(next_followup + ' UTC');
-            var localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
-            var nextFollowupFormatted = localDate.toISOString().slice(0, 16);
-            $('input[name="next_followup"]').val(nextFollowupFormatted);
+        if (next_followup) {
+            var nextFollowupLocal = next_followup.replace(' ', 'T').slice(0, 16);
+            $('input[name="next_followup"]').val(nextFollowupLocal);
         }
 
         // Update form title
