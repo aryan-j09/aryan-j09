@@ -110,7 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $item_discount = $_POST['item_discount'][$key];
             $item_total_amount = $_POST['item_total_amount'][$key];
             
-            $stmt->bind_param("isiddd", 
+            // Use proper types: id (i), item_id (i), amount (d), quantity (d), discount (d), total_amount (d)
+            $stmt->bind_param("iidddd", 
                 $id, 
                 $item_id, 
                 $item_amount, 
@@ -316,6 +317,7 @@ while($row = $item_query->fetch_assoc()) {
                 <option value="">Select location</option>
                 <option value="DOM" <?php echo (isset($material_delivery) && $material_delivery == 'DOM') ? 'selected' : ''; ?>>Dombivli</option>
                 <option value="DDR" <?php echo (isset($material_delivery) && $material_delivery == 'DDR') ? 'selected' : ''; ?>>Dadar</option>
+                <option value="SELF" <?php echo (isset($material_delivery) && $material_delivery == 'SELF') ? 'selected' : ''; ?>>Self Pickup</option>
             </select>
         </div>
     </div>
@@ -421,7 +423,7 @@ while($row = $item_query->fetch_assoc()) {
                                     ?>
                                 </select>
                             </td>
-                            <td><input type="number" name="item_amount[]" class="form-control amount" value="<?php echo $item['amount']; ?>" required></td>
+                            <td><input type="number" name="item_amount[]" class="form-control amount" value="<?php echo $item['amount']; ?>" required step="0.01"></td>
                             <td><input type="number" name="item_quantity[]" class="form-control quantity" value="<?php echo $item['quantity']; ?>" required></td>
                             <td><input type="number" name="item_discount[]" class="form-control discount" value="<?php echo $item['discount']; ?>" required step="0.01"></td>
                             <td><input type="number" name="item_total_amount[]" class="form-control total_amount" value="<?php echo $item['total_amount']; ?>" readonly></td>
@@ -448,7 +450,7 @@ while($row = $item_query->fetch_assoc()) {
                                 ?>
                             </select>
                         </td>
-                        <td><input type="number" name="item_amount[]" class="form-control amount" value="0" required></td>
+                        <td><input type="number" name="item_amount[]" class="form-control amount" value="0" required step="0.01"></td>
                         <td><input type="number" name="item_quantity[]" class="form-control quantity" value="1" required></td>
                         <td><input type="number" name="item_discount[]" class="form-control discount" value="0" required step="0.01"></td>
                         <td><input type="number" name="item_total_amount[]" class="form-control total_amount" value="0" readonly></td>
@@ -468,13 +470,13 @@ while($row = $item_query->fetch_assoc()) {
                                 <div class="form-row">
                                     <div class="col-6 pt-1">Sub Total:</div>
                                     <div class="col-6">
-                                        <input type="number" name="sub_total" id="sub_total" class="form-control readonly-field amount-red" readonly value="<?php echo isset($sub_total) ? $sub_total : 0; ?>">
+                                        <input type="number" name="sub_total" id="sub_total" class="form-control readonly-field amount-red" readonly step="0.01" value="<?php echo isset($sub_total) ? $sub_total : 0; ?>">
                                     </div>
                                 </div>
                                 <div class="form-row">
                                     <div class="col-6 pt-1"><strong>Total Amount:</strong></div>
                                     <div class="col-6">
-                                        <input type="number" name="total_amount" id="total_amount" class="form-control readonly-field amount-gr" readonly value="<?php echo isset($grand_total) ? $grand_total : 0; ?>">
+                                        <input type="number" name="total_amount" id="total_amount" class="form-control readonly-field amount-gr" readonly step="0.01" value="<?php echo isset($grand_total) ? $grand_total : 0; ?>">
                                     </div>
                                 </div>
                                 <div class="form-row">
@@ -482,7 +484,7 @@ while($row = $item_query->fetch_assoc()) {
                                         <label for="final_discounted_price">Discounted Amount:</label>
                                     </div>
                                     <div class="col-6">
-                                        <input type="number" name="final_discounted_price" id="final_discounted_price" class="form-control" value="<?php echo isset($final_discounted_price) ? $final_discounted_price : ''; ?>">
+                                        <input type="number" name="final_discounted_price" id="final_discounted_price" class="form-control" step="0.01" value="<?php echo isset($final_discounted_price) ? $final_discounted_price : ''; ?>">
                                     </div>
                                 </div>
                             </div>
@@ -627,7 +629,7 @@ $(document).ready(function() {
                                 <option value="">Select an item</option>
                             </select>
                         </td>
-                        <td><input type="number" name="item_amount[]" class="form-control amount" value="0" required></td>
+                        <td><input type="number" name="item_amount[]" class="form-control amount" value="0" required step="0.01"></td>
                         <td><input type="number" name="item_quantity[]" class="form-control quantity" value="1" required></td>
                         <td><input type="number" name="item_discount[]" class="form-control discount" value="0" required step="0.01"></td>
                         <td><input type="number" name="item_total_amount[]" class="form-control total_amount" value="0" readonly></td>
