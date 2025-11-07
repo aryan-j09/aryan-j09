@@ -975,7 +975,9 @@ Class Master extends DBConnection {
                     time_to
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = $this->conn->prepare($sql);
-                $created_at = date('Y-m-d H:i:s'); // Always use current time
+                // Use provided created_at if sent by client (allows logging past activities),
+                // otherwise fall back to current server time.
+                $created_at = isset($_POST['created_at']) && !empty($_POST['created_at']) ? $_POST['created_at'] : date('Y-m-d H:i:s');
                 $next_followup = !empty($_POST['next_followup']) ? $_POST['next_followup'] : null;
                 $time_from = !empty($_POST['time_from']) ? $_POST['time_from'] : null;
                 $time_to = !empty($_POST['time_to']) ? $_POST['time_to'] : null;
@@ -2258,6 +2260,47 @@ function delete_utility_supplier(){
     }
     return json_encode($resp);
 }
+
+    function bulk_delete_tasks()
+    {
+        try {
+            extract($_POST);
+
+            if (!isset($task_ids) || !is_array($task_ids)) {
+                throw new Exception("No tasks selected");
+            }
+
+            $this->conn->begin_transaction();
+
+            // Sanitize task IDs
+            $task_ids = array_map('intval', $task_ids);
+            $ids = implode(',', $task_ids);
+
+            // Only delete completed tasks
+            $sql = "DELETE FROM daily_tasks 
+                WHERE id IN ($ids) 
+                AND completed = 1 
+                AND user_id = '{$_SESSION['userdata']['id']}'";
+
+            $delete = $this->conn->query($sql);
+
+            if ($delete) {
+                $this->conn->commit();
+                $resp['status'] = 'success';
+                $resp['msg'] = "Selected tasks successfully deleted";
+                $this->settings->set_flashdata('success', "Selected tasks successfully deleted.");
+            } else {
+                throw new Exception($this->conn->error);
+            }
+        } catch (Exception $e) {
+            $this->conn->rollback();
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+            error_log("Bulk delete tasks error: " . $e->getMessage());
+        }
+
+        return json_encode($resp);
+    }
 }
 
 $Master = new Master();
@@ -2374,6 +2417,9 @@ switch ($action) {
     break;
     case 'delete_utility_supplier':
         echo $Master->delete_utility_supplier();
+    break;
+    case 'bulk_delete_tasks':
+        echo $Master->bulk_delete_tasks();
     break;
 	default:
 		// echo $sysset->index();
