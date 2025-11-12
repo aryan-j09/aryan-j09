@@ -35,6 +35,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $inspection_payment = isset($_POST['inspection_payment']) ? $_POST['inspection_payment'] : 0;
     $installation_payment = isset($_POST['installation_payment']) ? $_POST['installation_payment'] : 0;
     $inspection_payment_type = isset($_POST['inspection_payment_type']) ? $_POST['inspection_payment_type'] : 'inspection';
+
+    // If advance is 100%, store the entire amount (including taxes, packing/forwarding and freight)
+    // in advance_payment_amount and zero other payment amounts so server stores correctly.
+    if (floatval($advance_payment) === 100.0) {
+        $advance_payment_amount = !empty($_POST['total_amount']) ? $_POST['total_amount'] : $advance_payment_amount;
+        $inspection_payment_amount = 0;
+        $installation_payment_amount = 0;
+        $credit_payment_amount = 0;
+    } elseif (floatval($inspection_payment) === 100.0) {
+        $advance_payment_amount = 0;
+        $inspection_payment_amount = !empty($_POST['total_amount']) ? $_POST['total_amount'] : $inspection_payment_amount;
+        $installation_payment_amount = 0;
+        $credit_payment_amount = 0;
+    } elseif (floatval($installation_payment) === 100.0) {
+        $advance_payment_amount = 0;
+        $inspection_payment_amount = 0;
+        $installation_payment_amount = !empty($_POST['total_amount']) ? $_POST['total_amount'] : $installation_payment_amount;
+        $credit_payment_amount = 0;
+    }
     $company = $_POST['company'];
     $freight = isset($_POST['freight']) ? $_POST['freight'] : 0;
     $credit_payment_days = isset($_POST['credit_payment_days']) ? $_POST['credit_payment_days'] : 0;
@@ -58,6 +77,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Add these to your list of extracted POST variables
     $abg_required = isset($_POST['abg_required']) ? 1 : 0;
     $pbg_required = isset($_POST['pbg_required']) ? 1 : 0;
+
+    // If advance is 100%, store the entire amount (including taxes, packing/forwarding and freight)
+    // in advance_payment_amount and zero other payment amounts so server stores correctly.
+    if (floatval($advance_payment) === 100.0) {
+        $advance_payment_amount = !empty($_POST['total_amount']) ? $_POST['total_amount'] : $advance_payment_amount;
+        $inspection_payment_amount = 0;
+        $installation_payment_amount = 0;
+        $credit_payment_amount = 0;
+    }
 
     // Generate work order number for new invoices
     if (empty($id)) {
@@ -813,7 +841,8 @@ $(document).ready(function(){
 
     // 100% single payments
     if (advance_payment === 100) {
-        advancePaymentAmount = subTotal;
+        // Advance should include everything (subtotal + packing/forwarding + freight + taxes)
+        advancePaymentAmount = totalWithTax;
         inspectionPaymentAmount = 0;
         installationPaymentAmount = 0;
     } else if (inspection_payment === 100) {
@@ -821,7 +850,8 @@ $(document).ready(function(){
         advancePaymentAmount = 0;
         installationPaymentAmount = 0;
     } else if (installation_payment === 100) {
-        installationPaymentAmount = subTotal;
+        // Installation should also include everything (subtotal + packing/forwarding + freight + taxes)
+        installationPaymentAmount = totalWithTax;
         advancePaymentAmount = 0;
         inspectionPaymentAmount = 0;
     }
