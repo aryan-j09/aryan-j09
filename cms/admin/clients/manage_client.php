@@ -117,22 +117,7 @@ if(isset($_GET['convert_from_lead'])) {
         $('#client-form').submit(function(e){
             e.preventDefault();
             
-            // Basic validation
-            var phoneRegex = /^\d{10}$/;
-            var phones = {
-                'contact_no': $('#contact_no').val(),
-                'cperson_no_acc': $('#cperson_no_acc').val(),
-                'cperson_no_pur': $('#cperson_no_pur').val()
-            };
-
-            // Check phone numbers only if they are not empty
-            for(var key in phones) {
-                if(phones[key] !== '' && !phoneRegex.test(phones[key])) {
-                    alert_toast("Please enter valid 10-digit phone numbers", 'error');
-                    end_loader();
-                    return false;
-                }
-            }
+            // Note: removed strict 10-digit phone validation to allow any phone format
 
             start_loader();
             $.ajax({
