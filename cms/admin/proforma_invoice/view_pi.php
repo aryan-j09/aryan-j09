@@ -22,7 +22,9 @@ if(isset($_GET['id'])){
 
 function format_indian_number($number)
 {
-    $decimal = (string)($number - floor($number));
+    $number = round($number, 2);
+    $decimal_part = round($number - floor($number), 2);
+    $decimal = number_format($decimal_part, 2);
     $decimal = substr($decimal, 1);
     $number = floor($number);
 
@@ -397,7 +399,15 @@ function format_indian_number($number)
                         <tr>
                             <?php if ($invoice['inspection_payment'] > 0): ?>
                                 <th colspan="3" class="text-right">
-                                    <?php echo ($invoice['inspection_payment_type'] == 'delivery' ? 'Against Delivery' : 'Against Inspection Prior to Dispatch'); ?>
+                                    <?php 
+                                    if ($invoice['inspection_payment_type'] == 'delivery') {
+                                        echo 'Against Delivery';
+                                    } elseif ($invoice['inspection_payment_type'] == 'prior_dispatch') {
+                                        echo 'Prior to Dispatch';
+                                    } else {
+                                        echo 'Against FAT';
+                                    }
+                                    ?>
                                     (<?php echo $invoice['inspection_payment']; ?>%):
                                 </th>
                                 <th class="text-right"><?php echo format_indian_number($invoice['inspection_payment_amount']);?></th>

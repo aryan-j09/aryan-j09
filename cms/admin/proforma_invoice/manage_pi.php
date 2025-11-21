@@ -709,12 +709,13 @@ while($row = $item_query->fetch_assoc()) {
                     <div class="form-row">
                         <div class="col-6">
                             <div class="d-flex align-items-center mb-2">
-                                <span id="payment_type_label">Against Inspection</span>(%):
-                                <div class="custom-control custom-switch ml-2">
-                                    <input type="checkbox" class="custom-control-input" id="inspection_type_toggle" name="inspection_payment_type" value="delivery" <?php echo (isset($inspection_payment_type) && $inspection_payment_type == 'delivery') ? 'checked' : ''; ?>>
-                                    <label class="custom-control-label" for="inspection_type_toggle"></label>
-                                </div>
+                                <span id="payment_type_label">Against FAT</span>
+                                <button type="button" id="inspection_type_toggle" class="btn btn-link btn-sm" style="padding: 0 5px; margin-left: 5px;" title="Cycle through payment types">
+                                    <i class="fas fa-sort"></i>
+                                </button>
+                                <input type="hidden" name="inspection_payment_type" id="inspection_payment_type_hidden" value="<?php echo isset($inspection_payment_type) ? $inspection_payment_type : 'inspection'; ?>">
                             </div>
+                            <label class="mt-2">Inspection Payment(%):</label>
                             <input type="number" name="inspection_payment" id="inspection_payment" class="form-control" value="<?php echo isset($inspection_payment) ? $inspection_payment : '0'; ?>">
                         </div>
                         <div class="col-6 pt-2">
@@ -1122,14 +1123,28 @@ $(document).ready(function() {
 });
 
 $(document).ready(function() {
-    // Initialize toggle label based on saved value
-    const isDelivery = $('#inspection_type_toggle').is(':checked');
-    $('#payment_type_label').text(isDelivery ? 'Against Delivery' : 'Against Inspection');
-
-    // Existing toggle change handler
-    $('#inspection_type_toggle').change(function() {
-        const isDelivery = $(this).is(':checked');
-        $('#payment_type_label').text(isDelivery ? 'Against Delivery' : 'Against Inspection');
+    // Inspection payment type toggle cycle handler
+    const typeLabels = {
+        'inspection': 'Against FAT',
+        'prior_dispatch': 'Prior to Dispatch',
+        'delivery': 'Against Delivery'
+    };
+    
+    const typeOrder = ['inspection', 'prior_dispatch', 'delivery'];
+    
+    // Set initial label on page load
+    const initialValue = $('#inspection_payment_type_hidden').val();
+    $('#payment_type_label').text(typeLabels[initialValue]);
+    
+    $('#inspection_type_toggle').click(function(e) {
+        e.preventDefault();
+        const currentValue = $('#inspection_payment_type_hidden').val();
+        const currentIndex = typeOrder.indexOf(currentValue);
+        const nextIndex = (currentIndex + 1) % typeOrder.length;
+        const nextValue = typeOrder[nextIndex];
+        
+        $('#inspection_payment_type_hidden').val(nextValue);
+        $('#payment_type_label').text(typeLabels[nextValue]);
     });
 });
 
