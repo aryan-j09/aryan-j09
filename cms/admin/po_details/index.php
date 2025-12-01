@@ -22,6 +22,59 @@ function formatIndianMoney($num)
 $from_date = isset($_GET['from_date']) ? $_GET['from_date'] : '';
 $to_date = isset($_GET['to_date']) ? $_GET['to_date'] : '';
 $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
+$selected_fy = isset($_GET['fy']) ? $_GET['fy'] : '';
+
+// Determine date range for summary based on financial year
+$summary_from_date = '';
+$summary_to_date = '';
+
+if (!empty($selected_fy)) {
+    // Financial year is in format YYYY-YYYY
+    $years = explode('-', $selected_fy);
+    $start_year = $years[0];
+    $end_year = $years[1];
+
+    $summary_from_date = $start_year . '-04-01';
+    $summary_to_date = $end_year . '-03-31';
+} elseif (!empty($from_date) && !empty($to_date)) {
+    // Fallback to month filters if no FY is selected
+    $summary_from_date = date('Y-m-d', strtotime($from_date . '-01'));
+    $summary_to_date = date('Y-m-t', strtotime($to_date . '-01')); // 't' gives the last day of the month
+}
+
+
+
+
+// Initialize summary variables
+$total_orders = 0;
+$completed_orders = 0;
+$pending_orders = 0;
+$total_amount_all = 0;
+$total_received_all = 0;
+$total_pending_all = 0;
+
+// Build conditions for summary query
+$summary_conditions = array();
+if (!empty($summary_from_date) && !empty($summary_to_date)) {
+    $summary_conditions[] = "pil.po_date_created BETWEEN '{$summary_from_date}' AND '{$summary_to_date}'";
+}
+if (!empty($selected_company)) {
+    $summary_conditions[] = "pil.company = '$selected_company'";
+}
+$summary_where_clause = !empty($summary_conditions) ? "WHERE " . implode(" AND ", $summary_conditions) : "";
+
+$summary_qry = $conn->query("
+    SELECT 
+        SUM(CASE WHEN po.status = 'completed' THEN 1 ELSE 0 END) as completed_orders,
+        SUM(CASE WHEN po.status != 'completed' THEN 1 ELSE 0 END) as pending_orders,
+        SUM(pil.total_amount) as total_amount,
+        SUM(po.advance_received + po.inspection_received + po.installation_received + po.credit_received) as total_received
+    FROM purchase_orders po
+    LEFT JOIN proforma_invoice_list pil ON pil.po_code = po.po_code
+    {$summary_where_clause}
+");
+$summary_data = $summary_qry->fetch_assoc();
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -34,6 +87,88 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
 
 <body>
     <div class="card card-outline card-primary">
+        <?php if (isset($_SESSION['userdata']) && $_SESSION['userdata']['type'] == '1') : ?>
+            <?php
+            // Get financial years for the dropdown
+            $fy_qry = $conn->query("
+                SELECT DISTINCT
+                    CASE
+                        WHEN MONTH(po_date_created) >= 4 THEN CONCAT(YEAR(po_date_created), '-', YEAR(po_date_created) + 1)
+                        ELSE CONCAT(YEAR(po_date_created) - 1, '-', YEAR(po_date_created))
+                    END as financial_year
+                FROM proforma_invoice_list
+                ORDER BY financial_year DESC
+            ");
+            ?>
+            <div class="card-header" id="summaryHeader" data-toggle="collapse" data-target="#summaryBody" aria-expanded="<?= !empty($selected_fy) ? 'true' : 'false' ?>" aria-controls="summaryBody" style="cursor: pointer;">
+                <h3 class="card-title">PO Summary</h3>
+                <div class="card-tools" style="user-select: none;">
+                    <i class="fas <?= !empty($selected_fy) ? 'fa-minus' : 'fa-plus' ?>"></i>
+                </div>
+            </div>
+            <div id="summaryBody" class="collapse <?= !empty($selected_fy) ? 'show' : '' ?>" aria-labelledby="summaryHeader">
+                <div class="card-body pb-0">
+                    <div class="row">
+                        <div class="col-12 d-flex justify-content-end">
+                            <div class="form-inline">
+                                <label for="fy_select" class="mr-2">Financial Year:</label>
+                                <select id="fy_select" class="form-control form-control-sm">
+                                    <option value="">All Time</option>
+                                    <?php mysqli_data_seek($fy_qry, 0); // Reset pointer for reuse ?>
+                                    <?php while ($fy_row = $fy_qry->fetch_assoc()) : ?>
+                                        <option value="<?= $fy_row['financial_year'] ?>" <?= ($selected_fy == $fy_row['financial_year']) ? 'selected' : '' ?>><?= $fy_row['financial_year'] ?></option>
+                                    <?php endwhile; ?>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card-body">
+                            <h5 class="text-center">Order Status</h5>
+                            <canvas id="orderStatusChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="card-body">
+                            <h5 class="text-center">Amount Summary</h5>
+                            <div class="row mt-4">
+                                <?php
+                                $total_amount = $summary_data['total_amount'] ?? 0;
+                                $total_received = $summary_data['total_received'] ?? 0;
+                                $total_pending = $total_amount - $total_received;
+                                ?>
+                                <div class="col-md-4">
+                                    <div class="info-box bg-light">
+                                        <div class="info-box-content">
+                                            <span class="info-box-text text-center text-muted">Total Amount</span>
+                                            <span class="info-box-number text-center text-bold"><?= getCurrencySymbol('INR') ?> <?= formatIndianMoney($total_amount) ?></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-box bg-success">
+                                        <div class="info-box-content">
+                                            <span class="info-box-text text-center">Amount Received</span>
+                                            <span class="info-box-number text-center text-bold"><?= getCurrencySymbol('INR') ?> <?= formatIndianMoney($total_received) ?></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-box bg-danger">
+                                        <div class="info-box-content">
+                                            <span class="info-box-text text-center">Amount Pending</span>
+                                            <span class="info-box-number text-center text-bold"><?= getCurrencySymbol('INR') ?> <?= formatIndianMoney($total_pending) ?></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
         <div class="card-header">
             <h3 class="card-title">PO Records</h3>
             <div class="card-tools">
@@ -128,7 +263,7 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
                             pil.total_amount,
                             pil.currency,
                             pil.company,
-                            (po.advance_received + po.inspection_received + po.installation_received) as total_received
+                            (po.advance_received + po.inspection_received + po.installation_received + po.credit_received) as total_received
                         FROM purchase_orders po
                         LEFT JOIN clients c ON c.id = po.client_id 
                         LEFT JOIN proforma_invoice_list pil ON pil.po_code = po.po_code
@@ -477,6 +612,7 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
             });
         }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Project Completion Modal -->
     <div class="modal fade" id="projectCompletionModal" tabindex="-1" role="dialog" aria-hidden="true">
         <div class="modal-dialog" role="document">
@@ -517,6 +653,65 @@ $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
     </div>
 
     <script>
+        $(document).ready(function() {
+            // Financial Year filter change
+            $('#fy_select').change(function() {
+                var selected_fy = $(this).val();
+                var current_url = new URL(window.location.href);
+
+                if (selected_fy) {
+                    current_url.searchParams.set('fy', selected_fy);
+                } else {
+                    current_url.searchParams.delete('fy');
+                }
+                window.location.href = current_url.toString();
+            });
+
+            // Summary section collapse toggle icon
+            $('#summaryBody').on('show.bs.collapse', function() {
+                $('#summaryHeader .card-tools i').removeClass('fa-plus').addClass('fa-minus');
+            }).on('hide.bs.collapse', function() {
+                $('#summaryHeader .card-tools i').removeClass('fa-minus').addClass('fa-plus');
+            });
+
+            // Order Status Pie Chart
+            const ctx = document.getElementById('orderStatusChart');
+            if (ctx) {
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Pending', 'Delivered'],
+                        datasets: [{
+                            label: 'Order Status',
+                            data: [
+                                <?= $summary_data['pending_orders'] ?? 0 ?>,
+                                <?= $summary_data['completed_orders'] ?? 0 ?>
+                            ],
+                            backgroundColor: [
+                                'rgb(255, 99, 132)', // Red for Pending
+                                'rgb(75, 192, 192)' // Green for Delivered
+                            ],
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.label}: ${context.raw} Orders`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
         $(document).ready(function() {
             $('#projectCompletionForm').submit(function(e) {
                 e.preventDefault();
