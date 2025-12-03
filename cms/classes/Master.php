@@ -57,7 +57,396 @@ Class Master extends DBConnection {
         }
         return json_encode($resp);
     }
+    function save_project(){
+		extract($_POST);
+		$data = "";
+		foreach($_POST as $k => $v){
+			if(!in_array($k, array('id', 'supplier_po_ids'))){
+                $v = $this->conn->real_escape_string($v);
+				if(!empty($data)) $data .=",";
+				$data .= " `{$k}`='{$v}' ";
+			}
+		}
+		
+		$check = $this->conn->query("SELECT * FROM `project_planner` where `name` = '{$name}' ".(!empty($id) ? " and id != {$id} " : "")." ")->num_rows;
+		if($this->capture_err())
+			return $this->capture_err();
+		if($check > 0){
+			$resp['status'] = 'failed';
+			$resp['msg'] = "Project Name already exists.";
+			return json_encode($resp);
+			exit;
+		}
+		if(empty($id)){
+			$sql = "INSERT INTO `project_planner` set {$data} ";
+		}else{
+			$sql = "UPDATE `project_planner` set {$data} where id = '{$id}' ";
+		}
+		$save = $this->conn->query($sql);
+		if($save){
+			$project_id = empty($id) ? $this->conn->insert_id : $id;
+			$resp['status'] = 'success';
+			$resp['project_id'] = $project_id;
+
+			// Clear old PO associations for this project
+			$this->conn->query("DELETE FROM `project_po_list` WHERE project_id = '{$project_id}'");
+
+			// Save supplier POs
+			if(isset($supplier_po_ids) && is_array($supplier_po_ids)){
+				$po_data = "";
+				foreach($supplier_po_ids as $po_id){
+					if(!empty($po_data)) $po_data .= ", ";
+					$po_data .= "('{$project_id}', '{$po_id}')";
+				}
+				if(!empty($po_data)){
+					$this->conn->query("INSERT INTO `project_po_list` (project_id, po_id) VALUES {$po_data}");
+				}
+			}
+
+			if(empty($id)){
+				$this->settings->set_flashdata('success',"New Project successfully saved.");
+			} else {
+				$this->settings->set_flashdata('success',"Project successfully updated.");
+			}
+		}else{
+			$resp['status'] = 'failed';
+			$resp['err'] = $this->conn->error."[{$sql}]";
+		}
+		return json_encode($resp);
+	}
+
+	function get_po_items(){
+		extract($_POST);
+		$resp = ['status' => 'failed', 'html' => ''];
+		$html = "";
+
+		try {
+			// Supplier PO Items
+			if(isset($supplier_po_ids) && is_array($supplier_po_ids) && count($supplier_po_ids) > 0){
+				$supplier_ids = implode(',', array_map('intval', $supplier_po_ids));
+				$sql = "SELECT poi.*, il.name as item_name, pol.po_code 
+						FROM `po_items` poi 
+						JOIN `item_list` il ON poi.item_id = il.id 
+						JOIN `purchase_order_list` pol ON poi.po_id = pol.id 
+						WHERE poi.po_id IN ({$supplier_ids}) 
+						ORDER BY pol.po_code, il.name";
+				$qry = $this->conn->query($sql);
+
+				if($qry->num_rows > 0){
+					$html .= '<h5 class="mt-3">Supplier PO Items</h5>';
+					$html .= '<table class="table table-sm table-bordered table-striped">';
+					$html .= '<thead class="thead-dark"><tr><th>PO Code</th><th>Item</th><th>Quantity</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>';
+					while($row = $qry->fetch_assoc()){
+						$html .= "<tr>
+									<td>" . htmlspecialchars($row['po_code']) . "</td>
+									<td>" . htmlspecialchars($row['item_name']) . "</td>
+									<td>" . htmlspecialchars($row['quantity']) . "</td>
+									<td>" . number_format($row['amount'], 2) . "</td>
+									<td>" . number_format($row['total_amount'], 2) . "</td>
+								  </tr>";
+					}
+					$html .= '</tbody></table>';
+				}
+			}
+
+			$resp['status'] = 'success';
+			$resp['html'] = $html;
+		} catch (Exception $e) {
+			$resp['msg'] = $e->getMessage();
+		}
+		return json_encode($resp);
+	}
+
+	function save_project_item(){
+		extract($_POST);
+		$data = "";
+		foreach($_POST as $k => $v){
+			if(!in_array($k, array('id', 'po_item_id'))){
+				$v = $this->conn->real_escape_string($v);
+				if(!empty($data)) $data .=",";
+				$data .= " `{$k}`='{$v}' ";
+			}
+		}
+
+		if(empty($id)){
+			$sql = "INSERT INTO `project_items` set {$data} ";
+		}else{
+			$sql = "UPDATE `project_items` set {$data} where id = '{$id}' ";
+		}
+
+		$save = $this->conn->query($sql);
+		if($save){
+			$resp['status'] = 'success';
+			if(empty($id))
+				$this->settings->set_flashdata('success',"New project item added.");
+			else
+				$this->settings->set_flashdata('success',"Project item updated.");
+		}else{
+			$resp['status'] = 'failed';
+			$resp['err'] = $this->conn->error."[{$sql}]";
+		}
+		return json_encode($resp);
+	}
     
+	function get_item_activities(){
+		extract($_POST);
+		$resp = ['status' => 'failed', 'html' => ''];
+		$item_id = intval($item_id);
+
+		$qry = $this->conn->query("SELECT * FROM `project_item_activities` WHERE project_item_id = '{$item_id}' ORDER BY activity_date DESC, id DESC");
+		
+		$html = '<ul class="list-group">';
+		if($qry->num_rows > 0){
+			while($row = $qry->fetch_assoc()){
+				$html .= '<li class="list-group-item">';
+				$html .= '<strong>' . htmlspecialchars($row['activity_name']) . '</strong> - <small>' . date("d M, Y", strtotime($row['activity_date'])) . '</small>';
+				$html .= '<button class="btn btn-xs btn-danger float-right delete_activity" data-id="' . $row['id'] . '"><i class="fa fa-trash"></i></button>';
+				if(!empty($row['remarks'])){
+					$html .= '<p class="mb-0 mt-1 text-muted">' . nl2br(htmlspecialchars($row['remarks'])) . '</p>';
+				}
+				$html .= '</li>';
+			}
+		} else {
+			$html .= '<li class="list-group-item text-center text-muted">No activities logged yet.</li>';
+		}
+		$html .= '</ul>';
+
+		$resp['status'] = 'success';
+		$resp['html'] = $html;
+		return json_encode($resp);
+	}
+
+	function save_item_activity(){
+		extract($_POST);
+		$data = "";
+		foreach($_POST as $k => $v){
+			if(!in_array($k, array('id'))){
+				$v = $this->conn->real_escape_string($v);
+				if(!empty($data)) $data .=",";
+				$data .= " `{$k}`='{$v}' ";
+			}
+		}
+		$sql = "INSERT INTO `project_item_activities` set {$data} ";
+		$save = $this->conn->query($sql);
+		if($save){
+			$resp['status'] = 'success';
+		}else{
+			$resp['status'] = 'failed';
+			$resp['err'] = $this->conn->error."[{$sql}]";
+		}
+		return json_encode($resp);
+	}
+
+	function delete_item_activity(){
+		extract($_POST);
+		$del = $this->conn->query("DELETE FROM `project_item_activities` where id = '{$id}'");
+		$resp['status'] = $del ? 'success' : 'failed';
+		return json_encode($resp);
+	}
+
+	function save_project_activity(){
+        header('Content-Type: application/json');
+        try{
+            extract($_POST);
+            $sets = [];
+            // Unset fields that are not part of the table
+            unset($_POST['id']);
+
+            foreach($_POST as $k => $v){
+                // Exclude datetime fields we'll handle separately
+                if(!in_array($k, array('activity_id', 'created_at', 'next_followup', 'time_from', 'time_to'))){ 
+                    // Skip arrays to avoid warnings
+                    if(is_array($v)) continue;
+                    $v = $this->conn->real_escape_string($v);
+                    $sets[] = "`{$k}`='{$v}'";
+                }
+            }
+
+            // Manually handle and format the created_at field
+            if(isset($created_at) && !empty($created_at)){
+                // Normalize possible 'T' in datetime-local values
+                if(strpos($created_at,'T') !== false){
+                    $created_at = str_replace('T',' ',$created_at);
+                    if(strlen($created_at) == 16) $created_at .= ':00';
+                }
+                $sets[] = "`created_at`='" . date("Y-m-d H:i:s", strtotime($created_at)) . "'";
+            }
+
+            // Handle datetime fields - set NULL if empty, otherwise escape and set value
+            $next_followup = isset($next_followup) ? $next_followup : '';
+            if(empty($next_followup)){
+                $sets[] = "`next_followup`=NULL";
+            } else {
+                // Normalize possible 'T' in datetime-local values
+                if(strpos($next_followup,'T') !== false){
+                    $next_followup = str_replace('T',' ',$next_followup);
+                    if(strlen($next_followup) == 16) $next_followup .= ':00';
+                }
+                $next_followup = $this->conn->real_escape_string($next_followup);
+                $sets[] = "`next_followup`='{$next_followup}'";
+            }
+            
+            $time_from = isset($time_from) ? $time_from : '';
+            if(empty($time_from)){
+                $sets[] = "`time_from`=NULL";
+            } else {
+                $time_from = $this->conn->real_escape_string($time_from);
+                $sets[] = "`time_from`='{$time_from}'";
+            }
+            
+            $time_to = isset($time_to) ? $time_to : '';
+            if(empty($time_to)){
+                $sets[] = "`time_to`=NULL";
+            } else {
+                $time_to = $this->conn->real_escape_string($time_to);
+                $sets[] = "`time_to`='{$time_to}'";
+            }
+
+            if(empty($activity_id)){
+                // Insert new activity
+                $created_by = isset($_SESSION['userdata']['id']) ? $_SESSION['userdata']['id'] : 0;
+                $sets[] = "`created_by`='{$created_by}'";
+                $sql = "INSERT INTO `project_activities` SET " . implode(", ", $sets);
+            }else{
+                // Update existing activity
+                $sql = "UPDATE `project_activities` SET " . implode(", ", $sets) . " WHERE id = '{$activity_id}' ";
+            }
+
+            $save = $this->conn->query($sql);
+            if($save){
+                $resp['status'] = 'success';
+                if(empty($activity_id))
+                    $this->settings->set_flashdata('success',"New project activity logged.");
+                else
+                    $this->settings->set_flashdata('success',"Project activity updated.");
+            }else{
+                // Log SQL and input for debugging
+                error_log("save_project_activity failed: " . $this->conn->error . " SQL: " . $sql);
+                error_log("POST: " . print_r($_POST, true));
+                $resp['status'] = 'failed';
+                $resp['err'] = $this->conn->error."[{$sql}]";
+            }
+            return json_encode($resp);
+        } catch (Exception $e){
+            error_log("Exception in save_project_activity: " . $e->getMessage());
+            return json_encode(['status'=>'failed','err'=>$e->getMessage()]);
+        }
+	}
+
+	function delete_project_activity(){
+		extract($_POST);
+		$del = $this->conn->query("DELETE FROM `project_activities` where id = '{$id}'");
+		if($del){
+			$resp['status'] = 'success';
+			$this->settings->set_flashdata('success',"Project activity successfully deleted.");
+		}else{
+			$resp['status'] = 'failed';
+			$resp['error'] = $this->conn->error;
+		}
+		return json_encode($resp);
+	}
+
+	function delete_project_item(){
+		extract($_POST);
+		$del = $this->conn->query("DELETE FROM `project_items` where id = '{$id}'");
+		if($del){
+			$resp['status'] = 'success';
+			$this->settings->set_flashdata('success',"Project item successfully deleted.");
+		}else{
+			$resp['status'] = 'failed';
+			$resp['error'] = $this->conn->error;
+		}
+		return json_encode($resp);
+	}
+
+	function delete_project(){
+		extract($_POST);
+		$this->conn->begin_transaction();
+		try {
+			// Get all item IDs for the project
+			$item_ids_qry = $this->conn->query("SELECT id FROM `project_items` WHERE project_id = '{$id}'");
+			$item_ids = [];
+			while($row = $item_ids_qry->fetch_assoc()){
+				$item_ids[] = $row['id'];
+			}
+
+			if(!empty($item_ids)){
+				$item_ids_str = implode(',', $item_ids);
+				// Delete activities for those items
+				$this->conn->query("DELETE FROM `project_item_activities` WHERE project_item_id IN ({$item_ids_str})");
+			}
+
+			// Delete project items
+			$this->conn->query("DELETE FROM `project_items` WHERE project_id = '{$id}'");
+			// Delete general project activities
+			$this->conn->query("DELETE FROM `project_activities` WHERE project_id = '{$id}'");
+			// Delete PO associations
+			$this->conn->query("DELETE FROM `project_po_list` WHERE project_id = '{$id}'");
+			// Delete associated tasks
+			$this->conn->query("DELETE FROM `tasks` WHERE project_id = '{$id}'");
+			// Finally, delete the project itself
+			$del = $this->conn->query("DELETE FROM `project_planner` WHERE id = '{$id}'");
+
+			$this->conn->commit();
+			$resp['status'] = 'success';
+			$this->settings->set_flashdata('success',"Project and all its data successfully deleted.");
+		} catch (Exception $e) {
+			$this->conn->rollback();
+			$resp['status'] = 'failed';
+			$resp['error'] = $this->conn->error;
+		}
+		return json_encode($resp);
+	}
+
+	function get_po_item_for_project(){
+		extract($_POST);
+		$resp = ['status' => 'failed', 'msg' => 'An error occurred.'];
+		
+		$item_id = intval($po_item_id);
+
+		$sql = "SELECT il.name as item_name, poi.quantity, '' as specifications 
+				FROM `po_items` poi
+				JOIN `item_list` il ON poi.item_id = il.id
+				WHERE poi.id = ?";
+		$stmt = $this->conn->prepare($sql);
+		
+		if(!$stmt){
+			$resp['msg'] = 'Prepare failed: ' . $this->conn->error;
+			return json_encode($resp);
+		}
+		
+		$stmt->bind_param('i', $item_id);
+
+		if(!$stmt->execute()){
+			$resp['msg'] = 'Execute failed: ' . $stmt->error;
+			return json_encode($resp);
+		}
+		
+		// Use bind_result instead of get_result for better compatibility
+		$item_name = '';
+		$quantity = '';
+		$specifications = '';
+		
+		if(!$stmt->bind_result($item_name, $quantity, $specifications)){
+			$resp['msg'] = 'Bind result failed: ' . $stmt->error;
+			$stmt->close();
+			return json_encode($resp);
+		}
+		
+		if($stmt->fetch()){
+			$resp['status'] = 'success';
+			$resp['data'] = [
+				'item_name' => $item_name,
+				'quantity' => $quantity,
+				'specifications' => $specifications
+			];
+		} else {
+			$resp['msg'] = 'No PO item found with ID: ' . $item_id;
+		}
+		$stmt->close();
+		return json_encode($resp);
+	}
+
     function delete_supplier(){
         extract($_POST);
         $del = $this->conn->query("DELETE FROM `supplier_list` where id = '{$id}'");
@@ -926,10 +1315,26 @@ Class Master extends DBConnection {
 }
 
     function log_activity() {
+        header('Content-Type: application/json');
         $resp = array('status'=>'failed', 'msg'=>'');
         try {
-            if(empty($_POST['lead_id']) || empty($_POST['activity_type']) || empty($_POST['description'])) {
+            // Accept alternative parameter names for robustness
+            $lead_id = isset($_POST['lead_id']) ? $_POST['lead_id'] : (isset($_POST['id']) ? $_POST['id'] : (isset($_POST['lead']) ? $_POST['lead'] : null));
+            $activity_type = isset($_POST['activity_type']) ? $_POST['activity_type'] : null;
+            $description = isset($_POST['description']) ? $_POST['description'] : null;
+
+            if(empty($lead_id) || empty($activity_type) || empty($description)) {
                 throw new Exception("Lead ID, activity type and description are required");
+            }
+
+            // Normalize datetimes: convert 'YYYY-MM-DDTHH:MM' to 'YYYY-MM-DD HH:MM:SS' if needed
+            if(isset($_POST['created_at']) && strpos($_POST['created_at'], 'T') !== false){
+                $_POST['created_at'] = str_replace('T', ' ', $_POST['created_at']);
+                if(strlen($_POST['created_at']) == 16) $_POST['created_at'] .= ':00';
+            }
+            if(isset($_POST['next_followup']) && strpos($_POST['next_followup'], 'T') !== false){
+                $_POST['next_followup'] = str_replace('T', ' ', $_POST['next_followup']);
+                if(strlen($_POST['next_followup']) == 16) $_POST['next_followup'] .= ':00';
             }
 
             $this->conn->begin_transaction();
@@ -954,8 +1359,8 @@ Class Master extends DBConnection {
                 $time_from = !empty($_POST['time_from']) ? $_POST['time_from'] : null;
                 $time_to = !empty($_POST['time_to']) ? $_POST['time_to'] : null;
                 $stmt->bind_param("ssssssi", 
-                    $_POST['activity_type'],
-                    $_POST['description'],
+                    $activity_type,
+                    $description,
                     $next_followup,
                     $created_at,
                     $time_from,
@@ -963,7 +1368,7 @@ Class Master extends DBConnection {
                     $activity_id
                 );
             } else {
-                // Insert new activity (always use current date/time for created_at)
+                // Insert new activity
                 $sql = "INSERT INTO lead_activities (
                     lead_id, 
                     activity_type, 
@@ -975,18 +1380,17 @@ Class Master extends DBConnection {
                     time_to
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = $this->conn->prepare($sql);
-                // Use provided created_at if sent by client (allows logging past activities),
-                // otherwise fall back to current server time.
                 $created_at = isset($_POST['created_at']) && !empty($_POST['created_at']) ? $_POST['created_at'] : date('Y-m-d H:i:s');
                 $next_followup = !empty($_POST['next_followup']) ? $_POST['next_followup'] : null;
                 $time_from = !empty($_POST['time_from']) ? $_POST['time_from'] : null;
                 $time_to = !empty($_POST['time_to']) ? $_POST['time_to'] : null;
+                $created_by = isset($_SESSION['userdata']['id']) ? $_SESSION['userdata']['id'] : null;
                 $stmt->bind_param("isssssss", 
-                    $_POST['lead_id'],
-                    $_POST['activity_type'],
-                    $_POST['description'],
+                    $lead_id,
+                    $activity_type,
+                    $description,
                     $next_followup,
-                    $_SESSION['userdata']['id'],
+                    $created_by,
                     $created_at,
                     $time_from,
                     $time_to
@@ -996,7 +1400,7 @@ Class Master extends DBConnection {
                     $this->conn->query("UPDATE lead_activities SET handled = 1 WHERE id = '{$prev_activity_id}'");
                 }
             }
-            
+
             if(!$stmt->execute()) {
                 throw new Exception("Failed to save activity: " . $stmt->error);
             }
@@ -1005,29 +1409,24 @@ Class Master extends DBConnection {
 
             // Handle document uploads if any
             if(isset($_FILES['documents']) && !empty($_FILES['documents']['name'][0])) {
-                $upload_path = '../uploads/lead_documents/';
-                
+                $upload_path = dirname(__FILE__) . '/../uploads/lead_documents/';
                 // Create directory if it doesn't exist
                 if(!is_dir($upload_path)) {
                     if(!mkdir($upload_path, 0777, true)) {
                         throw new Exception("Failed to create upload directory");
                     }
                 }
-    
-                // Process each uploaded document
+
                 for($i = 0; $i < count($_FILES['documents']['name']); $i++) {
                     if($_FILES['documents']['error'][$i] == 0) {
                         $file_ext = pathinfo($_FILES['documents']['name'][$i], PATHINFO_EXTENSION);
                         $file_name = 'doc_' . time() . '_' . $i . '.' . $file_ext;
                         $file_path = 'uploads/lead_documents/' . $file_name;
                         $full_path = $upload_path . $file_name;
-    
-                        // Move uploaded file
+
                         if(move_uploaded_file($_FILES['documents']['tmp_name'][$i], $full_path)) {
-                            // Insert document record
-                            $doc_type = $_POST['document_type'][$i];
-                            $doc_desc = $_POST['document_description'][$i];
-                            
+                            $doc_type = isset($_POST['document_type'][$i]) ? $_POST['document_type'][$i] : '';
+                            $doc_desc = isset($_POST['document_description'][$i]) ? $_POST['document_description'][$i] : '';
                             $sql = "INSERT INTO lead_documents (
                                 activity_id,
                                 document_type,
@@ -1035,7 +1434,6 @@ Class Master extends DBConnection {
                                 file_name,
                                 file_path
                             ) VALUES (?, ?, ?, ?, ?)";
-                            
                             $stmt = $this->conn->prepare($sql);
                             $stmt->bind_param("issss", 
                                 $new_activity_id,
@@ -1044,9 +1442,8 @@ Class Master extends DBConnection {
                                 $_FILES['documents']['name'][$i],
                                 $file_path
                             );
-                            
                             if(!$stmt->execute()) {
-                                throw new Exception("Failed to save document record");
+                                throw new Exception("Failed to save document record: " . $stmt->error);
                             }
                         } else {
                             throw new Exception("Failed to upload file: " . $_FILES['documents']['name'][$i]);
@@ -1054,18 +1451,18 @@ Class Master extends DBConnection {
                     }
                 }
             }
-    
+
             $this->conn->commit();
-            $_SESSION['success_msg'] = $new_activity_id ? "Activity updated successfully" : "Activity logged successfully";
+            $_SESSION['success_msg'] = $activity_id ? "Activity updated successfully" : "Activity logged successfully";
             $resp['status'] = 'success';
-            
+
         } catch (Exception $e) {
             $this->conn->rollback();
             $resp['status'] = 'failed';
             $resp['msg'] = $e->getMessage();
             error_log("Activity log error: " . $e->getMessage());
         }
-        
+
         echo json_encode($resp);
         exit;
     }
@@ -1497,10 +1894,18 @@ function delete_activity(){
                 throw new Exception("Please fill in all required fields");
             }
 
+            // Standardize casing for status and priority
+            if(isset($_POST['status'])){
+                $_POST['status'] = ucwords(str_replace('-', ' ', $_POST['status']));
+            }
+            if(isset($_POST['priority'])){
+                $_POST['priority'] = ucfirst(strtolower($_POST['priority']));
+            }
+
             // Build data string
             $data = "";
             foreach ($_POST as $k => $v) {
-                if (!in_array($k, array('id', 'assigned_by'))) {
+                if (!in_array($k, array('id', 'assigned_by', 'project_id'))) { // Exclude project_id from initial loop
                     if (!empty($data)) $data .= ",";
                     $v = $this->conn->real_escape_string($v);
                     $data .= " `{$k}`='{$v}' ";
@@ -1518,6 +1923,12 @@ function delete_activity(){
 
             // Add assigned_by for new tasks
             if (empty($id)) {
+                // Add project_id if it exists
+                if (isset($project_id) && !empty($project_id)) {
+                    if (!empty($data)) $data .= ",";
+                    $data .= " `project_id`='{$project_id}' ";
+                }
+
                 $data .= ", `assigned_by`='{$_SESSION['userdata']['id']}'";
                 $sql = "INSERT INTO `tasks` set {$data}";
             } else {
@@ -2307,6 +2718,39 @@ $Master = new Master();
 $action = !isset($_GET['f']) ? 'none' : strtolower($_GET['f']);
 $sysset = new SystemSettings();
 switch ($action) {
+	case 'save_project':
+		echo $Master->save_project();
+	break;
+	case 'delete_project':
+		echo $Master->delete_project();
+	break;
+	case 'get_po_items':
+		echo $Master->get_po_items();
+	break;
+	case 'save_project_item':
+		echo $Master->save_project_item();
+	break;
+	case 'delete_project_item':
+		echo $Master->delete_project_item();
+	break;
+	case 'get_item_activities':
+		echo $Master->get_item_activities();
+	break;
+	case 'save_item_activity':
+		echo $Master->save_item_activity();
+	break;
+	case 'delete_item_activity':
+		echo $Master->delete_item_activity();
+	break;
+	case 'save_project_activity':
+		echo $Master->save_project_activity();
+	break;
+	case 'delete_project_activity':
+		echo $Master->delete_project_activity();
+	break;
+	case 'get_po_item_for_project':
+		echo $Master->get_po_item_for_project();
+	break;
 	case 'save_supplier':
 		echo $Master->save_supplier();
 	break;
