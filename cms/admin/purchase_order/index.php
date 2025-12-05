@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                 <tbody>
                     <?php 
                     $i = 1;
-                    $qry = $conn->query("SELECT p.*, email, s.name as supplier FROM `purchase_order_list` p inner join supplier_list s on p.supplier_id = s.id");
+                    $qry = $conn->query("SELECT p.*, email, s.name as supplier FROM `purchase_order_list` p inner join supplier_list s on p.supplier_id = s.id ORDER BY p.created_at DESC");
                     while($row = $qry->fetch_assoc()):
                         // Get item names instead of count
                         $items_qry = $conn->query("SELECT i.name FROM `po_items` pi 
