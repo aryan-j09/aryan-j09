@@ -1,5 +1,8 @@
 <?php 
 
+// Set timezone to India Standard Time
+date_default_timezone_set('Asia/Kolkata');
+
 define('_base_url_', 'https://sbpanchal.com/cms/');
 
 $success_message = '';
@@ -31,14 +34,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $sgst_amount = ($sub_total * $sgst) / 100;
 
     if (empty($id)) {
+        // Get current date/time in the correct timezone
+        $created_at = date('Y-m-d H:i:s');
+        
         $stmt = $conn->prepare("INSERT INTO purchase_order_list (
-            po_code, internal_ref_no, supplier_id, remarks,spec_sheet, tax, cgst, sgst, sub_total, 
+            po_code, internal_ref_no, supplier_id, remarks, spec_sheet, tax, cgst, sgst, sub_total, 
             grand_total, tax_amount, cgst_amount, sgst_amount, final_discounted_price, company,
-            material_delivery, payment_terms, delivery_period, authorized_signatory, freight, packing_forwarding
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"); 
+            material_delivery, payment_terms, delivery_period, authorized_signatory, freight, packing_forwarding, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"); 
 
         $stmt->bind_param(
-            "ssissdddddddddsssssss",
+            "ssissdddddddddssssssss",
             $po_code,
             $internal_ref_no,
             $supplier_id,
@@ -59,7 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $delivery_period,
             $authorized_signatory,
             $freight,
-            $packing_forwarding
+            $packing_forwarding,
+            $created_at
         );
     } else {
         $stmt = $conn->prepare("UPDATE purchase_order_list SET 
