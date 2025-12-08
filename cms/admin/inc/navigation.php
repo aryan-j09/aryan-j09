@@ -17,6 +17,20 @@ $daily_tasks_count = $conn->query("SELECT COUNT(*) as count FROM daily_tasks
 $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
 ?>
 
+<!-- Flash CSS for Tasks link when user has pending assigned tasks -->
+<style>
+  /* Flash only the nav item's background (yellow) 5 times; do not change text/icon color */
+  .nav-item .nav-link.flash-tasks {
+    /* slower: run the flash 3 times */
+    animation: task-flash 1.2s ease-in-out 0s 3 both !important;
+  }
+  @keyframes task-flash {
+    0% { background-color: transparent; }
+    50% { background-color: rgba(255,193,7,1); }
+    100% { background-color: transparent; }
+  }
+</style>
+
 <!-- Main Sidebar Container -->
 <aside class="main-sidebar sidebar-dark-primary elevation-4 sidebar-no-expand">
   <!-- Brand Logo -->
@@ -82,7 +96,15 @@ $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
                   <p>CRM</p>
                 </a>
               <li class="nav-item">
-                <a href="<?php echo base_url ?>admin/?page=tasks" class="nav-link nav-tasks">
+                <?php // Flash the Tasks link only immediately after login when user has pending assigned tasks. Use session flag set at login and clear it so refresh won't re-trigger. ?>
+                <?php
+                  $show_tasks_flash = false;
+                  if(isset($_SESSION['show_tasks_flash']) && $_SESSION['show_tasks_flash'] && $tasks_count > 0){
+                    $show_tasks_flash = true;
+                    unset($_SESSION['show_tasks_flash']);
+                  }
+                ?>
+                <a href="<?php echo base_url ?>admin/?page=tasks" class="nav-link nav-tasks <?php echo ($show_tasks_flash) ? 'flash-tasks' : '' ?>">
                   <i class="nav-icon fas fa-tasks"></i>
                   <p>
                     Tasks
