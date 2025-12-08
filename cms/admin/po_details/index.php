@@ -339,7 +339,7 @@ $summary_data = $summary_qry->fetch_assoc();
                                     <span class="sr-only">Toggle Dropdown</span>
                                 </button>
                                 <div class="dropdown-menu" role="menu">
-                                    <a class="dropdown-item" href="?page=po_details/view_po_details&id=<?php echo $row['id']; ?>">
+                                    <a class="dropdown-item" href="?page=po_details/view_po_details&id=<?php echo $row['id']; ?>" target="_blank">
                                         <span class="fa fa-eye text-dark"></span> View
                                     </a>
                                     <div class="dropdown-divider"></div>
