@@ -430,7 +430,11 @@ if (isset($_GET['id']) && $_GET['id'] > 0) {
             uni_modal("<i class='fa fa-edit'></i> Edit Task", "tasks/manage_task.php?id=" + $(this).attr('data-id'), "large")
         })
         $('.delete_data').click(function() {
-            _conf("Are you sure to delete this task permanently?", "delete_task", [$(this).attr('data-id')])
+            var id = $(this).attr('data-id');
+            _conf_sweet("Are you sure to delete this task permanently?", function(result) {
+                if (result)
+                    delete_task(id);
+            });
         })
         // Initialize both datatables
         $('#task-list-assigned-to').dataTable();
@@ -449,7 +453,11 @@ if (isset($_GET['id']) && $_GET['id'] > 0) {
         // Manual delete daily task
         $('#daily-task-list').on('click', '.delete_daily_task', function() {
             var id = $(this).data('id');
-            _conf("Are you sure you want to delete this daily task?", "delete_daily_task", [id]);
+            _conf_sweet("Are you sure you want to delete this daily task?", function(result) {
+                if (result) {
+                    delete_daily_task(id);
+                }
+            });
         });
 
         $('#daily-task-list').on('click', '.manage_task', function() {
@@ -504,7 +512,7 @@ if (isset($_GET['id']) && $_GET['id'] > 0) {
             });
 
             if (selectedIds.length > 0) {
-                _conf("Are you sure to delete these tasks?", function(yes) {
+                _conf_sweet("Are you sure to delete these tasks?", function(yes) {
                     if (yes) {
                         start_loader();
                         $.ajax({
@@ -536,28 +544,22 @@ if (isset($_GET['id']) && $_GET['id'] > 0) {
         });
 
         // Helper function for confirmation dialog
-        function _conf(msg, callback) {
+        function _conf_sweet(msg, callback) {
             Swal.fire({
                 title: 'Are you sure?',
                 text: msg,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Yes, delete it!'
+                cancelButtonColor: '#d33', // Corrected property name
+                confirmButtonText: 'Yes, do it!'
             }).then((result) => {
                 if (result.isConfirmed) {
                     callback(true);
                 }
             })
         }
-    })
-
-    function _conf(msg, callback) {
-        if (confirm(msg)) {
-            callback(true);
-        }
-    }
+    });
 
     function delete_task($id) {
         start_loader();
