@@ -70,20 +70,12 @@ $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
                   <p>PO Factory Details</p>
                 </a>
               </li>
-              <!-- <?php if ($_settings->userdata('id') == 1): ?>
               <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=project_planner" class="nav-link nav-project_planner">
                   <i class="nav-icon fas fa-sitemap"></i>
                   <p>Project Planner</p>
                 </a>
-              </li>
-              <?php endif; ?> -->
-              <li class="nav-item">
-                <a href="<?php echo base_url ?>admin/?page=project_planner" class="nav-link nav-project_planner">
-                  <i class="nav-icon fas fa-sitemap"></i>
-                  <p>Project Planner</p>
-                </a>
-              </li>
+              </li>          
               <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=leads" class="nav-link nav-leads">
                   <i class="nav-icon fas fa-user-tag"></i>
