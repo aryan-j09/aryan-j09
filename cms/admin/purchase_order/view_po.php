@@ -268,6 +268,20 @@ while ($row = $item_query->fetch_assoc()) {
             break-inside: avoid !important;
         }
 
+        #list {
+            page-break-inside: auto;
+            break-inside: auto;
+        }
+
+        #list tbody {
+            page-break-inside: auto;
+            break-inside: auto;
+        }
+
+        #list tfoot {
+            display: table-row-group;
+        }
+
         .print-page-break {
             page-break-before: always;
         }
