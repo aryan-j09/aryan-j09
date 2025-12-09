@@ -110,19 +110,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         $conn->query("DELETE FROM po_items WHERE po_id = '{$id}'");
-        $stmt = $conn->prepare("INSERT INTO po_items (po_id, item_id, amount, quantity, discount, total_amount) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt = $conn->prepare("INSERT INTO po_items (po_id, item_id, amount, quantity, unit, discount, total_amount) VALUES (?, ?, ?, ?, ?, ?, ?)");
         foreach ($_POST['item_id'] as $key => $item_id) {
             $item_amount = $_POST['item_amount'][$key];
             $item_quantity = $_POST['item_quantity'][$key];
+            $item_unit = $_POST['unit'][$key];
             $item_discount = $_POST['item_discount'][$key];
             $item_total_amount = $_POST['item_total_amount'][$key];
             
-            // Use proper types: id (i), item_id (i), amount (d), quantity (d), discount (d), total_amount (d)
-            $stmt->bind_param("iidddd", 
+            // Use proper types: id (i), item_id (i), amount (d), quantity (d), unit (s), discount (d), total_amount (d)
+            $stmt->bind_param("iiddsdd", 
                 $id, 
                 $item_id, 
                 $item_amount, 
                 $item_quantity, 
+                $item_unit,
                 $item_discount, 
                 $item_total_amount
             );
@@ -164,7 +166,7 @@ if (isset($_GET['repeat_id'])) {
         $packing_forwarding = $result['packing_forwarding'];
 
         // Get items from original PO
-        $item_query = $conn->query("SELECT po_items.*, item_list.name 
+        $item_query = $conn->query("SELECT po_items.*, item_list.name
                                   FROM po_items 
                                   JOIN item_list ON po_items.item_id = item_list.id 
                                   WHERE po_items.po_id = $original_id");
@@ -176,6 +178,7 @@ if (isset($_GET['repeat_id'])) {
                 'name' => $row['name'],
                 'amount' => $row['amount'],
                 'quantity' => $row['quantity'],
+                'unit' => $row['unit'],
                 'discount' => $row['discount'],
                 'total_amount' => $row['total_amount']
             ];
@@ -198,6 +201,7 @@ if (isset($_GET['repeat_id'])) {
                                .trigger('change');
                             row.find('.amount').val(item.amount);
                             row.find('.quantity').val(item.quantity);
+                            row.find('.unit').val(item.unit);
                             row.find('.discount').val(item.discount);
                             row.find('.total_amount').val(item.total_amount);
                         }
@@ -235,7 +239,7 @@ if (isset($_GET['id'])) {
         $packing_forwarding = $result['packing_forwarding'];
     }
 
-    $item_query = $conn->query("SELECT po_items.*, item_list.name FROM po_items JOIN item_list ON po_items.item_id = item_list.id WHERE po_items.po_id = $id");
+    $item_query = $conn->query("SELECT po_items.*, item_list.name FROM po_items JOIN item_list ON po_items.item_id = item_list.id WHERE po_items.po_id = {$id}");
     $items = [];
     while($row = $item_query->fetch_assoc()) {
         $items[] = $row;
@@ -394,11 +398,12 @@ while($row = $item_query->fetch_assoc()) {
         <table class="table table-bordered table-striped" id="item-table">
             <colgroup>
                 <col width="3%">
-                <col width="33%">
-                <col width="14%">
-                <col width="7.5%">
-                <col width="7.5%">
-                <col width="15%">
+                <col width="28%">
+                <col width="12%">
+                <col width="8%">
+                <col width="8%">
+                <col width="8%">
+                <col width="13%">
                 <col width="15%">
             </colgroup>
             <thead>                            
@@ -406,8 +411,9 @@ while($row = $item_query->fetch_assoc()) {
                     <th>Sr.</th>
                     <th>Description</th>
                     <th>Cost</th>
-                    <th>Quantity</th>
-                    <th>Discount (%)</th>                    
+                    <th>Qty</th>
+                    <th>Unit</th>
+                    <th>Discount (%)</th>
                     <th>Amount</th>
                     <th>Actions</th>
                 </tr>
@@ -432,6 +438,13 @@ while($row = $item_query->fetch_assoc()) {
                             </td>
                             <td><input type="number" name="item_amount[]" class="form-control amount" value="<?php echo $item['amount']; ?>" required step="0.01"></td>
                             <td><input type="number" name="item_quantity[]" class="form-control quantity" value="<?php echo $item['quantity']; ?>" required></td>
+                            <td>
+                                <select name="unit[]" class="form-control unit">
+                                    <option value="nos" <?php echo ($item['unit'] == 'nos') ? 'selected' : ''; ?>>nos</option>
+                                    <option value="packet" <?php echo ($item['unit'] == 'packet') ? 'selected' : ''; ?>>packet</option>
+                                    <option value="box" <?php echo ($item['unit'] == 'box') ? 'selected' : ''; ?>>box</option>
+                                </select>
+                            </td>
                             <td><input type="number" name="item_discount[]" class="form-control discount" value="<?php echo $item['discount']; ?>" required step="0.01"></td>
                             <td><input type="number" name="item_total_amount[]" class="form-control total_amount" value="<?php echo $item['total_amount']; ?>" readonly></td>
                             <td>
@@ -459,6 +472,13 @@ while($row = $item_query->fetch_assoc()) {
                         </td>
                         <td><input type="number" name="item_amount[]" class="form-control amount" value="0" required step="0.01"></td>
                         <td><input type="number" name="item_quantity[]" class="form-control quantity" value="1" required></td>
+                        <td>
+                            <select name="unit[]" class="form-control unit">
+                                <option value="nos" selected>nos</option>
+                                <option value="packet">packet</option>
+                                <option value="box">box</option>
+                            </select>
+                        </td>
                         <td><input type="number" name="item_discount[]" class="form-control discount" value="0" required step="0.01"></td>
                         <td><input type="number" name="item_total_amount[]" class="form-control total_amount" value="0" readonly></td>
                         <td>
@@ -469,7 +489,7 @@ while($row = $item_query->fetch_assoc()) {
                 <?php endif; ?>
             <tfoot>
                 <tr>
-                    <td colspan="7">
+                    <td colspan="8">
                         <div class="row">
                             <!-- Left Column - Calculations -->
                             <div class="col-md-4">
@@ -638,6 +658,13 @@ $(document).ready(function() {
                         </td>
                         <td><input type="number" name="item_amount[]" class="form-control amount" value="0" required step="0.01"></td>
                         <td><input type="number" name="item_quantity[]" class="form-control quantity" value="1" required></td>
+                        <td>
+                            <select name="unit[]" class="form-control unit">
+                                <option value="nos" selected>nos</option>
+                                <option value="packet">packet</option>
+                                <option value="box">box</option>
+                            </select>
+                        </td>
                         <td><input type="number" name="item_discount[]" class="form-control discount" value="0" required step="0.01"></td>
                         <td><input type="number" name="item_total_amount[]" class="form-control total_amount" value="0" readonly></td>
                         <td><button type="button" class="btn btn-danger btn-sm remove-item">Remove</button></td>

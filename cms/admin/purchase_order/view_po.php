@@ -46,7 +46,7 @@ if (isset($company)) {
 $item_query = $conn->query("SELECT po_items.*, item_list.name as item_name, item_list.description as item_description 
     FROM po_items 
     JOIN item_list ON po_items.item_id = item_list.id 
-    WHERE po_items.po_id = '{$_GET['id']}'");
+    WHERE po_items.po_id = '{$id}'");
 if (!$item_query) {
     die('Query error (po_items): ' . $conn->error);
 }
@@ -401,8 +401,8 @@ while ($row = $item_query->fetch_assoc()) {
                         <th class="text-center py-1 px-2">Sr.</th>
                         <th class="text-center py-1 px-2">Item</th>
                         <th class="text-center py-1 px-2">Price</th>
-                        <th class="text-center py-1 px-2">Discount</th>
                         <th class="text-center py-1 px-2">Qty.</th>
+                        <th class="text-center py-1 px-2">Discount</th>
                         <th class="text-center py-1 px-2">Amount</th>
                     </tr>
                 </thead>
@@ -419,6 +419,9 @@ while ($row = $item_query->fetch_assoc()) {
                             $stmt->bind_result($name, $description);
                             $stmt->fetch();
                             $itemDetails = ['name' => $name, 'description' => $description];
+
+                            // Calculate the discount amount for a single item
+                            $per_item_discount_amount = ($item['amount'] * $item['discount']) / 100;
                             $stmt->close();
                             ?>
                             <tr>
@@ -431,14 +434,17 @@ while ($row = $item_query->fetch_assoc()) {
                                     <?php endif; ?>
                                 </td>
                                 <td class="py-1 px-2 text-right"><?php echo number_format_indian($item['amount'], 2) ?></td>
-                                <td class="py-1 px-2 text-right"><?php echo number_format_indian($item['discount'], 2) ?>%</td>
-                                <td class="py-1 px-2 text-right"><?php echo number_format_indian($item['quantity'], 2) ?></td>
+                                <td class="py-1 px-2 text-right"><?php echo number_format($item['quantity']) ?>(<?php echo $item['unit'] ?>)</td>
+                                <td class="py-1 px-2 text-right">
+                                    <?php echo number_format_indian($per_item_discount_amount, 2) ?>
+                                    (<?php echo number_format($item['discount'], 2) ?>%)
+                                </td>
                                 <td class="py-1 px-2 text-right"><?php echo number_format_indian($item['total_amount'], 2) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="7" class="text-center">No items found</td>
+                            <td colspan="8" class="text-center">No items found</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
