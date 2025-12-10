@@ -27,6 +27,18 @@ class Login extends DBConnection {
 
 			}
 			$this->settings->set_userdata('login_type',1);
+			// If the user has pending assigned tasks, set a session flag to show flash once after login
+			$user_id = $this->settings->userdata('id');
+			if(!empty($user_id)){
+				$task_q = $this->conn->query("SELECT COUNT(*) as count FROM tasks WHERE assigned_to = '{$user_id}' AND status IN ('pending','in_progress')");
+				if($task_q){
+					$task_count = $task_q->fetch_assoc()['count'];
+					if($task_count > 0){
+							session_start();
+							$_SESSION['show_tasks_flash'] = 1;
+						}
+				}
+			}
 		return json_encode(array('status'=>'success'));
 		}else{
 		return json_encode(array('status'=>'incorrect','last_qry'=>"SELECT * from users where username = '$username' and password = md5('$password') "));

@@ -422,6 +422,9 @@ while ($row = $item_query->fetch_assoc()) {
 
                             // Calculate the discount amount for a single item
                             $per_item_discount_amount = ($item['amount'] * $item['discount']) / 100;
+
+                            // Calculate the final price per item after discount
+                            $discounted_price_per_item = $item['amount'] - $per_item_discount_amount;
                             $stmt->close();
                             ?>
                             <tr>
@@ -436,7 +439,7 @@ while ($row = $item_query->fetch_assoc()) {
                                 <td class="py-1 px-2 text-right"><?php echo number_format_indian($item['amount'], 2) ?></td>
                                 <td class="py-1 px-2 text-right"><?php echo number_format($item['quantity']) ?>(<?php echo $item['unit'] ?>)</td>
                                 <td class="py-1 px-2 text-right">
-                                    <?php echo number_format_indian($per_item_discount_amount, 2) ?>
+                                    <?php echo number_format_indian($discounted_price_per_item, 2) ?>
                                     (<?php echo number_format($item['discount'], 2) ?>%)
                                 </td>
                                 <td class="py-1 px-2 text-right"><?php echo number_format_indian($item['total_amount'], 2) ?></td>
