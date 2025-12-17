@@ -55,12 +55,6 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                             <button type="button" class="btn btn-danger remove_attribute mb-2">Delete</button>
                         </div>
                     <?php endwhile; ?>
-                <?php else: ?>
-                    <div class="attribute_row mb-3">
-                        <input type="text" name="attributes[]" placeholder="Attribute Name" class="form-control mb-2">
-                        <input type="text" name="values[]" placeholder="Attribute Value" class="form-control mb-2">
-                        <button type="button" class="btn btn-danger remove_attribute mb-2">Delete</button>
-                    </div>
                 <?php endif; ?>
             </div>
             <button type="button" id="add_attribute" class="btn btn-secondary mt-3">Add Attribute</button>
@@ -105,6 +99,8 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                     end_loader();
                 },
                 success: function(resp){
+                    end_loader(); // Always stop loader first
+                    
                     if (typeof resp == 'object' && resp.status == 'success') {
                         location.reload();
                     } else if (resp.status == 'failed' && !!resp.msg) {
@@ -113,10 +109,9 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                         _this.prepend(el);
                         el.show('slow');
                         $("html, body").animate({ scrollTop: _this.closest('.card').offset().top }, "fast");
-                        end_loader();
                     } else {
                         alert_toast("An error occurred", 'error');
-                        end_loader();
+                        console.log(resp);
                     }
                 }
             });
