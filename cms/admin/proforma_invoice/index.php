@@ -42,11 +42,6 @@ if (!empty($selected_company)) {
 
 $where_clause = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
 
-// Update query with new conditions
-$records_per_page = 50;
-$page = isset($_GET['p']) ? (int)$_GET['p'] : 1;
-$offset = ($page - 1) * $records_per_page;
-
 // Use FORCE INDEX to ensure index usage
 $query = "SELECT SQL_NO_CACHE pi.id, pi.po_code, pi.po_date_created, 
           pi.total_amount, pi.company, c.company_name as client
@@ -57,15 +52,7 @@ if (!empty($conditions)) {
     $query .= " WHERE " . implode(" AND ", $conditions);
 }
 
-$query .= " ORDER BY pi.po_date_created DESC, pi.id DESC LIMIT {$offset}, {$records_per_page}";
-
-// Get total count using optimized count query
-$count_query = "SELECT COUNT(*) FROM proforma_invoice_list pi";
-if (!empty($conditions)) {
-    $count_query .= " WHERE " . implode(" AND ", $conditions);
-}
-$total_records = $conn->query($count_query)->fetch_row()[0];
-$total_pages = ceil($total_records / $records_per_page);
+$query .= " ORDER BY pi.po_date_created DESC, pi.id DESC";
 
 $result = $conn->query($query);
 ?>
