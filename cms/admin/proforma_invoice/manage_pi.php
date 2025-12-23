@@ -641,7 +641,7 @@ while($row = $item_query->fetch_assoc()) {
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="freight_note" class="control-label">Freight Note:</label>
+                        <label for="freight_note" class="control-label">Note:</label>
                         <input type="text" name="freight_note" id="freight_note" class="form-control" value="<?php echo isset($freight_note) ? $freight_note : ''; ?>">
                     </div>                    
                 </div>

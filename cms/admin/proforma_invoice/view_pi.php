@@ -437,7 +437,7 @@ function format_indian_number($number)
                 <div class="row" style="margin: 0;">
                     <div class="col-8 text-left" style="font-size: 15px; padding: 0;">
                         <p><strong>
-                        <u style="font-size:20px; color:red;">Freight: <?php echo $invoice['freight_note']; ?></u>
+                        <u style="font-size:20px; color:red;">Note: <?php echo $invoice['freight_note']; ?></u>
                         <br>
                         NEFT DETAILS:<br>
                         BANK NAME: CENTRAL BANK OF INDIA<br>
