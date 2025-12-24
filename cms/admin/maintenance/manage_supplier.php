@@ -75,9 +75,9 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
             var _this = $(this);
             $('.err-msg').remove();
 
-            // Validate email
+            // Validate email (only if provided)
             var email = $('#email').val();
-            if (!validateEmail(email)) {
+            if (email && !validateEmail(email)) {
                 Swal.fire({
                     toast: true,
                     position: 'top-end',
