@@ -117,9 +117,9 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                 return false;
             }
 
-            // Validate GST number
+            // Validate GST number (only if provided)
             var gst_number = $('#gst_number').val();
-            if (!validateGST(gst_number)) {
+            if (gst_number && !validateGST(gst_number)) {
                 Swal.fire({
                     toast: true,
                     position: 'top-end',
