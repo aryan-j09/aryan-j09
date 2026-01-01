@@ -28,195 +28,195 @@ if($supplier_po_qry === false){
     $supplier_pos = $supplier_po_qry->fetch_all(MYSQLI_ASSOC);
 }
 
-// Fetch project items
-$items_qry = $conn->query("
-    SELECT 
-        pi.*, 
-        pia.activity_name as latest_activity
-    FROM `project_items` pi
-    LEFT JOIN (
-        SELECT 
-            project_item_id, activity_name,
-            ROW_NUMBER() OVER(PARTITION BY project_item_id ORDER BY activity_date DESC, id DESC) as rn
-        FROM `project_item_activities`
-    ) pia ON pi.id = pia.project_item_id AND pia.rn = 1
-    WHERE pi.project_id = '{$id}' ORDER BY pi.item_name ASC");
-if($items_qry === false){
-    echo "<div class='alert alert-danger'>Error fetching project items: " . htmlspecialchars($conn->error) . "</div>";
-    $items = [];
-} else {
-    $items = $items_qry->fetch_all(MYSQLI_ASSOC);
+// Fetch Project Phases (will be empty until backend is implemented)
+$phases_qry = $conn->query("SELECT * FROM `project_phases` WHERE project_id = '{$id}' ORDER BY display_order ASC, created_at ASC");
+if (!$phases_qry) {
+    // Don't die, just show an error and continue rendering the page
+    echo "<div class='alert alert-danger'>Error preparing for phases: " . htmlspecialchars($conn->error) . "</div>";
 }
 
-// Fetch all available items for the dropdown
-$all_items_qry = $conn->query("SELECT name FROM `item_list` ORDER BY name ASC");
-if($all_items_qry === false){
-    echo "<div class='alert alert-danger'>Error fetching items: " . htmlspecialchars($conn->error) . "</div>";
-    $all_items = [];
-} else {
-    $all_items = $all_items_qry->fetch_all(MYSQLI_ASSOC);
-}
+// Fetch all activities for all phases of this project at once for efficiency
+$phase_activities = [];
+if ($phases_qry && $phases_qry->num_rows > 0) {
+    $phase_ids = array_map(function($p) { return $p['id']; }, $phases_qry->fetch_all(MYSQLI_ASSOC));
+    $phases_qry->data_seek(0); // Reset pointer after fetch_all
 
-// Fetch available PO items that are not already added to the project
-$available_po_items = [];
-
-// Supplier PO Items - get all items from assigned POs
-$supplier_items_qry = $conn->query("SELECT pi.id, pol.po_code, il.name as item_name
-                                         FROM `po_items` pi 
-                                    JOIN `purchase_order_list` pol ON pi.po_id = pol.id
-                                    JOIN `item_list` il ON pi.item_id = il.id
-                                    WHERE pol.id IN (SELECT po_id FROM project_po_list WHERE project_id = '{$id}')
-                                    ORDER BY pol.po_code ASC, il.name ASC");
-if($supplier_items_qry !== false){
-    while($row = $supplier_items_qry->fetch_assoc()){
-        // Show all PO items from assigned POs
-        $available_po_items[] = [
-            'id' => $row['id'], 
-            'text' => '['.$row['po_code'].'] ' . $row['item_name']
-        ];
+    $activities_qry = $conn->query("SELECT pa.*, CONCAT(u.firstname, ' ', u.lastname) as author FROM `phase_activities` pa LEFT JOIN `users` u ON pa.created_by = u.id WHERE pa.phase_id IN (" . implode(',', $phase_ids) . ") ORDER BY pa.created_at DESC");
+    if ($activities_qry) {
+        while ($activity = $activities_qry->fetch_assoc()) {
+            $phase_activities[$activity['phase_id']][] = $activity;
+        }
     }
-} else {
-    echo "<div class='alert alert-warning'>No PO items found or error: " . htmlspecialchars($conn->error) . "</div>";
 }
-
-// Fetch general project activities for the timeline
-$project_activities_qry = $conn->query("SELECT a.*, u.firstname, u.lastname 
-                                        FROM project_activities a 
-                                        LEFT JOIN users u ON u.id = a.created_by 
-                                        WHERE project_id = '{$id}' 
-                                        ORDER BY a.created_at DESC");
-if (!$project_activities_qry) {
-    die("Error fetching project activities: " . $conn->error);
-}
-
-// Fetch project tasks
-$tasks_qry = $conn->query("SELECT t.*, CONCAT(u.firstname, ' ', u.lastname) as assigned_to_name 
-                           FROM `tasks` t 
-                           LEFT JOIN `users` u ON t.assigned_to = u.id 
-                           WHERE t.project_id = '{$id}' 
-                           ORDER BY t.due_date ASC, t.priority DESC");
-if (!$tasks_qry) {
-    die("Error fetching project tasks: " . $conn->error);
-}
-
-// Fetch users for task assignment dropdown
-$users_qry = $conn->query("SELECT id, CONCAT(firstname, ' ', lastname) as name FROM `users` ORDER BY name ASC");
-$users = $users_qry->fetch_all(MYSQLI_ASSOC);
 ?>
+<style>
+    .clickable-header {
+        cursor: pointer;
+        -webkit-user-select: none; /* Safari */
+        -ms-user-select: none; /* IE 10+ and Edge */
+        user-select: none; /* Standard syntax */
+    }
+
+    /* Item Card Retractable Styles */
+    .item-card {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .item-card.collapsed {
+        max-height: 60px;
+        overflow: hidden;
+    }
+
+    .item-card.expanded {
+        max-height: none;
+    }
+
+    .item-card-header {
+        padding: 12px 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        user-select: none;
+        cursor: pointer;
+    }
+
+    .item-card-header .expand-icon {
+        transition: transform 0.3s ease;
+        display: inline-block;
+        margin-left: 8px;
+    }
+
+    .item-card.expanded .expand-icon {
+        transform: rotate(180deg);
+    }
+
+    .item-card-body {
+        padding: 0 15px 15px 15px;
+        transition: opacity 0.3s ease;
+    }
+
+    .item-card.collapsed .item-card-body {
+        display: none;
+    }
+</style>
 
 <div class="row">
     <div class="col-md-8">
-                <!-- Project Items Card -->
-        <div class="card card-outline card-primary">
-            <div class="card-header">
-                <h3 class="card-title">Project Items</h3>
-                <div class="card-tools">
-                    <button class="btn btn-sm btn-flat btn-primary" id="add_item_btn"><i class="fa fa-plus"></i> Add Item</button>
-                </div>
-            </div>
-            <div class="card-body">
-                <table class="table table-sm table-bordered table-striped">
-                    <thead class="thead-dark">
-                        <tr>
-                            <th>Item Name</th>
-                            <th>Quantity</th>
-                            <th>Specifications</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach($items as $item): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($item['item_name']); ?></td>
-                                <td><?php echo htmlspecialchars($item['quantity']); ?></td>
-                                <td><?php echo nl2br(htmlspecialchars($item['specifications'])); ?></td>
-                                <td>
-                                    <?php echo !empty($item['latest_activity']) ? '<span class="badge badge-primary">' . htmlspecialchars($item['latest_activity']) . '</span>' : '<span class="badge badge-secondary">Pending</span>'; ?>
-                                </td>
-                                <td class="text-center">
-                                    <button class="btn btn-xs btn-info btn-flat log_activity" data-id="<?php echo $item['id']; ?>" data-name="<?php echo htmlspecialchars($item['item_name']); ?>"><i class="fa fa-tasks"></i></button>
-                                    <button class="btn btn-xs btn-primary btn-flat edit_item" data-id="<?php echo $item['id']; ?>" data-item='<?php echo json_encode($item, JSON_HEX_QUOT | JSON_HEX_APOS); ?>'><i class="fa fa-edit"></i></button>
-                                    <button class="btn btn-xs btn-danger btn-flat delete_item" data-id="<?php echo $item['id']; ?>"><i class="fa fa-trash"></i></button>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                        <?php if(empty($items)): ?>
-                            <tr>
-                                <td colspan="5" class="text-center text-muted">No items added yet.</td>
-                            </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
 
-        <!-- General Activity Log Card -->
-        <div class="card card-outline card-info">
+        <!-- Project Phases Section -->
+        <div class="card card-outline card-success">
             <div class="card-header">
-                <h3 class="card-title">Project Activity Log</h3>
+                <h3 class="card-title">Project Phases</h3>
                 <div class="card-tools">
-                    <button class="btn btn-sm btn-flat btn-primary" id="log_project_activity_btn"><i class="fa fa-plus"></i> Log Activity</button>
+                    <button class="btn btn-sm btn-flat btn-success" id="add_phase_btn"><i class="fa fa-plus"></i> Add Phase</button>
                 </div>
             </div>
             <div class="card-body">
-                <div class="timeline">
-                    <?php if($project_activities_qry->num_rows > 0): ?>
-                        <?php while($row = $project_activities_qry->fetch_assoc()): ?>
-                        <div>
-                            <i class="fas fa-info-circle bg-blue"></i>
-                            <div class="timeline-item">
-                                <span class="time">
-                                    <i class="fas fa-clock"></i> 
-                                    <?php echo date("M d, Y h:i A", strtotime($row['created_at'])) ?>
-                                </span>
-                                <h3 class="timeline-header d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <?php echo '<strong>' . ucfirst($row['activity_type']) . '</strong> by ' . $row['firstname'].' '.$row['lastname'] ?>
-                                    </div>
-                                    <div>
-                                        <button type="button" class="btn btn-xs btn-primary edit_project_activity" 
-                                                data-id="<?php echo $row['id'] ?>"
-                                                data-activity='<?php echo json_encode($row, JSON_HEX_QUOT | JSON_HEX_APOS); ?>'
-                                                title="Edit">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-xs btn-danger delete_project_activity" data-id="<?php echo $row['id'] ?>" title="Delete">
-                                            <i class="fas fa-trash"></i>
+                <div id="phases_container">
+                    <?php if($phases_qry && $phases_qry->num_rows > 0): ?>
+                        <?php while($phase = $phases_qry->fetch_assoc()): ?>
+                            <div class="card card-outline card-secondary mb-3 collapsed-card">
+                                <div class="card-header clickable-header">
+                                    <h5 class="card-title">
+                                        <?php echo htmlspecialchars($phase['name']); ?>
+                                        <?php if(!empty($phase['start_date']) && !empty($phase['end_date'])): ?>
+                                            <small class="text-muted ml-2">(<?php echo date("d M, Y", strtotime($phase['start_date'])) . ' - ' . date("d M, Y", strtotime($phase['end_date'])); ?>)</small>
+                                        <?php endif; ?>
+                                    </h5>
+                                    <div class="card-tools">
+                                        <span class="badge <?php echo get_phase_status_badge($phase['status']); ?>"><?php echo htmlspecialchars($phase['status']); ?></span>
+                                        <button class="btn btn-xs btn-primary edit_phase" data-phase='<?php echo json_encode($phase, JSON_HEX_QUOT | JSON_HEX_APOS); ?>'><i class="fa fa-edit"></i></button>
+                                        <button class="btn btn-xs btn-danger delete_phase" data-id="<?php echo $phase['id']; ?>"><i class="fa fa-trash"></i></button>
+                                        <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                            <i class="fas fa-plus"></i>
                                         </button>
                                     </div>
-                                </h3>
-                                <div class="timeline-body">
-                                    <?php echo nl2br(htmlspecialchars($row['description'])) ?>
-                                    
-                                    <?php if(!empty($row['time_from']) && !empty($row['time_to'])): ?>
+                                </div>
+                                <div class="card-body">
+                                    <p><?php echo nl2br(htmlspecialchars($phase['description'])); ?></p>
                                     <div class="mt-2">
-                                        <span class="badge badge-info">
-                                            <i class="fas fa-clock"></i> 
-                                            Time: <?php echo date("h:i A", strtotime($row['time_from'])) ?> - <?php echo date("h:i A", strtotime($row['time_to'])) ?>
-                                        </span>
+                                        <button class="btn btn-xs btn-info add_phase_activity" data-phase-id="<?php echo $phase['id']; ?>"><i class="fa fa-plus"></i> Add Activity</button>
                                     </div>
-                                    <?php endif; ?>
-                                    
-                                    <?php if(!empty($row['next_followup'])): ?>
-                                    <div class="mt-2">
-                                        <span class="badge badge-warning">
-                                            <i class="fas fa-calendar-alt"></i> 
-                                            Next Follow-up: <?php echo date("d M, Y h:i A", strtotime($row['next_followup'])) ?>
-                                        </span>
+
+                                    <!-- Activity Items Grouped Display -->
+                                    <div class="items-container mt-3">
+                                        <?php 
+                                        if(isset($phase_activities[$phase['id']]) && count($phase_activities[$phase['id']]) > 0):
+                                            // Group activities by item_name
+                                            $grouped_by_item = [];
+                                            foreach($phase_activities[$phase['id']] as $activity):
+                                                $item_key = !empty($activity['item_name']) ? $activity['item_name'] : '__general__';
+                                                if(!isset($grouped_by_item[$item_key])):
+                                                    $grouped_by_item[$item_key] = [];
+                                                endif;
+                                                $grouped_by_item[$item_key][] = $activity;
+                                            endforeach;
+
+                                            foreach($grouped_by_item as $item_name => $item_activities):
+                                                $is_general = ($item_name === '__general__');
+                                        ?>
+                                            <div class="card card-outline card-info mb-3 item-card collapsed" data-item-name="<?php echo htmlspecialchars($item_name); ?>">
+                                                <div class="card-header item-card-header">
+                                                    <h6 class="card-title mb-0">
+                                                        <?php if(!$is_general): ?>
+                                                            <strong><?php echo htmlspecialchars($item_name); ?></strong>
+                                                            <span class="badge badge-primary ml-2"><?php echo count($item_activities); ?> activities</span>
+                                                        <?php else: ?>
+                                                            <strong>General Activities</strong>
+                                                            <span class="badge badge-secondary ml-2"><?php echo count($item_activities); ?> activities</span>
+                                                        <?php endif; ?>
+                                                        <i class="fas fa-chevron-down expand-icon"></i>
+                                                    </h6>
+                                                </div>
+                                                <div class="card-body item-card-body">
+                                                    <div class="timeline timeline-inverse">
+                                                        <?php foreach($item_activities as $activity): ?>
+                                                            <div>
+                                                                <i class="fas fa-circle bg-info"></i>
+                                                                <div class="timeline-item">
+                                                                    <span class="time">
+                                                                        <i class="fas fa-clock"></i> 
+                                                                        <?php echo date("M d, Y h:i A", strtotime($activity['created_at'])) ?>
+                                                                    </span>
+                                                                    <h5 class="timeline-header d-flex justify-content-between align-items-center">
+                                                                        <div>
+                                                                            <strong><?php echo htmlspecialchars($activity['activity_type']); ?></strong>
+                                                                            <small class="text-muted"> by <?php echo htmlspecialchars($activity['author'] ?? 'System'); ?></small>
+                                                                        </div>
+                                                                        <div>
+                                                                            <button class="btn btn-xs btn-primary edit_phase_activity" data-activity='<?php echo json_encode($activity, JSON_HEX_QUOT | JSON_HEX_APOS); ?>'><i class="fa fa-edit"></i></button>
+                                                                            <button class="btn btn-xs btn-danger delete_phase_activity" data-id="<?php echo $activity['id']; ?>"><i class="fa fa-trash"></i></button>
+                                                                        </div>
+                                                                    </h5>
+                                                                    <div class="timeline-body">
+                                                                        <?php echo nl2br(htmlspecialchars($activity['activity_description'])); ?>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        <?php endforeach; ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <?php 
+                                            endforeach;
+                                        else: 
+                                        ?>
+                                            <div class="text-center text-muted small">No activities logged for this phase yet.</div>
+                                        <?php endif; ?>
                                     </div>
-                                    <?php endif; ?>
                                 </div>
                             </div>
-                        </div>
                         <?php endwhile; ?>
                     <?php else: ?>
-                        <div class="text-center text-muted">No general project activities logged yet.</div>
+                        <p class="text-center text-muted">No phases have been added to this project yet.</p>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
     </div>
+
     <div class="col-md-4">
         <div class="card card-outline card-primary">
             <div class="card-header">
@@ -257,353 +257,199 @@ $users = $users_qry->fetch_all(MYSQLI_ASSOC);
             </div>
         </div>
 
-        <!-- Project Tasks Card -->
-        <div class="card card-outline card-success">
-            <div class="card-header">
-                <h3 class="card-title">Project Tasks</h3>
-                <div class="card-tools">
-                    <button class="btn btn-sm btn-flat btn-success" id="add_task_btn"><i class="fa fa-plus"></i> Add Task</button>
-                </div>
-            </div>
-            <div class="card-body">
-                <table class="table table-sm table-hover table-striped">
-                    <thead class="thead-dark">
-                        <tr>
-                            <th>Status</th>
-                            <th>Task</th>
-                            <th>Assigned To</th>
-                            <th>Due Date</th>
-                            <th>Priority</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php 
-                        // Rewind query pointer to loop again since it was used before
-                        $tasks_qry->data_seek(0); 
-                        if($tasks_qry->num_rows > 0): 
-                            while($task = $tasks_qry->fetch_assoc()): 
-                        ?>
-                                <tr>
-                                    <td class="text-center"><span class="badge <?php echo get_task_status_badge($task['status']); ?>"><?php echo ucfirst($task['status']); ?></span></td>
-                                    <td><?php echo htmlspecialchars($task['title']); ?></td>
-                                    <td><?php echo htmlspecialchars($task['assigned_to_name']); ?></td>
-                                    <td><?php echo date("d M, Y", strtotime($task['due_date'])); ?></td>
-                                    <td><?php echo ucfirst($task['priority']); ?></td>
-                                    <td class="text-center">
-                                        <button class="btn btn-xs btn-primary btn-flat edit_task" data-task='<?php echo json_encode($task, JSON_HEX_QUOT | JSON_HEX_APOS); ?>'><i class="fa fa-edit"></i></button>
-                                        <button class="btn btn-xs btn-danger btn-flat delete_task" data-id="<?php echo $task['id']; ?>"><i class="fa fa-trash"></i></button>
-                                    </td>
-                                </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr>
-                                <td colspan="6" class="text-center text-muted">No tasks planned for this project yet.</td>
-                            </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
     </div>
 </div>
 
-<!-- Task Modal -->
-<div class="modal fade" id="task_modal" tabindex="-1" role="dialog">
+<!-- Phase Modal -->
+<div class="modal fade" id="phase_modal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Manage Project Task</h5>
+                <h5 class="modal-title">Manage Project Phase</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
-                <form id="task-form">
+                <form id="phase-form">
                     <input type="hidden" name="id" value="">
                     <input type="hidden" name="project_id" value="<?php echo $id; ?>">
                     <div class="form-group">
-                        <label for="title" class="control-label">Task Title</label>
-                        <input type="text" name="title" id="title" class="form-control" required>
+                        <label for="name" class="control-label">Phase Name</label>
+                        <input type="text" name="name" id="name" class="form-control" required>
                     </div>
                     <div class="form-group">
                         <label for="description" class="control-label">Description</label>
                         <textarea name="description" id="description" class="form-control" rows="3"></textarea>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 form-group">
-                            <label for="assigned_to" class="control-label">Assigned To</label>
-                            <select name="assigned_to" id="assigned_to" class="form-control" required>
-                                <option value="" disabled selected>Select a user</option>
-                                <?php foreach($users as $user): ?>
-                                    <option value="<?php echo $user['id']; ?>"><?php echo htmlspecialchars($user['name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                        <div class="col-md-3 form-group">
+                            <label for="start_date" class="control-label">Start Date</label>
+                            <input type="date" name="start_date" id="start_date" class="form-control">
                         </div>
-                        <div class="col-md-6 form-group">
-                            <label for="due_date" class="control-label">Due Date</label>
-                            <input type="date" name="due_date" id="due_date" class="form-control" required>
+                        <div class="col-md-3 form-group">
+                            <label for="end_date" class="control-label">End Date</label>
+                            <input type="date" name="end_date" id="end_date" class="form-control">
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 form-group">
-                            <label for="priority" class="control-label">Priority</label>
-                            <select name="priority" id="priority" class="form-control" required>
-                                <option value="Low">Low</option>
-                                <option value="Normal">Normal</option>
-                                <option value="High">High</option>
-                            </select>
+                        <div class="col-md-3 form-group">
+                            <label for="no_of_days" class="control-label">No. of Days</label>
+                            <input type="number" id="no_of_days" class="form-control" min="1">
                         </div>
-                        <div class="col-md-6 form-group">
+                        <div class="col-md-3 form-group">
                             <label for="status" class="control-label">Status</label>
                             <select name="status" id="status" class="form-control" required>
-                                <option value="Pending">Pending</option>
-                                <option value="In-Progress">In-Progress</option>
-                                <option value="Testing">Testing</option>
-                                <option value="Completed">Completed</option>
+                                <option>Pending</option>
+                                <option>In Progress</option>
+                                <option>Completed</option>
+                                <option>On Hold</option>
                             </select>
                         </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="submit" class="btn btn-primary" form="task-form">Save Task</button>
+
+                <button type="submit" class="btn btn-primary" form="phase-form">Save Phase</button>
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Item Modal -->
-<div class="modal fade" id="item_modal" tabindex="-1" role="dialog">
+<!-- Phase Activity Modal -->
+<div class="modal fade" id="phase_activity_modal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Manage Project Item</h5>
+                <h5 class="modal-title">Add Phase Activity</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
-                <form id="item-form">
+                <form id="phase-activity-form">
                     <input type="hidden" name="id" value="">
-                    <input type="hidden" name="po_item_id" value="">
-                    <?php if(!empty($available_po_items)): ?>
+                    <input type="hidden" name="phase_id" value="">
                     <div class="form-group">
-                        <label for="po_item_select" class="control-label">Import from Assigned PO</label>
-                        <select id="po_item_select" class="form-control">
-                            <option value="" disabled selected>Select a PO item to auto-fill</option>
-                            <?php foreach($available_po_items as $po_item): ?>
-                                <option value="<?php echo $po_item['id']; ?>"><?php echo htmlspecialchars($po_item['text']); ?></option>
-                            <?php endforeach; ?>
+                        <label for="log_type" class="control-label">Log Type</label>
+                        <select id="log_type" class="form-control">
+                            <option value="general">General Activity</option>
+                            <option value="item">Item-Specific Activity</option>
                         </select>
                     </div>
-                    <hr>
-                    <?php endif; ?>
-                    <input type="hidden" name="project_id" value="<?php echo $id; ?>">
-                    <div class="form-group">
+                    <div class="form-group" id="item_name_group" style="display: none;">
                         <label for="item_name" class="control-label">Item Name</label>
-                        <select name="item_name" id="item_name" class="form-control" required>
-                            <option value="" disabled selected>Select an item</option>
-                            <?php foreach($all_items as $item): ?>
-                                <option value="<?php echo htmlspecialchars($item['name']); ?>"><?php echo htmlspecialchars($item['name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <!-- Changed to a select to allow searching and adding new tags -->
+                        <select name="item_name" id="item_name" class="form-control"></select>
                     </div>
                     <div class="form-group">
-                        <label for="quantity" class="control-label">Quantity</label>
-                        <input type="number" name="quantity" id="quantity" class="form-control" required min="1">
-                    </div>
-                    <div class="form-group">
-                        <label for="specifications" class="control-label">Specifications</label>
-                        <textarea name="specifications" id="specifications" class="form-control" rows="4"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="submit" class="btn btn-primary" form="item-form">Save</button>
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- General Project Activity Modal -->
-<div class="modal fade" id="project_activity_modal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Log Project Activity</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="project-activity-form">
-                    <input type="hidden" name="project_id" value="<?php echo $id; ?>">
-                    <input type="hidden" name="activity_id" value="">
-                    <div class="row">
-                        <div class="col-md-4 form-group">
-                            <label for="project_activity_type" class="control-label">Activity Type</label>
-                            <select name="activity_type" id="project_activity_type" class="form-control" required>
+                        <label for="activity_type" class="control-label">Activity</label>
+                        <select name="activity_type" id="activity_type" class="form-control select2" required>
+                            <optgroup label="General Activities">
                                 <option>Note</option>
                                 <option>Email</option>
                                 <option>Call</option>
                                 <option>Meeting</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4 form-group">
-                            <label for="project_activity_created_at" class="control-label">Activity Date & Time</label>
-                            <input type="datetime-local" name="created_at" id="project_activity_created_at" class="form-control" required>
-                        </div>
-                        <div class="col-md-4 form-group">
-                            <label for="project_activity_next_followup" class="control-label">Next Follow-up</label>
-                            <input type="datetime-local" name="next_followup" id="project_activity_next_followup" class="form-control">
-                        </div>
-                    </div>
-                    <div class="row time-range" style="display:none;">
-                        <div class="col-md-3 form-group">
-                            <label class="small">From</label>
-                            <input type="time" name="time_from" class="form-control">
-                        </div>
-                        <div class="col-md-3 form-group">
-                            <label class="small">To</label>
-                            <input type="time" name="time_to" class="form-control">
-                        </div>
+                            </optgroup>
+                            <optgroup label="Item Activities">
+                                <option>Order Placed</option>
+                                <option>Dispatched</option>
+                                <option>Received</option>
+                                <option>Installed</option>
+                            </optgroup>
+                        </select>
                     </div>
                     <div class="form-group">
-                        <label for="project_activity_description" class="control-label">Description</label>
-                        <textarea name="description" id="project_activity_description" class="form-control" rows="4" required></textarea>
+                        <label for="activity_description" class="control-label">Activity Description</label>
+                        <textarea name="activity_description" id="activity_description" class="form-control" rows="4" required></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="submit" class="btn btn-primary" form="project-activity-form">Save</button>
+
+                <button type="submit" class="btn btn-primary" form="phase-activity-form">Save Activity</button>
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Item Activity Modal -->
-<div class="modal fade" id="activity_modal" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Activity Log for <span id="activity_item_name"></span></h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="activity-form">
-                    <input type="hidden" name="project_item_id" value="">
-                    <div class="form-group">
-                        <label for="activity_name" class="control-label">Activity</label>
-                        <select name="activity_name" id="activity_name" class="form-control" required>
-                            <option>Order Placed</option>
-                            <option>FAT</option>
-                            <option>Dispatched</option>
-                            <option>Received</option>
-                            <option>Installed</option>
-                            <option>Other</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="activity_date" class="control-label">Date</label>
-                        <input type="date" name="activity_date" id="activity_date" class="form-control" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="remarks" class="control-label">Remarks</label>
-                        <textarea name="remarks" id="remarks" class="form-control" rows="3"></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-block">Add Activity</button>
-                </form>
-                <hr>
-                <div id="activity-log-container"></div>
-            </div>
-        </div>
-    </div>
-</div>
+
 
 <script>
 $(document).ready(function(){
-    // Initialize select2 for the item dropdown
+    // Initialize select2 for activity type
+    $('#activity_type').select2({
+        dropdownParent: $('#phase_activity_modal')
+    });
+
+    // Initialize select2 for item name with tagging and AJAX
     $('#item_name').select2({
-        placeholder: "Select an item",
-        dropdownParent: $('#item_modal') // Important for search to work inside a modal
-    });
-    $('#po_item_select').select2({
-        placeholder: "Select a PO item to auto-fill",
-        dropdownParent: $('#item_modal')
-    });
-    $('#assigned_to').select2({
-        placeholder: "Select a user",
-        dropdownParent: $('#task_modal')
-    });
-
-    // Show Add Item Modal
-    $('#add_item_btn').click(function(){
-        $('#item-form')[0].reset();
-        $('#item-form input[name="id"]').val('');
-        // Reset select2 fields
-        $('#item_name').val(null).trigger('change');
-        $('#po_item_select').val(null).trigger('change');
-        $('#item_modal').modal('show');
-    });
-
-    // Show Edit Item Modal
-    $('.edit_item').click(function(){
-        var data = $(this).data('item');
-        var form = $('#item-form');
-        form[0].reset();
-        form.find('input[name="id"]').val(data.id);
-        form.find('select[name="item_name"]').val(data.item_name).trigger('change'); // Set select2 value
-        form.find('input[name="quantity"]').val(data.quantity);
-        form.find('textarea[name="specifications"]').val(data.specifications);
-        $('#item_modal').modal('show');
-    });
-
-    // Handle PO Item Selection
-    $('#po_item_select').on('change', function(){
-        var po_item_id = $(this).val();
-        if(!po_item_id) return;
-
-        // Store the po_item_id in the hidden field
-        $('#item-form input[name="po_item_id"]').val(po_item_id);
-
-        start_loader();
-        $.ajax({
-            url: _base_url_ + "classes/Master.php?f=get_po_item_for_project",
+        placeholder: 'Select or type an item name',
+        dropdownParent: $('#phase_activity_modal'),
+        tags: true, // Allow creating new tags
+        ajax: {
+            url: _base_url_ + "classes/Master.php?f=get_project_items_for_activity",
             method: 'POST',
-            data: { po_item_id: po_item_id },
             dataType: 'json',
-            error: function(err){
-                console.log('AJAX Error:', err);
-                alert_toast("An error occurred while fetching PO item details.", 'error');
-                end_loader();
+            delay: 250,
+            data: function (params) {
+                return {
+                    project_id: "<?php echo $id; ?>",
+                    q: params.term // Pass search term
+                };
             },
-            success: function(resp){
-                console.log('AJAX Response:', resp);
-                if(resp.status == 'success'){
-                    $('#item_name').val(resp.data.item_name).trigger('change');
-                    $('#quantity').val(resp.data.quantity);
-                    $('#specifications').val(resp.data.specifications);
-                    alert_toast("PO item details loaded successfully.", 'success');
-                } else {
-                    alert_toast(resp.msg || "Failed to load PO item details.", 'error');
-                }
-                end_loader();
+            processResults: function (data) {
+                return { results: data };
             }
-        });
+        }
+    });
+    // --- Project Phase Management (Layout Only) ---
+
+    // Make entire phase header clickable for collapse/expand
+    $('#phases_container').on('click', '.card-header', function(e) {
+        // Prevent collapse when clicking on action buttons
+        if ($(e.target).closest('.btn').length === 0) {
+            $(this).find('[data-card-widget="collapse"]').click();
+        }
     });
 
-    // Handle Form Submission
-    $('#item-form').submit(function(e){
+    // Show Add Phase Modal
+    $('#add_phase_btn').click(function(){
+        var form = $('#phase-form');
+        form[0].reset();
+
+        form.find('[name="id"]').val('');
+        $('#phase_modal .modal-title').text('Add New Project Phase');
+        $('#phase_modal').modal('show');
+    });
+
+    // Show Edit Phase Modal (event delegation for future dynamic content)
+    $(document).on('click', '.edit_phase', function(){
+        var phase = $(this).data('phase');
+        var form = $('#phase-form');
+        form[0].reset();
+
+
+        // Populate the form with the phase data
+        form.find('[name="id"]').val(phase.id);
+        form.find('[name="name"]').val(phase.name);
+        form.find('[name="description"]').val(phase.description);
+        form.find('[name="start_date"]').val(phase.start_date);
+        form.find('[name="end_date"]').val(phase.end_date);
+        form.find('[name="status"]').val(phase.status);
+        calculateDays(); // Calculate days when opening the modal
+
+        $('#phase_modal .modal-title').text('Edit Project Phase');
+        $('#phase_modal').modal('show');
+    });
+
+    // Handle Phase Form Submission
+    $('#phase-form').submit(function(e){
         e.preventDefault();
         start_loader();
         $.ajax({
-            url: _base_url_ + "classes/Master.php?f=save_project_item",
+            url: _base_url_ + "classes/Master.php?f=save_project_phase",
             method: 'POST',
             data: $(this).serialize(),
             dataType: 'json',
@@ -623,222 +469,131 @@ $(document).ready(function(){
         });
     });
 
-    // Handle Delete Item
-    $('.delete_item').click(function(){
-        _conf("Are you sure you want to delete this item?", "delete_project_item", [$(this).data('id')]);
+    // Handle Phase Deletion
+    $(document).on('click', '.delete_phase', function(){
+        _conf("Are you sure you want to delete this phase?", "delete_project_phase", [$(this).data('id')]);
     });
 
-    // --- Project Task Management ---
+    // --- Dynamic Date Calculation for Phase Modal ---
+    var startDateInput = $('#phase_modal #start_date');
+    var endDateInput = $('#phase_modal #end_date');
+    var daysInput = $('#phase_modal #no_of_days');
 
-    // Show Add Task Modal
-    $('#add_task_btn').click(function(){
-        $('#task-form')[0].reset();
-        $('#task-form input[name="id"]').val('');
-        $('#assigned_to').val(null).trigger('change');
-        $('#task_modal .modal-title').text('Add New Project Task');
-        $('#task_modal').modal('show');
-    });
-
-    // Show Edit Task Modal
-    $('.edit_task').click(function(){
-        var task = $(this).data('task');
-        var form = $('#task-form');
-        form[0].reset();
-
-        form.find('[name="id"]').val(task.id);
-        form.find('[name="title"]').val(task.title);
-        form.find('[name="description"]').val(task.description);
-
-        // Helper: set select value case-insensitively (matches option value or text)
-        function setSelectCaseInsensitive($select, value){
-            if(value === null || value === undefined) return;
-            var valStr = String(value);
-            // Try direct match first
-            if($select.find('option[value="'+valStr+'"]').length){
-                $select.val(valStr).trigger('change');
+    function calculateDays() {
+        var start = startDateInput.val();
+        var end = endDateInput.val();
+        if (start && end) {
+            var startDate = new Date(start);
+            var endDate = new Date(end);
+            if (endDate < startDate) {
+                daysInput.val('');
                 return;
             }
-            var found = null;
-            $select.find('option').each(function(){
-                var optVal = $(this).attr('value') || '';
-                var optText = $(this).text() || '';
-                if(optVal.toLowerCase() === valStr.toLowerCase() || optText.toLowerCase() === valStr.toLowerCase()){
-                    found = optVal;
-                    return false;
-                }
-            });
-            if(found !== null){
-                $select.val(found).trigger('change');
-                return;
-            }
-            // fallback: partial match on value
-            $select.find('option').each(function(){
-                var optVal = ($(this).attr('value') || '').toLowerCase();
-                if(optVal.indexOf(valStr.toLowerCase()) !== -1){
-                    found = $(this).attr('value');
-                    return false;
-                }
-            });
-            if(found !== null) $select.val(found).trigger('change');
+            var timeDiff = endDate.getTime() - startDate.getTime();
+            var dayDiff = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // Inclusive of start and end day
+            daysInput.val(dayDiff);
         }
-
-        // Correctly set dropdown values (case-insensitive to tolerate different DB casing)
-        setSelectCaseInsensitive(form.find('#assigned_to'), task.assigned_to);
-        setSelectCaseInsensitive(form.find('#priority'), task.priority);
-        setSelectCaseInsensitive(form.find('#status'), task.status);
-
-        // Format and set the due date robustly
-        if(task.due_date && task.due_date.indexOf('0000-00-00') === -1){
-            // Accept formats like "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS"
-            var datePart = task.due_date.split(' ')[0];
-            form.find('[name="due_date"]').val(datePart);
-        } else {
-            form.find('[name="due_date"]').val('');
-        }
-
-        $('#task_modal .modal-title').text('Edit Project Task');
-        $('#task_modal').modal('show');
-    });
-
-    // Handle Task Form Submission
-    $('#task-form').submit(function(e){
-        e.preventDefault();
-        start_loader();
-        $.ajax({
-            url: _base_url_ + "classes/Master.php?f=save_task",
-            method: 'POST',
-            data: $(this).serialize(),
-            dataType: 'json',
-            error: function(err){
-                console.log(err);
-                alert_toast("An error occurred.", 'error');
-                end_loader();
-            },
-            success: function(resp){
-                if(resp.status == 'success'){
-                    location.reload();
-                } else {
-                    alert_toast(resp.msg || "An error occurred.", 'error');
-                }
-                end_loader();
-            }
-        });
-    });
-
-    // Handle Delete Task
-    $('.delete_task').click(function(){
-        _conf("Are you sure you want to delete this task?", "delete_task", [$(this).data('id')]);
-    });
-
-    // --- Item Activity Log ---
-
-    var current_item_id;
-
-    // Show Activity Modal
-    $('.log_activity').click(function(){
-        current_item_id = $(this).data('id');
-        var item_name = $(this).data('name');
-        
-        $('#activity_item_name').text(item_name);
-        $('#activity-form input[name="project_item_id"]').val(current_item_id);
-        $('#activity-form')[0].reset();
-        $('#activity_date').val(new Date().toISOString().slice(0, 10)); // Set today's date
-
-        load_activities();
-        $('#activity_modal').modal('show');
-    });
-
-    function load_activities(){
-        $('#activity-log-container').html('<div class="text-center">Loading...</div>');
-        $.ajax({
-            url: _base_url_ + "classes/Master.php?f=get_item_activities",
-            method: 'POST',
-            data: { item_id: current_item_id },
-            dataType: 'json',
-            success: function(resp){
-                if(resp.status == 'success'){
-                    $('#activity-log-container').html(resp.html);
-                }
-            }
-        });
     }
 
-    // Handle Activity Form Submission
-    $('#activity-form').submit(function(e){
-        e.preventDefault();
-        start_loader();
-        $.ajax({
-            url: _base_url_ + "classes/Master.php?f=save_item_activity",
-            method: 'POST',
-            data: $(this).serialize(),
-            dataType: 'json',
-            success: function(resp){
-                if(resp.status == 'success'){
-                    alert_toast("Activity logged successfully.", 'success');
-                    // Reload page to update status in the main table
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    alert_toast("An error occurred.", 'error');
-                }
-                end_loader();
-            }
-        });
-    });
-
-    // Handle Activity Deletion (event delegation for dynamic elements)
-    $(document).on('click', '.delete_activity', function(){
-        var activity_id = $(this).data('id');
-        _conf("Are you sure you want to delete this activity log?", "delete_item_activity_confirmed", [activity_id]);
-    });
-
-    // --- General Project Activity Log ---
-
-    // Show Add Modal
-    $('#log_project_activity_btn').click(function(){
-        var form = $('#project-activity-form');
-        form[0].reset();
-        form.find('[name="activity_id"]').val('');
-        form.find('[name="created_at"]').val(new Date().toISOString().slice(0, 16));
-        $('#project_activity_modal .modal-title').text('Log Project Activity');
-        $('#project_activity_modal').modal('show');
-    });
-
-    // Show Edit Modal
-    $('.edit_project_activity').click(function(){
-        var data = $(this).data('activity');
-        var form = $('#project-activity-form');
-        form[0].reset();
-
-        form.find('[name="activity_id"]').val(data.id);
-        form.find('[name="activity_type"]').val(data.activity_type).trigger('change');
-        form.find('[name="description"]').val(data.description);
-        
-        // Format dates for datetime-local input
-        if(data.created_at) form.find('[name="created_at"]').val(data.created_at.replace(' ', 'T').slice(0, 16));
-        if(data.next_followup) form.find('[name="next_followup"]').val(data.next_followup.replace(' ', 'T').slice(0, 16));
-        if(data.time_from) form.find('[name="time_from"]').val(data.time_from);
-        if(data.time_to) form.find('[name="time_to"]').val(data.time_to);
-
-        $('#project_activity_modal .modal-title').text('Edit Project Activity');
-        $('#project_activity_modal').modal('show');
-    });
-
-    // Show time range for call/meeting
-    $('#project_activity_type').change(function(){
-        var type = $(this).val();
-        if(type === 'Call' || type === 'Meeting'){
-            $('#project_activity_modal .time-range').show();
-        } else {
-            $('#project_activity_modal .time-range').hide();
+    function calculateEndDate() {
+        var start = startDateInput.val();
+        var days = parseInt(daysInput.val());
+        if (start && days > 0) {
+            var startDate = new Date(start);
+            startDate.setDate(startDate.getDate() + days - 1); // Subtract 1 to be inclusive
+            endDateInput.val(startDate.toISOString().split('T')[0]);
         }
-    }).trigger('change');
+    }
 
-    // Handle General Activity Form Submission
-    $('#project-activity-form').submit(function(e){
+    function calculateStartDate() {
+        var end = endDateInput.val();
+        var days = parseInt(daysInput.val());
+        if (end && days > 0) {
+            var endDate = new Date(end);
+            endDate.setDate(endDate.getDate() - (days - 1)); // Subtract 1 to be inclusive
+            startDateInput.val(endDate.toISOString().split('T')[0]);
+        }
+    }
+
+    startDateInput.on('change', calculateDays);
+    endDateInput.on('change', calculateDays);
+
+    daysInput.on('input', function() {
+        // Prioritize calculating end date if start date is present
+        if (startDateInput.val()) calculateEndDate();
+        else if (endDateInput.val()) calculateStartDate();
+    });
+
+    // --- Item Card Click Toggle Behavior ---
+    
+    // Click to toggle expand/collapse
+    $(document).on('click', '.item-card-header', function(e) {
+        // Prevent event from bubbling if clicking on buttons
+        if ($(e.target).closest('.btn').length > 0) {
+            return;
+        }
+        
+        var itemCard = $(this).closest('.item-card');
+        itemCard.toggleClass('collapsed expanded');
+    });
+
+    // --- Item Card Click Toggle Behavior ---
+    $(document).on('click', '.add_phase_activity', function() {
+        var form = $('#phase-activity-form');
+        form[0].reset();
+        form.find('[name="id"]').val('');
+        $('#item_name').val(null).trigger('change');
+        $('#log_type').val('general').trigger('change');
+
+        var phaseId = $(this).data('phase-id');
+        form.find('[name="phase_id"]').val(phaseId);
+        $('#phase_activity_modal .modal-title').text('Add Phase Activity');
+        $('#phase_activity_modal').modal('show');
+    });
+
+    // Show Edit Phase Activity Modal
+    $(document).on('click', '.edit_phase_activity', function() {
+        var activity = $(this).data('activity');
+        var form = $('#phase-activity-form');
+        form[0].reset();
+        $('#item_name').val(null).trigger('change');
+
+        form.find('[name="id"]').val(activity.id);
+        form.find('[name="phase_id"]').val(activity.phase_id);
+        form.find('[name="activity_type"]').val(activity.activity_type).trigger('change');
+        form.find('[name="activity_description"]').val(activity.activity_description);
+
+        if (activity.item_name) {
+            $('#log_type').val('item').trigger('change');
+            // Check if the option exists, if not, create it
+            if ($('#item_name').find("option[value='" + activity.item_name + "']").length) {
+                $('#item_name').val(activity.item_name).trigger('change');
+            } else { 
+                var newOption = new Option(activity.item_name, activity.item_name, true, true);
+                $('#item_name').append(newOption).trigger('change');
+            }
+        } else {
+            $('#log_type').val('general').trigger('change');
+        }
+
+        $('#phase_activity_modal .modal-title').text('Edit Phase Activity');
+        $('#phase_activity_modal').modal('show');
+    });
+
+    $('#log_type').on('change', function() {
+        $('#item_name_group').toggle($(this).val() === 'item');
+        if ($(this).val() !== 'item') {
+            // Clear item selection when switching to general
+            $('#item_name').val(null).trigger('change');
+        }
+    });
+
+    // Handle Phase Activity Form Submission
+    $('#phase-activity-form').submit(function(e){
         e.preventDefault();
         start_loader();
         $.ajax({
-            url: _base_url_ + "classes/Master.php?f=save_project_activity",
+            url: _base_url_ + "classes/Master.php?f=save_phase_activity",
             method: 'POST',
             data: $(this).serialize(),
             dataType: 'json',
@@ -851,76 +606,28 @@ $(document).ready(function(){
                 if(resp.status == 'success'){
                     location.reload();
                 } else {
-                    alert_toast(resp.err || "An error occurred.", 'error');
+                    alert_toast(resp.msg || "An error occurred.", 'error');
                 }
                 end_loader();
             }
         });
     });
 
-    // Handle General Activity Deletion
-    $('.delete_project_activity').click(function(){
-        _conf("Are you sure you want to delete this activity log?", "delete_project_activity_confirmed", [$(this).data('id')]);
+    // Handle Phase Activity Deletion
+    $(document).on('click', '.delete_phase_activity', function(){
+        _conf("Are you sure you want to delete this activity?", "delete_phase_activity", [$(this).data('id')]);
     });
+
+
+
+
+
 
     // Handle Project Deletion
     $('.delete_project').click(function(){
         _conf("Are you sure you want to delete this entire project and all its data? This action cannot be undone.", "delete_project", [$(this).data('id')]);
     });
 });
-
-function delete_project_activity_confirmed($id){
-    start_loader();
-    $.ajax({
-        url: _base_url_ + "classes/Master.php?f=delete_project_activity",
-        method: 'POST',
-        data: {id: $id},
-        dataType: 'json',
-        success: function(resp){
-            if(resp.status == 'success'){
-                location.reload();
-            } else {
-                alert_toast("An error occurred.", 'error');
-                end_loader();
-            }
-        }
-    });
-}
-
-function delete_item_activity_confirmed($id){
-    $.ajax({
-        url: _base_url_ + "classes/Master.php?f=delete_item_activity",
-        method: 'POST',
-        data: {id: $id},
-        dataType: 'json',
-        success: function(resp){
-            if(resp.status == 'success'){
-                alert_toast("Activity deleted.", 'success');
-                setTimeout(() => location.reload(), 1000);
-            }
-        }
-    });
-}
-
-function delete_project_item($id){
-    start_loader();
-	$.ajax({
-		url:_base_url_+"classes/Master.php?f=delete_project_item",
-		method:"POST",
-		data:{id: $id},
-		dataType:"json",
-		error:err=>{
-			console.log(err)
-			alert_toast("An error occured.",'error');
-			end_loader();
-		},
-		success:function(resp){
-			if(typeof resp== 'object' && resp.status == 'success'){
-				location.reload();
-			}
-		}
-	})
-}
 
 function delete_project($id){
     start_loader();
@@ -944,10 +651,10 @@ function delete_project($id){
 	})
 }
 
-function delete_task($id){
+function delete_project_phase($id){
     start_loader();
 	$.ajax({
-		url:_base_url_+"classes/Master.php?f=delete_task",
+		url:_base_url_+"classes/Master.php?f=delete_project_phase",
 		method:"POST",
 		data:{id: $id},
 		dataType:"json",
@@ -960,25 +667,49 @@ function delete_task($id){
 			if(resp.status == 'success'){
 				location.reload();
 			}else{
-                alert_toast(resp.error || "An error occurred.", 'error');
+                alert_toast(resp.msg || "An error occurred.", 'error');
 				end_loader();
 			}
 		}
 	})
 }
 
+function delete_phase_activity($id){
+    start_loader();
+	$.ajax({
+		url:_base_url_+"classes/Master.php?f=delete_phase_activity",
+		method:"POST",
+		data:{id: $id},
+		dataType:"json",
+		error:err=>{
+			console.log(err)
+			alert_toast("An error occured.",'error');
+			end_loader();
+		},
+		success:function(resp){
+			if(resp.status == 'success'){
+				location.reload();
+			}else{
+                alert_toast(resp.msg || "An error occurred.", 'error');
+				end_loader();
+			}
+		}
+	})
+}
+
+
 <?php
-// Helper function to determine badge color for task status
-function get_task_status_badge($status){
+// Helper function to determine badge color for phase status
+function get_phase_status_badge($status){
     switch(strtolower($status)){
         case 'pending':
             return 'badge-secondary';
-        case 'in-progress':
+        case 'in progress':
             return 'badge-primary';
-        case 'testing':
-            return 'badge-info';
         case 'completed':
             return 'badge-success';
+        case 'on hold':
+            return 'badge-warning';
         default:
             return 'badge-light';
     }
