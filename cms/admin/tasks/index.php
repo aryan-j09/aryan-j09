@@ -98,6 +98,9 @@ if (isset($_GET['id']) && $_GET['id'] > 0) {
                     <a class="nav-link" id="assigned-by-me-tab" data-toggle="tab" href="#assigned-by-me" role="tab">Assigned By Me</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" id="project-tasks-tab" data-toggle="tab" href="#project-tasks" role="tab">Project Tasks</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link active" id="daily-tasks-tab" data-toggle="tab" href="#daily-tasks" role="tab">My Daily Tasks</a>
                 </li>
             </ul>
@@ -233,6 +236,106 @@ if (isset($_GET['id']) && $_GET['id'] > 0) {
                                     <td><?php echo $row['title'] ?></td>
                                     <td><?php echo $row['assigned_to_name'] ?></td>
                                     <td><?php echo date("d-M-y h:i A", strtotime($row['date_created'])) ?></td>
+                                    <td><?php echo date("d-M-y h:i A", strtotime($row['due_date'])) ?></td>
+                                    <td class="text-center">
+                                        <?php if ($row['status'] == 'pending'): ?>
+                                            <span class="badge badge-secondary">Pending</span>
+                                        <?php elseif ($row['status'] == 'in_progress'): ?>
+                                            <span class="badge badge-primary">In Progress</span>
+                                        <?php elseif ($row['status'] == 'completed'): ?>
+                                            <span class="badge badge-success">Completed</span>
+                                        <?php else: ?>
+                                            <span class="badge badge-danger">Cancelled</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-center">
+                                        <?php if ($row['priority'] == 'high'): ?>
+                                            <span class="badge badge-danger">High</span>
+                                        <?php elseif ($row['priority'] == 'medium'): ?>
+                                            <span class="badge badge-warning">Medium</span>
+                                        <?php else: ?>
+                                            <span class="badge badge-info">Low</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td align="center">
+                                        <button type="button" class="btn btn-flat btn-default btn-sm dropdown-toggle dropdown-icon" data-toggle="dropdown">
+                                            Action
+                                            <span class="sr-only">Toggle Dropdown</span>
+                                        </button>
+                                        <div class="dropdown-menu" role="menu">
+                                            <a class="dropdown-item" href="?page=tasks/view_task&id=<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
+                                            <div class="dropdown-divider"></div>
+                                            <a class="dropdown-item edit_data" href="javascript:void(0)" data-id="<?php echo $row['id'] ?>"><span class="fa fa-edit text-primary"></span> Edit</a>
+                                            <div class="dropdown-divider"></div>
+                                            <a class="dropdown-item delete_data" href="javascript:void(0)" data-id="<?php echo $row['id'] ?>"><span class="fa fa-trash text-danger"></span> Delete</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Project Tasks -->
+                <div class="tab-pane fade" id="project-tasks" role="tabpanel">
+                    <div class="form-group mb-3">
+                        <label for="project_filter">Filter by Project:</label>
+                        <select id="project_filter" class="form-control" style="max-width: 300px;">
+                            <option value="">-- All Projects --</option>
+                            <?php 
+                            $projects = $conn->query("SELECT DISTINCT p.id, p.name FROM project_planner p 
+                                                     INNER JOIN tasks t ON t.project_id = p.id 
+                                                     ORDER BY p.name ASC");
+                            while($proj = $projects->fetch_assoc()):
+                            ?>
+                            <option value="<?php echo $proj['id'] ?>"><?php echo $proj['name'] ?></option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    <table class="table table-bordered table-stripped" id="task-list-projects">
+                        <colgroup>
+                            <col width="5%">
+                            <col width="20%">
+                            <col width="15%">
+                            <col width="15%">
+                            <col width="12%">
+                            <col width="10%">
+                            <col width="8%">
+                            <col width="10%">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Title</th>
+                                <th>Project</th>
+                                <th>Assigned To</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $i = 1;
+                            $qry = $conn->query("SELECT t.*, p.name as project_name, u.username as assigned_to_name 
+                                FROM `tasks` t 
+                                LEFT JOIN project_planner p ON p.id = t.project_id
+                                INNER JOIN users u ON u.id = t.assigned_to 
+                                WHERE t.project_id IS NOT NULL AND t.project_id != 0
+                                ORDER BY 
+                                    CASE t.priority 
+                                        WHEN 'high' THEN 1 
+                                        WHEN 'medium' THEN 2 
+                                        WHEN 'low' THEN 3 
+                                    END,
+                                    t.due_date ASC");
+                            while ($row = $qry->fetch_assoc()):
+                            ?>
+                                <tr data-project-id="<?php echo $row['project_id'] ?>">
+                                    <td class="text-center"><?php echo $i++; ?></td>
+                                    <td><?php echo $row['title'] ?></td>
+                                    <td><a href="?page=project_planner2/view_project&id=<?php echo $row['project_id'] ?>"><?php echo $row['project_name'] ?></a></td>
+                                    <td><?php echo $row['assigned_to_name'] ?></td>
                                     <td><?php echo date("d-M-y h:i A", strtotime($row['due_date'])) ?></td>
                                     <td class="text-center">
                                         <?php if ($row['status'] == 'pending'): ?>
@@ -472,6 +575,26 @@ if (isset($_GET['id']) && $_GET['id'] > 0) {
         if (window.location.hash) {
             $('.nav-link[href="' + window.location.hash + '"]').tab('show');
         }
+
+        // Project filter functionality
+        $('#project_filter').on('change', function(){
+            var projectId = $(this).val();
+            var rows = $('#task-list-projects tbody tr');
+            
+            if(projectId === ''){
+                // Show all rows
+                rows.show();
+            } else {
+                // Filter rows by project
+                rows.each(function(){
+                    if($(this).data('project-id') == projectId){
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                });
+            }
+        });
 
         // Select All functionality
         $('#selectAll').change(function() {

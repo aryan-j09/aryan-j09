@@ -85,7 +85,7 @@ $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
                 </a>
               </li>
               <li class="nav-item">
-                <a href="<?php echo base_url ?>admin/?page=project_planner" class="nav-link nav-project_planner">
+                <a href="<?php echo base_url ?>admin/?page=project_planner2" class="nav-link nav-project_planner2">
                   <i class="nav-icon fas fa-sitemap"></i>
                   <p>Project Planner</p>
                 </a>

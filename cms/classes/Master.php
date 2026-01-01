@@ -61,7 +61,7 @@ Class Master extends DBConnection {
 		extract($_POST);
 		$data = "";
 		foreach($_POST as $k => $v){
-			if(!in_array($k, array('id', 'supplier_po_ids'))){
+			if(!in_array($k, array('id', 'supplier_po_ids', 'supplier_po_detail_id'))){
                 $v = $this->conn->real_escape_string($v);
 				if(!empty($data)) $data .=",";
 				$data .= " `{$k}`='{$v}' ";
@@ -91,6 +91,9 @@ Class Master extends DBConnection {
 			// Clear old PO associations for this project
 			$this->conn->query("DELETE FROM `project_po_list` WHERE project_id = '{$project_id}'");
 
+			// Clear old PO Detail associations for this project
+			$this->conn->query("DELETE FROM `project_po_detail_list` WHERE project_id = '{$project_id}'");
+
 			// Save supplier POs
 			if(isset($supplier_po_ids) && is_array($supplier_po_ids)){
 				$po_data = "";
@@ -101,6 +104,12 @@ Class Master extends DBConnection {
 				if(!empty($po_data)){
 					$this->conn->query("INSERT INTO `project_po_list` (project_id, po_id) VALUES {$po_data}");
 				}
+			}
+
+			// Save supplier PO Detail (single value)
+			if(isset($supplier_po_detail_id) && !empty($supplier_po_detail_id)){
+				$po_detail_id = intval($supplier_po_detail_id);
+				$this->conn->query("INSERT INTO `project_po_detail_list` (project_id, po_detail_id) VALUES ('{$project_id}', '{$po_detail_id}')");
 			}
 
 			if(empty($id)){
@@ -143,6 +152,31 @@ Class Master extends DBConnection {
 									<td>" . htmlspecialchars($row['quantity']) . "</td>
 									<td>" . number_format($row['amount'], 2) . "</td>
 									<td>" . number_format($row['total_amount'], 2) . "</td>
+								  </tr>";
+					}
+					$html .= '</tbody></table>';
+				}
+			}
+
+			// PO Details Items
+			if(isset($supplier_po_detail_ids) && is_array($supplier_po_detail_ids) && count($supplier_po_detail_ids) > 0){
+				$po_detail_ids = implode(',', array_map('intval', $supplier_po_detail_ids));
+				$sql = "SELECT po.id, po.po_code, pil.client_id, c.company_name as client_name
+						FROM `purchase_orders` po 
+						LEFT JOIN `proforma_invoice_list` pil ON po.po_code = pil.po_code
+						LEFT JOIN `clients` c ON pil.client_id = c.id
+						WHERE po.id IN ({$po_detail_ids}) 
+						ORDER BY po.po_code";
+				$qry = $this->conn->query($sql);
+
+				if($qry->num_rows > 0){
+					$html .= '<h5 class="mt-3">PO Factory Details</h5>';
+					$html .= '<table class="table table-sm table-bordered table-striped">';
+					$html .= '<thead class="thead-dark"><tr><th>PO Code</th><th>Client</th></tr></thead><tbody>';
+					while($row = $qry->fetch_assoc()){
+						$html .= "<tr>
+									<td>" . htmlspecialchars($row['po_code']) . "</td>
+									<td>" . htmlspecialchars($row['client_name']) . "</td>
 								  </tr>";
 					}
 					$html .= '</tbody></table>';
@@ -382,8 +416,12 @@ Class Master extends DBConnection {
 			$this->conn->query("DELETE FROM `project_activities` WHERE project_id = '{$id}'");
 			// Delete PO associations
 			$this->conn->query("DELETE FROM `project_po_list` WHERE project_id = '{$id}'");
+			// Delete PO Detail associations
+			$this->conn->query("DELETE FROM `project_po_detail_list` WHERE project_id = '{$id}'");
 			// Delete associated tasks
 			$this->conn->query("DELETE FROM `tasks` WHERE project_id = '{$id}'");
+            // Delete associated planner sheets
+            $this->conn->query("DELETE FROM `project_sheets` WHERE project_id = '{$id}'");
 			// Finally, delete the project itself
 			$del = $this->conn->query("DELETE FROM `project_planner` WHERE id = '{$id}'");
 
@@ -397,6 +435,150 @@ Class Master extends DBConnection {
 		}
 		return json_encode($resp);
 	}
+
+	function save_project_phase(){
+		extract($_POST);
+		$data = "";
+		foreach($_POST as $k => $v){
+			if(!in_array($k, array('id'))){
+				$v = $this->conn->real_escape_string($v);
+				if(!empty($data)) $data .=",";
+
+                // Handle empty dates by setting them to NULL
+                if(in_array($k, ['start_date', 'end_date']) && empty($v)){
+                    $data .= " `{$k}`=NULL ";
+                } else {
+				    $data .= " `{$k}`='{$v}' ";
+                }
+			}
+		}
+
+		if(empty($id)){
+			$sql = "INSERT INTO `project_phases` set {$data} ";
+		}else{
+			$sql = "UPDATE `project_phases` set {$data} where id = '{$id}' ";
+		}
+
+		$save = $this->conn->query($sql);
+		if($save){
+			$resp['status'] = 'success';
+			if(empty($id))
+				$this->settings->set_flashdata('success',"New project phase added.");
+			else
+				$this->settings->set_flashdata('success',"Project phase updated.");
+		}else{
+			$resp['status'] = 'failed';
+			$resp['err'] = $this->conn->error."[{$sql}]";
+		}
+		return json_encode($resp);
+	}
+
+	function delete_project_phase(){
+		extract($_POST);
+		$del = $this->conn->query("DELETE FROM `project_phases` where id = '{$id}'");
+		if($del){
+			$resp['status'] = 'success';
+		}else{
+			$resp['status'] = 'failed';
+			$resp['msg'] = $this->conn->error;
+		}
+		return json_encode($resp);
+	}
+
+    function save_phase_activity() {
+        extract($_POST);
+        
+        // Ensure item_name is NULL if not provided or if log type is general
+        if(!isset($_POST['item_name']) || empty($_POST['item_name'])){
+            $_POST['item_name'] = NULL;
+        }
+
+        $data = "";
+        foreach($_POST as $k => $v){
+            if(!in_array($k, array('id'))){ // 'id' is the activity id
+                $v = $this->conn->real_escape_string($v);
+                if(!empty($data)) $data .=",";
+
+                if($k == 'item_name' && $v === NULL) {
+                    $data .= " `{$k}`=NULL ";
+                } else {
+                    $data .= " `{$k}`='{$v}' ";
+                }
+            }
+        }
+
+        if(empty($id)){
+            $data .= ", `created_by` = '{$_SESSION['userdata']['id']}'";
+            $sql = "INSERT INTO `phase_activities` set {$data} ";
+        } else {
+            $sql = "UPDATE `phase_activities` set {$data} where id = '{$id}'";
+        }
+
+        $save = $this->conn->query($sql);
+        if($save){
+            $resp['status'] = 'success';
+            if(empty($id))
+                $this->settings->set_flashdata('success',"New phase activity added.");
+            else
+                $this->settings->set_flashdata('success',"Phase activity updated.");
+        }else{
+            $resp['status'] = 'failed';
+            $resp['err'] = $this->conn->error."[{$sql}]";
+        }
+        return json_encode($resp);
+    }
+    
+	function delete_phase_activity(){
+		extract($_POST);
+		$del = $this->conn->query("DELETE FROM `phase_activities` where id = '{$id}'");
+		if($del){
+			$resp['status'] = 'success';
+		}else{
+			$resp['status'] = 'failed';
+			$resp['msg'] = $this->conn->error;
+		}
+		return json_encode($resp);
+	}
+
+	function get_project_items_for_activity(){
+        extract($_POST);
+        $project_id = isset($project_id) ? intval($project_id) : 0;
+        if($project_id <= 0){
+            return json_encode([]);
+        }
+        
+        $search = isset($_POST['q']) ? $_POST['q'] : '';
+        $items = [];
+
+        // Fetch all item names from the global item list (ignore supplier/project restrictions)
+        // This ensures users see all items and can select any; frontend tagging will allow adding temporary names.
+        $sql = "SELECT DISTINCT name FROM `item_list` WHERE name LIKE ? ORDER BY name ASC";
+
+        $stmt = $this->conn->prepare($sql);
+        if(!$stmt){
+            return json_encode([]);
+        }
+        $searchTerm = "%{$search}%";
+        if(!$stmt->bind_param('s', $searchTerm)){
+            $stmt->close();
+            return json_encode([]);
+        }
+        if(!$stmt->execute()){
+            $stmt->close();
+            return json_encode([]);
+        }
+
+        $name = null;
+        $stmt->bind_result($name);
+        while($stmt->fetch()){
+            $items[] = ['id' => $name, 'text' => $name];
+        }
+        $stmt->close();
+        return json_encode($items);
+	}
+
+
+
 
 	function get_po_item_for_project(){
 		extract($_POST);
@@ -1884,6 +2066,40 @@ function delete_activity(){
         }
     }
 
+    function get_users() {
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'users' => []];
+
+        try {
+            // Get all users - remove status filter to see all users
+            $qry = $this->conn->query("SELECT id, username as name FROM users ORDER BY username ASC");
+            
+            if (!$qry) {
+                throw new Exception("Database error: " . $this->conn->error);
+            }
+
+            $users = [];
+            if ($qry->num_rows > 0) {
+                while ($row = $qry->fetch_assoc()) {
+                    $users[] = [
+                        'id' => (int)$row['id'],
+                        'name' => $row['name']
+                    ];
+                }
+            }
+
+            $resp['status'] = 'success';
+            $resp['users'] = $users;
+            $resp['count'] = count($users); // Debug info
+
+        } catch (Exception $e) {
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+        }
+
+        return json_encode($resp);
+    }
+
     function save_task()
     {
         try {
@@ -1991,6 +2207,213 @@ function delete_activity(){
             WHERE assigned_to = '{$user_id}' AND status != 'completed'");
         $row = $qry->fetch_assoc();
         return json_encode(['status' => 'success', 'count' => $row['count']]);
+    }
+
+    function create_tasks_from_sheet() {
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'An error occurred.', 'created_count' => 0];
+
+        try {
+            extract($_POST);
+
+            // Validate required fields
+            if (empty($project_id) || empty($rows)) {
+                throw new Exception("Project ID and rows data are required.");
+            }
+
+            $project_id = intval($project_id);
+            if ($project_id <= 0) {
+                throw new Exception("Invalid project ID.");
+            }
+
+            // Verify project exists
+            $proj_check = $this->conn->query("SELECT id FROM project_planner WHERE id = '{$project_id}'");
+            if (!$proj_check || $proj_check->num_rows == 0) {
+                throw new Exception("Project not found.");
+            }
+
+            // Decode rows array
+            $rows = json_decode($rows, true);
+            if (!is_array($rows) || empty($rows)) {
+                throw new Exception("No rows provided.");
+            }
+
+            // Get current user ID for assigned_by
+            $assigned_by = $_SESSION['userdata']['id'];
+
+            // Default values for new tasks
+            $default_status = 'Pending';
+            $default_priority = 'medium';
+            $default_assigned_to = !empty($assigned_to) ? intval($assigned_to) : $assigned_by;
+
+            $created_count = 0;
+            $this->conn->begin_transaction();
+
+            foreach ($rows as $row) {
+                // Extract activity (as description) and end_date (as due_date)
+                $activity = isset($row['activity']) ? trim($row['activity']) : '';
+                $end_date = isset($row['end_date']) ? trim($row['end_date']) : '';
+
+                // Skip empty activities
+                if (empty($activity)) {
+                    continue;
+                }
+
+                // Parse flexible date format for due_date
+                $due_date = null;
+                if (!empty($end_date)) {
+                    $parsed_date = $this->parseFlexibleDate($end_date);
+                    if ($parsed_date) {
+                        $due_date = $parsed_date->format('Y-m-d');
+                    }
+                }
+
+                // Use today's date as fallback for due_date
+                if (!$due_date) {
+                    $due_date = date('Y-m-d');
+                }
+
+                // Escape activity for SQL
+                $title = $this->conn->real_escape_string($activity);
+
+                // Build INSERT query
+                $sql = "INSERT INTO `tasks` (
+                    `title`,
+                    `description`,
+                    `assigned_to`,
+                    `assigned_by`,
+                    `due_date`,
+                    `status`,
+                    `priority`,
+                    `project_id`
+                ) VALUES (
+                    '{$title}',
+                    '{$title}',
+                    '{$default_assigned_to}',
+                    '{$assigned_by}',
+                    '{$due_date}',
+                    '{$default_status}',
+                    '{$default_priority}',
+                    '{$project_id}'
+                )";
+
+                if (!$this->conn->query($sql)) {
+                    throw new Exception("Failed to create task: " . $this->conn->error);
+                }
+
+                $created_count++;
+            }
+
+            $this->conn->commit();
+
+            if ($created_count > 0) {
+                $resp['status'] = 'success';
+                $resp['created_count'] = $created_count;
+                $resp['msg'] = "{$created_count} task(s) successfully created from spreadsheet.";
+                $this->settings->set_flashdata('success', $resp['msg']);
+            } else {
+                throw new Exception("No valid rows to create tasks from.");
+            }
+
+        } catch (Exception $e) {
+            if ($this->conn->connect_errno == 0) {
+                $this->conn->rollback();
+            }
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+        }
+
+        return json_encode($resp);
+    }
+
+    function get_project_tasks() {
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'An error occurred.', 'tasks' => []];
+
+        try {
+            extract($_GET);
+
+            if (empty($project_id)) {
+                throw new Exception("Project ID is required.");
+            }
+
+            $project_id = intval($project_id);
+            if ($project_id <= 0) {
+                throw new Exception("Invalid project ID.");
+            }
+
+            // Verify project exists
+            $proj_check = $this->conn->query("SELECT id FROM project_planner WHERE id = '{$project_id}'");
+            if (!$proj_check || $proj_check->num_rows == 0) {
+                throw new Exception("Project not found.");
+            }
+
+            // Fetch tasks for this project
+            $sql = "SELECT t.id, t.title, t.description, t.assigned_to, t.due_date, t.status, t.priority,
+                           u.name as assigned_to_name
+                    FROM `tasks` t
+                    LEFT JOIN `users` u ON t.assigned_to = u.id
+                    WHERE t.project_id = '{$project_id}'
+                    ORDER BY t.due_date ASC, t.priority DESC, t.created_at DESC";
+
+            $qry = $this->conn->query($sql);
+            if (!$qry) {
+                throw new Exception("Database error: " . $this->conn->error);
+            }
+
+            $tasks = [];
+            if ($qry->num_rows > 0) {
+                while ($row = $qry->fetch_assoc()) {
+                    $tasks[] = $row;
+                }
+            }
+
+            $resp['status'] = 'success';
+            $resp['tasks'] = $tasks;
+            $resp['msg'] = 'Tasks retrieved successfully.';
+
+        } catch (Exception $e) {
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+        }
+
+        return json_encode($resp);
+    }
+
+    function parseFlexibleDate($dateStr) {
+        if (!$dateStr) return null;
+        $dateStr = trim($dateStr);
+
+        // Try dd-mm-yyyy or dd/mm/yyyy
+        $parts = preg_split('/[-\/]/', $dateStr);
+        if (count($parts) === 3) {
+            if (is_numeric($parts[0]) && is_numeric($parts[1]) && is_numeric($parts[2])) {
+                // Could be dd-mm-yyyy or mm-dd-yyyy or yyyy-mm-dd
+                // Assume first two are dd-mm if first part is > 12
+                if ($parts[0] > 12) {
+                    // dd-mm-yyyy
+                    return DateTime::createFromFormat('d-m-Y', $dateStr) ?: DateTime::createFromFormat('d/m/Y', $dateStr);
+                } else {
+                    // Ambiguous, try mm-dd-yyyy first, then dd-mm-yyyy
+                    $d = DateTime::createFromFormat('m-d-Y', $dateStr) ?: DateTime::createFromFormat('m/d/Y', $dateStr);
+                    if ($d) return $d;
+                    return DateTime::createFromFormat('d-m-Y', $dateStr) ?: DateTime::createFromFormat('d/m/Y', $dateStr);
+                }
+            }
+        }
+
+        // Try standard yyyy-mm-dd
+        $d = DateTime::createFromFormat('Y-m-d', $dateStr);
+        if ($d) return $d;
+
+        // Try other common formats
+        $formats = ['Y/m/d', 'd-M-Y', 'd/M/Y', 'M d, Y', 'm/d/Y'];
+        foreach ($formats as $fmt) {
+            $d = DateTime::createFromFormat($fmt, $dateStr);
+            if ($d) return $d;
+        }
+
+        return null;
     }
 
     function save_stock_order(){
@@ -2712,8 +3135,232 @@ function delete_utility_supplier(){
 
         return json_encode($resp);
     }
-}
 
+    /*
+     * Project Sheets: save and get
+     * Uses `project_sheets` table created by migration.
+     */
+    function save_project_sheet(){
+        header('Content-Type: application/json');
+        
+        if(!isset($_SESSION['userdata']['id'])){
+            echo json_encode(['status'=>'error','msg'=>'Not authenticated']);
+            exit;
+        }
+        
+        $project_id = intval($_POST['project_id'] ?? 0);
+        $sheet_name = isset($_POST['sheet_name']) ? trim($_POST['sheet_name']) : 'Sheet1';
+        $sheet_json = isset($_POST['sheet_json']) ? $_POST['sheet_json'] : '';
+        
+        if($project_id <= 0){
+            echo json_encode(['status'=>'error','msg'=>'Invalid project id']);
+            exit;
+        }
+        
+        if(empty($sheet_json)){
+            echo json_encode(['status'=>'error','msg'=>'Sheet data is empty']);
+            exit;
+        }
+        
+        // Ensure table exists
+        $checkTable = $this->conn->query("SHOW TABLES LIKE 'project_sheets'");
+        if($checkTable && $checkTable->num_rows == 0){
+            $sql = "CREATE TABLE `project_sheets` (
+                `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                `project_id` INT NOT NULL,
+                `name` VARCHAR(120) NOT NULL DEFAULT 'Sheet1',
+                `data` LONGTEXT NOT NULL,
+                `created_by` INT,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `project_sheet_unique` (`project_id`, `name`),
+                KEY `project_id_idx` (`project_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+            if(!$this->conn->query($sql)){
+                echo json_encode(['status'=>'error','msg'=>'Failed to create table: '.$this->conn->error]);
+                exit;
+            }
+        }
+        
+        // Check if sheet exists for this project
+        $check = $this->conn->query("SELECT id FROM project_sheets WHERE project_id = $project_id AND name = '$sheet_name' LIMIT 1");
+        if($check && $check->num_rows > 0){
+            // Update existing
+            $row = $check->fetch_assoc();
+            $id = $row['id'];
+            $sheet_json_escaped = $this->conn->real_escape_string($sheet_json);
+            $update = $this->conn->query("UPDATE project_sheets SET data = '$sheet_json_escaped', updated_at = NOW() WHERE id = $id");
+            if($update){
+                echo json_encode(['status'=>'success','sheet_id'=>$id,'action'=>'updated']);
+            } else {
+                echo json_encode(['status'=>'error','msg'=>'Update failed: '.$this->conn->error]);
+            }
+        } else {
+            // Insert new
+            $created_by = intval($_SESSION['userdata']['id']);
+            $sheet_name_escaped = $this->conn->real_escape_string($sheet_name);
+            $sheet_json_escaped = $this->conn->real_escape_string($sheet_json);
+            $insert = $this->conn->query("INSERT INTO project_sheets (project_id, name, data, created_by) VALUES ($project_id, '$sheet_name_escaped', '$sheet_json_escaped', $created_by)");
+            if($insert){
+                $id = $this->conn->insert_id;
+                echo json_encode(['status'=>'success','sheet_id'=>$id,'action'=>'created']);
+            } else {
+                echo json_encode(['status'=>'error','msg'=>'Insert failed: '.$this->conn->error]);
+            }
+        }
+        exit;
+    }
+
+    function get_project_sheet(){
+        header('Content-Type: application/json');
+        // Support sheet_id or project_id+sheet_name
+        if(isset($_GET['sheet_id'])){
+            $sid = intval($_GET['sheet_id']);
+            $qry = $this->conn->query("SELECT * FROM project_sheets WHERE id = '{$sid}' LIMIT 1");
+        } else {
+            $project_id = intval($_GET['project_id'] ?? 0);
+            $sheet_name = $this->conn->real_escape_string($_GET['sheet_name'] ?? 'Sheet1');
+            $qry = $this->conn->query("SELECT * FROM project_sheets WHERE project_id = '{$project_id}' AND name = '{$sheet_name}' LIMIT 1");
+        }
+        if(!$qry){
+            echo json_encode(['status'=>'error','msg'=>$this->conn->error]);
+            exit;
+        }
+        if($qry->num_rows <= 0){
+            echo json_encode(['status'=>'none','data'=>null]);
+            exit;
+        }
+        $row = $qry->fetch_assoc();
+        $data = json_decode($row['data'], true);
+        echo json_encode(['status'=>'success','data'=>$data,'meta'=>['id'=>$row['id'],'updated_at'=>$row['updated_at']]]);
+        exit;
+    }
+
+    function get_project_sheets(){
+        header('Content-Type: application/json');
+        $project_id = intval($_GET['project_id'] ?? 0);
+        if($project_id <= 0){
+            echo json_encode(['status'=>'error','msg'=>'Invalid project_id']);
+            exit;
+        }
+        $qry = $this->conn->query("SELECT id, name, created_at, updated_at FROM project_sheets WHERE project_id = '{$project_id}' ORDER BY created_at ASC");
+        if(!$qry){
+            echo json_encode(['status'=>'error','msg'=>$this->conn->error]);
+            exit;
+        }
+        $sheets = [];
+        while($row = $qry->fetch_assoc()){
+            $sheets[] = $row;
+        }
+        // If there are no sheets yet, surface a default placeholder
+        if(count($sheets) === 0){
+            $sheets[] = ['id'=>0, 'name'=>'Sheet1', 'created_at'=>date('Y-m-d H:i:s'), 'updated_at'=>date('Y-m-d H:i:s')];
+        }
+        echo json_encode(['status'=>'success','sheets'=>$sheets]);
+        exit;
+    }
+
+    function delete_project_sheet(){
+        header('Content-Type: application/json');
+        $project_id = intval($_POST['project_id'] ?? 0);
+        $sheet_name = $this->conn->real_escape_string($_POST['sheet_name'] ?? '');
+        
+        if($project_id <= 0 || empty($sheet_name) || $sheet_name === 'Sheet1'){
+            echo json_encode(['status'=>'error','msg'=>'Invalid request or Sheet1 cannot be deleted']);
+            exit;
+        }
+        
+        $del = $this->conn->query("DELETE FROM project_sheets WHERE project_id = '{$project_id}' AND name = '{$sheet_name}'");
+        if($del){
+            echo json_encode(['status'=>'success','msg'=>'Sheet deleted']);
+        } else {
+            echo json_encode(['status'=>'error','msg'=>$this->conn->error]);
+        }
+        exit;
+    }
+
+    function rename_project_sheet(){
+        header('Content-Type: application/json');
+        $project_id = intval($_POST['project_id'] ?? 0);
+        $old_name = $this->conn->real_escape_string($_POST['old_name'] ?? '');
+        $new_name = $this->conn->real_escape_string($_POST['new_name'] ?? '');
+        
+        if($project_id <= 0 || empty($old_name) || empty($new_name)){
+            echo json_encode(['status'=>'error','msg'=>'Invalid request']);
+            exit;
+        }
+        
+        // Check if new name already exists
+        $exists = $this->conn->query("SELECT id FROM project_sheets WHERE project_id = '{$project_id}' AND name = '{$new_name}' LIMIT 1");
+        if($exists && $exists->num_rows > 0){
+            echo json_encode(['status'=>'error','msg'=>'Sheet name already exists']);
+            exit;
+        }
+        
+        $update = $this->conn->query("UPDATE project_sheets SET name = '{$new_name}' WHERE project_id = '{$project_id}' AND name = '{$old_name}'");
+        if($update){
+            echo json_encode(['status'=>'success','msg'=>'Sheet renamed']);
+        } else {
+            echo json_encode(['status'=>'error','msg'=>$this->conn->error]);
+        }
+        exit;
+    }
+
+    function get_po_detail_specs(){
+        extract($_POST);
+        $resp = ['status' => 'failed', 'html' => ''];
+        
+        if(!isset($po_detail_ids) || !is_array($po_detail_ids) || empty($po_detail_ids)){
+            return json_encode($resp);
+        }
+        
+        $ids = array_map('intval', $po_detail_ids);
+        $ids_str = implode(',', $ids);
+        
+        $query = "SELECT po.po_code, po.requirement, po.specification, c.company_name 
+                  FROM `purchase_orders` po
+                  LEFT JOIN `proforma_invoice_list` pil ON po.po_code = pil.po_code
+                  LEFT JOIN `clients` c ON pil.client_id = c.id
+                  WHERE po.id IN ({$ids_str})
+                  ORDER BY po.po_code ASC";
+        
+        $result = $this->conn->query($query);
+        
+        if($result && $result->num_rows > 0){
+            $html = '';
+            while($row = $result->fetch_assoc()){
+                $po_code = htmlspecialchars($row['po_code']);
+                $client = htmlspecialchars($row['company_name'] ?? 'N/A');
+                $requirement = $row['requirement'] ?? '';
+                $specification = $row['specification'] ?? '';
+                
+                // Combine requirement and specification if both exist
+                if(!empty($requirement) || !empty($specification)){
+                    if($result->num_rows > 1){
+                        // Multiple POs - add headers
+                        $html .= "<h4>PO: {$po_code} - {$client}</h4>";
+                    }
+                    if(!empty($requirement)){
+                        $html .= $requirement;
+                    }
+                    if(!empty($specification)){
+                        if(!empty($requirement)) $html .= '<br><br>';
+                        $html .= $specification;
+                    }
+                    if($result->num_rows > 1){
+                        $html .= '<hr>';
+                    }
+                }
+            }
+            
+            $resp['status'] = 'success';
+            $resp['html'] = $html;
+        }
+        
+        return json_encode($resp);
+    }
+
+}
 $Master = new Master();
 $action = !isset($_GET['f']) ? 'none' : strtolower($_GET['f']);
 $sysset = new SystemSettings();
@@ -2723,6 +3370,18 @@ switch ($action) {
 	break;
 	case 'delete_project':
 		echo $Master->delete_project();
+	break;
+	case 'save_project_phase':
+		echo $Master->save_project_phase();
+	break;
+	case 'delete_project_phase':
+		echo $Master->delete_project_phase();
+	break;
+    case 'save_phase_activity':
+        echo $Master->save_phase_activity();
+    break;
+	case 'delete_phase_activity':
+		echo $Master->delete_phase_activity();
 	break;
 	case 'get_po_items':
 		echo $Master->get_po_items();
@@ -2747,6 +3406,9 @@ switch ($action) {
 	break;
 	case 'delete_project_activity':
 		echo $Master->delete_project_activity();
+	break;
+	case 'get_project_items_for_activity':
+		echo $Master->get_project_items_for_activity();
 	break;
 	case 'get_po_item_for_project':
 		echo $Master->get_po_item_for_project();
@@ -2820,6 +3482,9 @@ switch ($action) {
     case 'delete_po_timeline':
         echo $Master->delete_po_timeline();
     break;
+    case 'get_users':
+        echo $Master->get_users();
+    break;
     case 'save_task':
         echo $Master->save_task();
     break;
@@ -2828,6 +3493,12 @@ switch ($action) {
     break;
     case 'get_task_count':
         echo $Master->get_task_count();
+    break;
+    case 'create_tasks_from_sheet':
+        echo $Master->create_tasks_from_sheet();
+    break;
+    case 'get_project_tasks':
+        echo $Master->get_project_tasks();
     break;
     case 'save_quote_item':
         echo $Master->save_quote_item();
@@ -2864,6 +3535,24 @@ switch ($action) {
     break;
     case 'bulk_delete_tasks':
         echo $Master->bulk_delete_tasks();
+    break;
+    case 'save_project_sheet':
+        echo $Master->save_project_sheet();
+    break;
+    case 'get_project_sheet':
+        echo $Master->get_project_sheet();
+    break;
+    case 'get_project_sheets':
+        echo $Master->get_project_sheets();
+    break;
+    case 'delete_project_sheet':
+        echo $Master->delete_project_sheet();
+    break;
+    case 'rename_project_sheet':
+        echo $Master->rename_project_sheet();
+    break;
+    case 'get_po_detail_specs':
+        echo $Master->get_po_detail_specs();
     break;
 	default:
 		// echo $sysset->index();

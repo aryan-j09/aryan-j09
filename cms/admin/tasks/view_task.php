@@ -2,10 +2,13 @@
 if(isset($_GET['id']) && $_GET['id'] > 0){
     $qry = $conn->query("SELECT t.*, 
         a.username as assigned_by_name,
-        b.username as assigned_to_name 
+        b.username as assigned_to_name,
+        p.name as project_name,
+        p.id as project_id
         FROM `tasks` t 
         LEFT JOIN users a on a.id = t.assigned_by 
         LEFT JOIN users b on b.id = t.assigned_to 
+        LEFT JOIN project_planner p on p.id = t.project_id
         where t.id = '{$_GET['id']}'");
     if($qry->num_rows > 0){
         foreach($qry->fetch_assoc() as $k => $v){
@@ -59,6 +62,18 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                     <div><?php echo isset($assigned_by_name) ? $assigned_by_name : '' ?></div>
                 </div>
             </div>
+            <?php if(isset($project_id) && !empty($project_id)): ?>
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="control-label text-muted">Related Project</label>
+                    <div>
+                        <a href="?page=project_planner2/view_project&id=<?php echo $project_id ?>" class="btn btn-sm btn-info">
+                            <i class="fa fa-link"></i> <?php echo isset($project_name) ? $project_name : 'View Project' ?>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
             <div class="row">
                 <div class="col-md-6">
                     <label class="control-label text-muted">Created On</label>

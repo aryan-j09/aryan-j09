@@ -37,6 +37,18 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
                         <?php endwhile; ?>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="project_id">Project (Optional)</label>
+                    <select name="project_id" id="project_id" class="form-control select2">
+                        <option value="">-- No Project --</option>
+                        <?php 
+                        $projects = $conn->query("SELECT id, name FROM project_planner ORDER BY name ASC");
+                        while($row = $projects->fetch_assoc()):
+                        ?>
+                        <option value="<?php echo $row['id'] ?>" <?php echo isset($project_id) && $project_id == $row['id'] ? 'selected' : '' ?>><?php echo $row['name'] ?></option>
+                        <?php endwhile; ?>
+                    </select>
+                </div>
                 <div class="form-group row">
                     <div class="col-6">
                     <label for="due_date">Due Date</label>
