@@ -66,6 +66,14 @@ $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
                   <p>Purchase Order</p>
                 </a>
               </li>
+              <?php if ($user_id == 1): ?>
+              <li class="nav-item">
+                <a href="<?php echo base_url ?>admin/?page=receiving" class="nav-link nav-receiving">
+                  <i class="nav-icon fas fa-boxes"></i>
+                  <p>Stock Receiving</p>
+                </a>
+              </li>
+              <?php endif; ?>
               <!-- <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=stock_orders" class="nav-link nav-stock_orders">
                   <i class="nav-icon fas fa-shopping-cart"></i>

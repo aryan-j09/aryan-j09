@@ -27,9 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
             <table class="table table-striped table-bordered" id="purchase_order_table">
                 <colgroup>
                     <col width="5%">                        
-                    <col width="15%">
+                    <col width="10%">
                     <col width="20%">
-                    <col width="20%">
+                    <col width="25%">
+                    <col width="10%">
                     <col width="10%">
                     <col width="10%">
                     <col width="10%">
@@ -42,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                         <th>Items</th>
                         <th>Total Amt.</th>
                         <th>Date Created</th>
-                        <th>Company</th>
+                        <th>Internal Ref</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -60,14 +61,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                             $item_names[] = $item['name'];
                         }
                     ?>
-                        <tr>
+                        <tr class="data-row" data-company="<?php echo $row['company']; ?>">
                             <td class="text-center"><?php echo $i++; ?>.</td>
                             <td><?php echo $row['po_code'] ?></td>
                             <td><?php echo $row['supplier'] ?></td>
                             <td><?php echo implode(', ', $item_names) ?></td>
                             <td><?php echo number_format($row['grand_total'],2) ?></td>
                             <td><?php echo date("d-M-Y",strtotime($row['created_at'])) ?></td>
-                            <td><?php echo $row['company']; ?></td>
+                            <td><?php echo isset($row['internal_ref_no']) ? $row['internal_ref_no'] : ''; ?></td>
                             <td align="center">
                                 <button type="button" class="btn btn-flat btn-default btn-sm dropdown-toggle dropdown-icon" data-toggle="dropdown">
                                     Action
@@ -97,13 +98,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
         </div>    
     </div>
 </div>
+<style>
+    .hugopharm-row {
+        background-color: rgba(0, 123, 255, 0.1) !important;
+        /* Light blue */
+    }
+
+    .sbpanchal-row {
+        background-color: rgba(255, 153, 0, 0.1) !important;
+        /* Light orange */
+    }
+</style>
 <script>
     $(document).ready(function(){
         $('.delete_data').click(function(){
             _conf("Are you sure to delete this Purchase order permanently?","delete_po",[$(this).attr('data-id')])
         })
         $('.table td,.table th').addClass('py-1 px-2 align-middle')
-        $('#purchase_order_table').dataTable();
+        $('#purchase_order_table').dataTable({
+            "drawCallback": function(settings) {
+                // Add company-specific row colors
+                $('.data-row').each(function() {
+                    const company = $(this).data('company');
+                    if(company === 'Hugopharm') {
+                        $(this).addClass('hugopharm-row');
+                    } else if(company === 'S.B. Panchal') {
+                        $(this).addClass('sbpanchal-row');
+                    }
+                });
+            }
+        });
         
         $('.receive_data').click(function(){
             uni_modal("<i class='fa fa-boxes'></i> Receive Items","receiving/manage_receiving.php?po_id="+$(this).attr('data-id'),"large")
