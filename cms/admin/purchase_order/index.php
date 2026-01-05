@@ -41,9 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                         <th>PO Code</th>
                         <th>Supplier</th>
                         <th>Items</th>
-                        <th>Total Amt.</th>
-                        <th>Date Created</th>
                         <th>Internal Ref</th>
+                        <th>Total Amt.</th>
+                        <th>Date Created</th>                        
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -66,9 +66,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                             <td><?php echo $row['po_code'] ?></td>
                             <td><?php echo $row['supplier'] ?></td>
                             <td><?php echo implode(', ', $item_names) ?></td>
-                            <td><?php echo number_format($row['grand_total'],2) ?></td>
-                            <td><?php echo date("d-M-Y",strtotime($row['created_at'])) ?></td>
                             <td><?php echo isset($row['internal_ref_no']) ? $row['internal_ref_no'] : ''; ?></td>
+                            <td><?php echo number_format($row['grand_total'],2) ?></td>
+                            <td><?php echo date("d-M-Y",strtotime($row['created_at'])) ?></td>                            
                             <td align="center">
                                 <button type="button" class="btn btn-flat btn-default btn-sm dropdown-toggle dropdown-icon" data-toggle="dropdown">
                                     Action
