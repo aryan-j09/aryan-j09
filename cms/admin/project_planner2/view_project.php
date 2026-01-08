@@ -341,6 +341,12 @@ if($po_detail_qry && $po_detail_qry->num_rows > 0){
         max-height: 400px;
         overflow-y: auto;
     }
+    /* Inline date input overlayed in grid */
+    .ms-date-input {
+        min-width: 140px;
+        height: 32px;
+        padding: 2px 6px;
+    }
 </style>
 
 <script>
@@ -848,6 +854,68 @@ if($po_detail_qry && $po_detail_qry->num_rows > 0){
         var y = date.getFullYear();
         return d + '-' + m + '-' + y;
     }
+
+    // Inline date picker for date-type cells
+    function toISODate(dateObj){
+        return dateObj.toISOString().split('T')[0];
+    }
+
+    $(document).on('click', 'td.cell-editable[data-col-type="date"]', function(){
+        var $cell = $(this);
+        // Prevent creating multiple inputs
+        if($cell.find('.ms-date-input').length) return;
+
+        var currentText = $cell.text().trim();
+        var parsed = parseFlexibleDate(currentText);
+        var isoVal = parsed ? toISODate(parsed) : '';
+
+        // Build a date input and swap into the cell
+        var $input = $('<input type="date" class="form-control form-control-sm ms-date-input">');
+        if(isoVal) $input.val(isoVal);
+
+        // Remember current text so Escape can restore
+        $cell.data('original-text', currentText);
+        $cell.empty().append($input);
+
+        // If empty, prefill today so a single click confirms today's date
+        if(!$input.val()){
+            var todayIso = toISODate(new Date());
+            $input.val(todayIso);
+        }
+
+        // Focus on the input - user can click to open picker
+        if($input[0]){
+            $input[0].focus({ preventScroll: true });
+        }
+    });
+
+    // Save date back to cell on change or blur
+    $(document).on('change blur', '.ms-date-input', function(){
+        var $input = $(this);
+        var $cell = $input.closest('td');
+        var iso = $input.val();
+        var display = '';
+
+        if(iso){
+            var d = new Date(iso);
+            display = isNaN(d.getTime()) ? iso : formatDate(d);
+        }
+
+        $cell.text(display);
+        $cell.removeData('original-text');
+        autoCalculateDates($cell.closest('tr'));
+        saveToHistory();
+    });
+
+    // Allow cancel with Escape
+    $(document).on('keydown', '.ms-date-input', function(e){
+        if(e.key === 'Escape'){
+            var $cell = $(this).closest('td');
+            var original = $cell.data('original-text') || '';
+            $cell.text(original);
+            $cell.removeData('original-text');
+        }
+    });
 
     // Auto-calculate dates/timeline when cells are edited
     function autoCalculateDates(row){

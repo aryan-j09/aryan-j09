@@ -804,6 +804,40 @@ Class Master extends DBConnection {
         return json_encode($resp);
     }
 
+    function delete_receipt(){
+        $po = isset($_POST['po']) ? $_POST['po'] : '';
+        $date = isset($_POST['date']) ? $_POST['date'] : '';
+
+        if(empty($po) || empty($date)){
+            return json_encode(['status' => 'failed', 'msg' => 'Invalid parameters']);
+        }
+        
+        // Delete stock movements for this PO on this date
+        $delete_sql = "DELETE sm FROM stock_movement sm
+                      JOIN purchase_order_list pol ON sm.reference_id = pol.id
+                      WHERE pol.po_code = ? 
+                      AND DATE(sm.created_at) = ?
+                      AND sm.reference_type = 'PO'
+                      AND sm.movement_type = 'IN'";
+        
+        $stmt = $this->conn->prepare($delete_sql);
+        if (!$stmt) {
+            $resp['status'] = 'failed';
+            $resp['msg'] = "Prepare failed: " . $this->conn->error;
+            return json_encode($resp);
+        }
+        
+        $stmt->bind_param('ss', $po, $date);
+        if ($stmt->execute()) {
+            $resp['status'] = 'success';
+            $this->settings->set_flashdata('success', "Receipt deleted successfully.");
+        } else {
+            $resp['status'] = 'failed';
+            $resp['msg'] = "Delete failed: " . $stmt->error;
+        }
+        return json_encode($resp);
+    }
+
     function save_client() {
         
         try {
