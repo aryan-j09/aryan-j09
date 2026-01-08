@@ -168,7 +168,7 @@ while ($row = $item_query->fetch_assoc()) {
     }
 
     .address-block {
-        width: 45%;
+        width: 30%;
         /* Adjust the width as needed */
     }
 
@@ -512,62 +512,118 @@ while ($row = $item_query->fetch_assoc()) {
             <div class="po-address-block">
                 <div class="form-group mt-3">
                     <div class="d-flex justify-content-start address-container">
+                        <?php
+                        // Determine if billing and material delivery addresses are the same
+                        $billing_matches_material = false;
+                        
+                        if ($company_type == 'HUGO') {
+                            // For Hugo, billing is always Dombivli
+                            // Material delivery matches when DOM is selected
+                            $billing_matches_material = ($material_delivery == 'DOM');
+                        } else {
+                            // For SBP, billing is always Dadar
+                            // Material delivery matches when DDR is selected
+                            $billing_matches_material = ($material_delivery == 'DDR');
+                        }
+                        ?>
+                        
+                        <?php if ($billing_matches_material): ?>
+                            <!-- Combined address block when billing and material delivery are the same -->
+                            <div class="address-block">
+                                <label for="bill_delivery" class="control-label">Generate Bill in the name & Material Delivery to:</label>
+                                <p id="bill_delivery">
+                                    <?php if ($company_type == 'HUGO'): ?>
+                                        <u>Hugopharm Technologies Pvt. Ltd.</u><br>
+                                        Plot No. TS 20, MIDC Phase 2,<br>
+                                        Man pada Road, Sagaon,<br>
+                                        Besides Sekhsaria Chemicals/ Arch Pharma<br>
+                                        Dombivli (E) - 421 203<br>
+                                        GSTIN/UIN : 27AACCH1711N1ZM
+                                    <?php else: ?>
+                                        <u>S.B. Panchal & Company</u><br>
+                                        8, Jogani Industrial Estate,<br>
+                                        541, Senapati Bapat Marg,<br>
+                                        Dadar (West), Mumbai - 400 028<br>
+                                        GSTIN/UIN : 27AAAFS5950K1ZW
+                                    <?php endif; ?>
+                                </p>
+                                <div id="print_address_bill" class="print-address"></div>
+                            </div>
+                        <?php else: ?>
+                            <!-- Separate address blocks when billing and material delivery are different -->
+                            <div class="address-block">
+                                <label for="bill_delivery" class="control-label">Generate bill in the name of:</label>
+                                <p id="bill_delivery">
+                                    <?php if ($company_type == 'HUGO'): ?>
+                                        <u>Hugopharm Technologies Pvt. Ltd.</u><br>
+                                        Plot No. TS 20, MIDC Phase 2,<br>
+                                        Man pada Road, Sagaon,<br>
+                                        Besides Sekhsaria Chemicals/ Arch Pharma<br>
+                                        Dombivli (E) - 421 203<br>
+                                        GSTIN/UIN : 27AACCH1711N1ZM
+                                    <?php else: ?>
+                                        <u>S.B. Panchal & Company</u><br>
+                                        8, Jogani Industrial Estate,<br>
+                                        541, Senapati Bapat Marg,<br>
+                                        Dadar (West), Mumbai - 400 028<br>
+                                        GSTIN/UIN : 27AAAFS5950K1ZW
+                                    <?php endif; ?>
+                                </p>
+                                <div id="print_address_bill" class="print-address"></div>
+                            </div>
+                            <div class="address-block">
+                                <label class="control-label">Material delivery to:</label>
+                                <p>
+                                    <?php
+                                    if ($material_delivery == 'DOM') {
+                                        if ($company_type == 'HUGO') {
+                                            echo "<u>Hugopharm Technologies Pvt. Ltd.</u><br>
+                                                 Plot No. TS 20, MIDC Phase 2,<br>
+                                                 Man pada Road, Sagaon,<br>
+                                                 Besides Sekhsaria Chemicals/ Arch Pharma<br>
+                                                 Dombivli (E) - 421 203";
+                                        } else {
+                                            echo "<u>S.B. Panchal & Company</u><br>
+                                                 C/O S.B. Panchal & Company,<br>
+                                                 Plot No. TS 20, MIDC Phase 2,<br>
+                                                 Man pada Road, Sagaon,<br>
+                                                 Besides Sekhsaria Chemicals/ Arch Pharma<br>
+                                                 Dombivli (E) - 421 203";
+                                        }
+                                    } else if ($material_delivery == 'DDR') {
+                                        if ($company_type == 'HUGO') {
+                                            echo "<u>Hugopharm Technologies Pvt. Ltd.</u><br>
+                                                 8, Jogani Industrial Estate,<br>
+                                                 541 Senapati Bapat Marg,<br>
+                                                 Dadar (W), Mumbai 400 028";
+                                        } else {
+                                            echo "<u>S.B. Panchal & Company</u><br>
+                                                 8, Jogani Industrial Estate,<br>
+                                                 541 Senapati Bapat Marg,<br>
+                                                 Dadar (W), Mumbai 400 028";
+                                        }
+                                    } else if ($material_delivery == 'SELF') {
+                                        echo "Self Pickup";
+                                    }
+                                    ?>
+                                </p>
+                            </div>
+                        <?php endif; ?>
+                        
                         <div class="address-block">
-                            <label for="bill_delivery" class="control-label">Generate bill in the name of:</label>
-                            <p id="bill_delivery">
+                            <label class="control-label">Send Invoice & Certificate to:</label>
+                            <p>
                                 <?php if ($company_type == 'HUGO'): ?>
                                     <u>Hugopharm Technologies Pvt. Ltd.</u><br>
-                                    Plot No. TS 20, MIDC Phase 2,<br>
-                                    Man pada Road, Sagaon,<br>
-                                    Besides Sekhsaria Chemicals/ Arch Pharma<br>
-                                    Dombivli (E) - 421 203<br>
-                                    GSTIN/UIN : 27AACCH1711N1ZM
+                                    8, Jogani Industrial Estate,<br>
+                                    541 Senapati Bapat Marg,<br>
+                                    Dadar (W), Mumbai 400 028
                                 <?php else: ?>
                                     <u>S.B. Panchal & Company</u><br>
                                     8, Jogani Industrial Estate,<br>
-                                    541, Senapati Bapat Marg,<br>
-                                    Dadar (West), Mumbai - 400 028<br>
-                                    GSTIN/UIN : 27AAAFS5950K1ZW
+                                    541 Senapati Bapat Marg,<br>
+                                    Dadar (W), Mumbai 400 028
                                 <?php endif; ?>
-                            </p>
-                            <!-- Hidden div to display the selected address for bill delivery printing -->
-                            <div id="print_address_bill" class="print-address"></div>
-                        </div>
-                        <div class="address-block">
-                            <label class="control-label">Material delivery to:</label>
-                            <p>
-                                <?php
-                                if ($material_delivery == 'DOM') {
-                                    if ($company_type == 'HUGO') {
-                                        echo "<u>Hugopharm Technologies Pvt. Ltd.</u><br>
-                                             Plot No. TS 20, MIDC Phase 2,<br>
-                                             Man pada Road, Sagaon,<br>
-                                             Besides Sekhsaria Chemicals/ Arch Pharma<br>
-                                             Dombivli (E) - 421 203";
-                                    } else {
-                                        echo "<u>S.B. Panchal & Company</u><br>
-                                             C/O S.B. Panchal & Company,<br>
-                                             Plot No. TS 20, MIDC Phase 2,<br>
-                                             Man pada Road, Sagaon,<br>
-                                             Besides Sekhsaria Chemicals/ Arch Pharma<br>
-                                             Dombivli (E) - 421 203";
-                                    }
-                                } else if ($material_delivery == 'DDR') {
-                                    if ($company_type == 'HUGO') {
-                                        echo "<u>Hugopharm Technologies Pvt. Ltd.</u><br>
-                                             8, Jogani Industrial Estate,<br>
-                                             541 Senapati Bapat Marg,<br>
-                                             Dadar (W), Mumbai 400 028";
-                                    } else {
-                                        echo "<u>S.B. Panchal & Company</u><br>
-                                             8, Jogani Industrial Estate,<br>
-                                             541 Senapati Bapat Marg,<br>
-                                             Dadar (W), Mumbai 400 028";
-                                    }
-                                } else if ($material_delivery == 'SELF') {
-                                    echo "Self Pickup";
-                                }
-                                ?>
                             </p>
                         </div>
                     </div>
