@@ -31,6 +31,7 @@ function formatIndianMoney($num)
 function getVerifierName($user_id)
 {
     global $conn;
+    $fullname = '';
     $stmt = $conn->prepare("SELECT CONCAT(firstname, ' ', lastname) as fullname FROM users WHERE id = ?");
     $stmt->bind_param("i", $user_id);
     $stmt->execute();
