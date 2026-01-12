@@ -34,10 +34,11 @@ function getVerifierName($user_id)
     $stmt = $conn->prepare("SELECT CONCAT(firstname, ' ', lastname) as fullname FROM users WHERE id = ?");
     $stmt->bind_param("i", $user_id);
     $stmt->execute();
-    $result = $stmt->get_result();
-    if ($row = $result->fetch_assoc()) {
+    $stmt->bind_result($fullname);
+    if ($stmt->fetch()) {
+        $result = ['fullname' => $fullname];
         $stmt->close();
-        return $row['fullname'];
+        return $result['fullname'];
     }
     $stmt->close();
     return 'Unknown User';
@@ -56,7 +57,6 @@ $qry = $conn->query("
         pil.*,
         pil.id as pi_id,
         pil.freight_note,
-        pil.company,
         c.company_name as client,
         c.billing_address as client_address,
         c.shipping_address,
@@ -257,7 +257,6 @@ while ($step = $steps_qry->fetch_assoc()) {
                 <div class="box">
                     <label class="control-label text-info">PO No: </label> <?= $po['po_code'] ?? 'N/A' ?>
                     <label class="control-label text-info date">PO Date: </label> <?= $po['po_date'] ?? 'N/A' ?>
-                    <label class="control-label text-info">Under: </label> <?= $po['company'] ?? 'N/A' ?>                    
                     <label class="control-label text-info date">Expected Delivery: </label> <?= $po['expected_delivery'] ? date('d-M-Y', strtotime($po['expected_delivery'])) : 'N/A' ?>
                     <label class="control-label text-info">Delivery: </label>
                     <?php
