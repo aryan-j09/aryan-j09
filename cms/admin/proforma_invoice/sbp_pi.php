@@ -1,11 +1,10 @@
 <?php 
 if(isset($_GET['id'])){
     $qry = $conn->query("SELECT pi.*, c.company_name as client, c.billing_address as client_address, 
-        c.shipping_address, c.contact_person, c.contact_no, c.cperson_acc, cperson_no_acc, c.cperson_pur, cperson_no_pur, c.gst_number, c.email 
+        c.shipping_address, c.contact_person, c.contact_no, c.gst_number, c.email 
         FROM clients c 
         JOIN proforma_invoice_list pi ON c.id = pi.client_id 
         WHERE pi.id = '{$_GET['id']}'");
-    
     if($qry->num_rows > 0){
         $invoice = $qry->fetch_assoc();
     } else {
@@ -19,27 +18,6 @@ if(isset($_GET['id'])){
     echo "No invoice ID provided.";
     exit;
 }
-
-function format_indian_number($number)
-{
-    $number = round($number, 2);
-    $decimal_part = round($number - floor($number), 2);
-    $decimal = number_format($decimal_part, 2);
-    $decimal = substr($decimal, 1);
-    $number = floor($number);
-
-    $len = strlen($number);
-    $m = '';
-    $number = strrev($number);
-    for ($i = 0; $i < $len; $i++) {
-        if (($i == 3 || ($i > 3 && ($i - 1) % 2 == 0)) && $i != $len) {
-            $m .= ',';
-        }
-        $m .= $number[$i];
-    }
-    $result = strrev($m);
-    return $result . $decimal;
-}
 ?>
 
 <style>
@@ -49,11 +27,12 @@ function format_indian_number($number)
         margin-bottom: 20px;
     }
     .print-header h1 {
-        font: 70px 'Raleway SemiBold';                
+        font: 70px 'Brush Script MT';      
+        color: rgb(245, 130, 32);          
         margin: 0;
     }
     .print-header p {
-        font: 27px 'Garamond';        
+        font: 20px 'Garamond';        
         margin: 0;
         padding: 0;
     }
@@ -95,12 +74,31 @@ function format_indian_number($number)
         justify-content: space-between;
         align-items: center;
     }
+    body {
+        margin-top: 0; /* Reduce space at the very top */
+        padding-top: 0;
+    }
+    .header-left {
+        width: 100%;
+        height: 100%;
+        margin-top: -15px; /* Reduce space above image */
+        margin-bottom: 10px; /* Add slight space below image */
+    }
     .header-left img {
-        max-width: 130px;
-        max-height: 1300px;
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* This ensures the image maintains its aspect ratio */
+        max-width: 100%;
+        max-height: 100%;
     }
     .header-middle {
         text-align: center;        
+    }
+    .header-middle h1 {
+        font-size: 45px !important;  /* Reduced from 70px */
+        font-family: 'Brush Script MT';
+        color: rgb(245, 130, 32);
+        margin: 0;
     }
     .header-right {        
         text-align: left;
@@ -167,6 +165,16 @@ function format_indian_number($number)
     .address-container .right-address {
         width: 100%; /* Adjust the width as needed */        
     }
+    .footer-container.mt-3 {
+        margin-top: 0 !important; /* Override Bootstrap's mt-3 */
+    }
+    fieldset {
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+    .table {
+        margin-bottom: 10px; /* Reduce from default 16px */
+    }
     .footer-container {
         page-break-inside: avoid;
         break-inside: avoid;
@@ -186,12 +194,17 @@ function format_indian_number($number)
             display: flex;
             gap: 700px;
         }
-        .table-striped tbody tr:nth-of-type(odd) {
-            background-color: rgba(0, 0, 0, 0.05) !important;
+        .header-left {
+            width: 100%; /* Set a fixed width for the logo container */
+            height: 100%; /* Set a fixed height */
         }
-        .table-striped tbody tr:nth-of-type(even) {
-            background-color: rgba(0, 0, 0, 0.15) !important;
-        }      
+        .header-left img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
         .footer-container {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
@@ -204,28 +217,14 @@ function format_indian_number($number)
         tr {
             page-break-inside: avoid;
             page-break-after: auto;
-        }  
-    }    
+        }
+    }        
 </style>
-<body>
-    <div class="header-container d-flex justify-content-between align-items-center print-header">
+<body>    
         <div class="header-left">
-            <img src="<?php echo base_url; ?>uploads/HUGO.png" alt="Company Logo" class="company-logo">
+            <img src="<?php echo base_url; ?>uploads/SBLetter.png" alt="Company Logo" class="company-logo">
         </div>
-        <div class="header-middle text-center flex-grow-1">
-            <h1 style="font-size:70px">HUGOPHARM</h1>
-            <p style="font-size:30px; font-style: italic;">Systems Engineered with Mind and Spirit</p>
-        </div>
-        <div class="header-right text-left">
-            <p style="font-size: 18px;"><strong>Regd Office:</strong> 8, Jogani Industrial Estate,<br> 
-            541 Senapati Bapat Marg, Dadar (W), Mumbai 400028<br>
-            Mob: 9869415083 Email: sales@sbpanchal.com<br>
-            <strong>Works:</strong> Plot No TS 20, MIDC Phase 2, Sagaon,<br>
-            Manpada Road, Dombivli (E) 421203</p>
-            GSTIN:27AACCH1711N1ZM
-        </div>
-    </div>
-
+    
     <div class="card card-outline card-primary">    
         <div class="card-header d-flex justify-content-between align-items-center">        
             <div class="box">
@@ -260,24 +259,14 @@ function format_indian_number($number)
                                     <td><strong>Shipping Address:</strong></td>
                                     <td><?php echo $invoice['shipping_address']; ?></td>
                                 </tr>
-                                <?php if(!empty($invoice['contact_person'])): ?>
                                 <tr>
-                                <td><strong>Cont. End User:</strong></td>
-                                <td>
-                                    <?= $invoice['contact_person'] ?>
-                                    <?= !empty($invoice['contact_no']) ? ' - ' . $invoice['contact_no'] : '' ?>
-                                </td>
+                                    <td><strong>Cont. Person:</strong></td>
+                                    <td><?php echo $invoice['contact_person']; ?></td>
                                 </tr>
-                                <?php endif; ?>                                
-                                <?php if(!empty($invoice['cperson_pur'])): ?>
                                 <tr>
-                                    <td><strong>Cont. Purchase:</strong></td>
-                                    <td>
-                                        <?= $invoice['cperson_pur'] ?>
-                                        <?= !empty($invoice['cperson_no_pur']) ? ' - ' . $invoice['cperson_no_pur'] : '' ?>
-                                    </td>
+                                    <td><strong>Cont. No:</strong></td>
+                                    <td><?php echo $invoice['contact_no']; ?></td>
                                 </tr>
-                                <?php endif; ?>
                                 <tr>
                                     <td><strong>Email:</strong></td>
                                     <td><?php echo $invoice['email']; ?></td>
@@ -306,8 +295,8 @@ function format_indian_number($number)
             <fieldset>            
                 <table class="table table-bordered table-striped">
                     <colgroup>
-                        <col width="10%">
-                        <col width="60%">
+                        <col width="5%">
+                        <col width="65%">
                         <col width="10%">
                         <col width="20%">                    
                     </colgroup>
@@ -330,14 +319,14 @@ function format_indian_number($number)
                                 <td class="text-center"><?php echo $i++; ?>)</td>
                                 <td><?php echo nl2br(htmlspecialchars($item['description'])); ?></td>
                                 <td class="text-center"><?php echo $item['hsn_code']; ?></td>
-                                <td style="text-align: right"><?php echo format_indian_number($item['amount']); ?></td>
+                                <td style="text-align: right"><?php echo number_format($item['amount'], 2); ?></td>
                             </tr>
                         <?php endwhile; ?>
                     </tbody>
                     <tfoot>
                         <tr>
                             <th class="text-right" colspan="3">Sub Total:</th>
-                            <td class="text-right"><?php echo format_indian_number($totalAmount); ?></td>
+                            <td class="text-right"><?php echo number_format($totalAmount, 2); ?></td>
                         </tr>
                         <tr>
                             <th class="text-right" colspan="3">Packing Forwarding:
@@ -347,7 +336,7 @@ function format_indian_number($number)
                             </th>
                             <td class="text-right">
                                 <?php if ($invoice['packing_forwarding_amount'] > 0) {
-                                    echo format_indian_number($invoice['packing_forwarding_amount']);
+                                    echo number_format($invoice['packing_forwarding_amount'], 2);
                                 } else {
                                     echo "Included";
                                 }
@@ -357,30 +346,30 @@ function format_indian_number($number)
                         <tr>
                             <?php if ($invoice['freight'] > 0): ?>
                                 <th class="text-right" colspan="3">Freight Charges:</th>
-                                <td class="text-right"><?php echo format_indian_number($invoice['freight']); ?></td>
+                                <td class="text-right"><?php echo number_format($invoice['freight'], 2); ?></td>
                             <?php endif; ?>
                         </tr>
                         <tr>
                             <?php if ($invoice['tax'] > 0): ?>
                                 <th class="text-right" colspan="3">IGST (<?php echo $invoice['tax']; ?>%):</th>
-                                <td class="text-right"><?php echo format_indian_number($invoice['tax_amount']);?></td>
+                                <td class="text-right"><?php echo number_format($invoice['tax_amount'], 2);?></td>
                             <?php endif; ?>
                         </tr>
                         <tr>
                             <?php if ($invoice['cgst'] > 0): ?>
                                 <th class="text-right" colspan="3">CGST (<?php echo $invoice['cgst']; ?>%)</th>
-                                <td class="text-right"><?php echo format_indian_number($invoice['cgst_amount']);?></td>
+                                <td class="text-right"><?php echo number_format($invoice['cgst_amount'], 2);?></td>
                             <?php endif; ?>
                         </tr>
                         <tr>
                             <?php if ($invoice['sgst'] > 0): ?>
                                 <th class="text-right" colspan="3">SGST (<?php echo $invoice['sgst']; ?>%):</th>
-                                <td class="text-right"><?php echo format_indian_number($invoice['sgst_amount']); ?></td>
+                                <td class="text-right"><?php echo number_format($invoice['sgst_amount'], 2); ?></td>
                             <?php endif; ?>
                         </tr>
                         <tr>
                             <th class="text-right" style="color: red;" colspan="3"><u>Grand Total:</u></th>
-                            <th class="text-right"><?php echo format_indian_number($invoice['total_amount']); ?></th>
+                            <th class="text-right"><?php echo number_format($invoice['total_amount'], 2); ?></th>
                         </tr>
                         <tr>
                             <td colspan="4" style="text-align: center; font-size: 1.25em;"><strong><u>Payment Terms</u></strong></td>
@@ -393,24 +382,16 @@ function format_indian_number($number)
                                     <?php endif; ?>
                                     Advance Payment(<?php echo $invoice['advance_payment']; ?>%):
                                 </th>
-                                <th class="text-right"><?php echo format_indian_number($invoice['advance_payment_amount']);?></th>
+                                <th class="text-right"><?php echo number_format($invoice['advance_payment_amount'], 2);?></th>
                             <?php endif; ?>
                         </tr>
                         <tr>
                             <?php if ($invoice['inspection_payment'] > 0): ?>
                                 <th colspan="3" class="text-right">
-                                    <?php 
-                                    if ($invoice['inspection_payment_type'] == 'delivery') {
-                                        echo 'Against Delivery';
-                                    } elseif ($invoice['inspection_payment_type'] == 'prior_dispatch') {
-                                        echo 'Prior to Dispatch';
-                                    } else {
-                                        echo 'Against FAT';
-                                    }
-                                    ?>
+                                    <?php echo ($invoice['inspection_payment_type'] == 'delivery' ? 'Against Delivery' : 'Against Inspection Prior to Dispatch'); ?>
                                     (<?php echo $invoice['inspection_payment']; ?>%):
                                 </th>
-                                <th class="text-right"><?php echo format_indian_number($invoice['inspection_payment_amount']);?></th>
+                                <th class="text-right"><?php echo number_format($invoice['inspection_payment_amount'], 2);?></th>
                             <?php endif; ?>
                         </tr>
                         <tr>
@@ -421,40 +402,42 @@ function format_indian_number($number)
                                     <?php endif; ?>
                                     Within 15 Days from Date of Installation(<?php echo $invoice['installation_payment']; ?>%):
                                 </th>
-                                <th class="text-right"><?php echo format_indian_number($invoice['installation_payment_amount']);?></th>
+                                <th class="text-right"><?php echo number_format($invoice['installation_payment_amount'], 2);?></th>
                             <?php endif; ?>
                         </tr>
                         <tr>
                             <?php if($invoice['credit_payment_amount'] > 0): ?>
                                 <th class="text-right" colspan="3"><?php echo($invoice ['credit_payment_days']) ?> days from Date of Invoice:</th>
-                                <th class="text-right"><?php echo format_indian_number($invoice['credit_payment_amount']); ?></th>
+                                <th class="text-right"><?php echo number_format($invoice['credit_payment_amount'], 2); ?></th>
                             <?php endif; ?>
                         </tr>
                     </tfoot>
                 </table>
             </fieldset>
-            <div class="footer-container">
+            <div class="footer-container mt-3">
                 <div class="row" style="margin: 0;">
-                    <div class="col-8 text-left" style="font-size: 15px; padding: 0;">
+                    <div class="col-6 text-left" style="font-size: 15px; padding: 0;">
                         <p><strong>
-                        <t style="font-size:20px; color:red;">Note: <?php echo $invoice['freight_note']; ?></t>
+                        <t style="font-size:20px; color:red;">Freight: <?php echo $invoice['freight_note']; ?></t>
+                        <br
                         <br>
-                        NEFT DETAILS:<br>
+                        NEFT DETAILS: S.B. PANCHAL AND COMPANY<br>
                         BANK NAME: CENTRAL BANK OF INDIA<br>
                         BRANCH: DADAR (W) MUMBAI – 400028<br>
-                        A/C NO: 3013760932<br>
-                        IFSC CODE: CBIN0280600<br></strong>
+                        A/C NO: 1127950134<br>
+                        IFSC CODE: CBIN0280600<br>
+                        GSTIN: 27AAAFS5950K1ZW</strong>
                         </p>
                     </div>                
-                    <div class="col-4 text-center">
+                    <div class="col-6 text-center" style="padding: 0;">
                         <h4 style="font-size: 20px;">E. & O.E.</h4>
-                        <h4 style="font-size: 20px;"><strong>For Hugopharm Technologies Pvt. Ltd</strong></h4>
+                        <h4 style="font-size: 20px;"><strong>For S.B. PANCHAL & COMPANY</strong></h4>
                         <h4><?php echo $invoice['authorized_signatory']; ?></h4>
                         <p>Authorised Signatory</p>
                     </div>                
                 </div>
-            </div>
-            <p class="text-center">This is a computer generated document and does not require a signature.</p>
+                <p class="text-center mt-3">This is a computer generated document and does not require a signature.</p>
+            </div>            
         </div>
     </div>
 
