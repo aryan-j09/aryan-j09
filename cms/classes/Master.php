@@ -807,32 +807,55 @@ Class Master extends DBConnection {
     function delete_receipt(){
         $po = isset($_POST['po']) ? $_POST['po'] : '';
         $date = isset($_POST['date']) ? $_POST['date'] : '';
+        $created_at = isset($_POST['created_at']) ? $_POST['created_at'] : '';
+        $reference_type = isset($_POST['reference_type']) ? $_POST['reference_type'] : '';
+        $resp = ['status' => 'failed', 'msg' => 'Invalid parameters'];
 
-        if(empty($po) || empty($date)){
-            return json_encode(['status' => 'failed', 'msg' => 'Invalid parameters']);
-        }
-        
-        // Delete stock movements for this PO on this date
-        $delete_sql = "DELETE sm FROM stock_movement sm
-                      JOIN purchase_order_list pol ON sm.reference_id = pol.id
-                      WHERE pol.po_code = ? 
-                      AND DATE(sm.created_at) = ?
-                      AND sm.reference_type = 'PO'
-                      AND sm.movement_type = 'IN'";
-        
-        $stmt = $this->conn->prepare($delete_sql);
-        if (!$stmt) {
-            $resp['status'] = 'failed';
-            $resp['msg'] = "Prepare failed: " . $this->conn->error;
+        if(empty($date) || empty($created_at) || empty($reference_type)){
             return json_encode($resp);
         }
         
-        $stmt->bind_param('ss', $po, $date);
+        // Delete stock movements based on reference type
+        if($reference_type === 'PO' && !empty($po)) {
+            // Delete PO receipts: match by po_code and date
+            $delete_sql = "DELETE sm FROM stock_movement sm
+                          JOIN purchase_order_list pol ON sm.reference_id = pol.id
+                          WHERE pol.po_code = ? 
+                          AND DATE(sm.created_at) = ?
+                          AND sm.reference_type = 'PO'
+                          AND sm.movement_type = 'IN'";
+            
+            $stmt = $this->conn->prepare($delete_sql);
+            if (!$stmt) {
+                $resp['msg'] = "Prepare failed: " . $this->conn->error;
+                return json_encode($resp);
+            }
+            
+            $stmt->bind_param('ss', $po, $date);
+        } else if($reference_type === 'MANUAL') {
+            // Delete manual receipts: match by created_at timestamp (to the minute)
+            $delete_sql = "DELETE FROM stock_movement 
+                          WHERE DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') = DATE_FORMAT(?, '%Y-%m-%d %H:%i')
+                          AND reference_type = 'MANUAL'
+                          AND movement_type = 'IN'";
+            
+            $stmt = $this->conn->prepare($delete_sql);
+            if (!$stmt) {
+                $resp['msg'] = "Prepare failed: " . $this->conn->error;
+                return json_encode($resp);
+            }
+            
+            $stmt->bind_param('s', $created_at);
+        } else {
+            $resp['msg'] = 'Unknown receipt type';
+            return json_encode($resp);
+        }
+        
         if ($stmt->execute()) {
             $resp['status'] = 'success';
+            $resp['msg'] = 'Receipt deleted successfully';
             $this->settings->set_flashdata('success', "Receipt deleted successfully.");
         } else {
-            $resp['status'] = 'failed';
             $resp['msg'] = "Delete failed: " . $stmt->error;
         }
         return json_encode($resp);
@@ -3394,6 +3417,162 @@ function delete_utility_supplier(){
         return json_encode($resp);
     }
 
+    function receive_stock_batch(){
+        header('Content-Type: application/json');
+        $resp = array('status' => 'failed', 'msg' => '');
+    
+        try {
+            extract($_POST);
+            $po_id = (int)$_POST['po_id'];
+        
+            // Get items data
+            $item_ids = isset($_POST['item_id']) ? (array)$_POST['item_id'] : [];
+            $received_quantities = isset($_POST['received_qty']) ? (array)$_POST['received_qty'] : [];
+            $remarks_array = isset($_POST['remarks']) ? (array)$_POST['remarks'] : [];
+        
+            if (empty($item_ids)) {
+                throw new Exception('Please select at least one item to receive');
+            }
+        
+            // Check if stock_movement table exists, create if not
+            $check_table = $this->conn->query("SHOW TABLES LIKE 'stock_movement'");
+            if ($check_table->num_rows == 0) {
+                $this->conn->query("CREATE TABLE stock_movement (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    item_id INT NOT NULL,
+                    movement_type ENUM('IN', 'OUT') NOT NULL,
+                    quantity INT NOT NULL,
+                    reference_type VARCHAR(50),
+                    reference_id INT,
+                    balance_before INT,
+                    balance_after INT,
+                    remarks TEXT,
+                    created_by INT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX(item_id), INDEX(reference_type)
+                )");
+            }
+        
+            $count = 0;
+            // Process each item
+            foreach($item_ids as $idx => $item_id) {
+                $item_id = (int)$item_id;
+                $received_qty = (int)($received_quantities[$idx] ?? 0);
+                $remark = trim($remarks_array[$idx] ?? '');
+            
+                if ($received_qty <= 0) {
+                    continue; // Skip if no quantity
+                }
+            
+                // Verify PO item exists
+                $po_item_result = $this->conn->query("SELECT * FROM po_items WHERE po_id = $po_id AND item_id = $item_id");
+                if (!$po_item_result || $po_item_result->num_rows == 0) {
+                    continue; // Skip invalid items
+                }
+            
+                // Insert into stock_movement for logging
+                $ms = $this->conn->prepare("INSERT INTO stock_movement 
+                    (item_id, movement_type, quantity, reference_type, reference_id, remarks, created_by)
+                    VALUES (?, 'IN', ?, 'PO', ?, ?, ?)");
+            
+                if (!$ms) {
+                    throw new Exception("Prepare failed: " . $this->conn->error);
+                }
+            
+                $ms->bind_param('iiiis', $item_id, $received_qty, $po_id, $remark, $_SESSION['userdata']['id']);
+            
+                if ($ms->execute()) {
+                    $count++;
+                } else {
+                    throw new Exception("Failed to log item $item_id: " . $ms->error);
+                }
+            }
+        
+            if ($count == 0) {
+                throw new Exception('No valid quantities to receive');
+            }
+        
+            $resp['status'] = 'success';
+            $this->settings->set_flashdata('success', "Successfully received $count item(s) against PO #$po_id!");
+        
+        } catch (Exception $e) {
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+        }
+    
+        return json_encode($resp);
+    }
+
+    function receive_stock_manual(){
+        header('Content-Type: application/json');
+        $resp = array('status' => 'failed', 'msg' => '');
+        try{
+            // Ensure items present
+            $item_ids = isset($_POST['item_id']) ? (array)$_POST['item_id'] : [];
+            $received_quantities = isset($_POST['received_qty']) ? (array)$_POST['received_qty'] : [];
+            $remarks_array = isset($_POST['remarks']) ? (array)$_POST['remarks'] : [];
+            if (empty($item_ids)) {
+                throw new Exception('Please add at least one item');
+            }
+
+            // Ensure stock_movement exists
+            $check_table = $this->conn->query("SHOW TABLES LIKE 'stock_movement'");
+            if ($check_table->num_rows == 0) {
+                $this->conn->query("CREATE TABLE stock_movement (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    item_id INT NOT NULL,
+                    movement_type ENUM('IN', 'OUT') NOT NULL,
+                    quantity INT NOT NULL,
+                    reference_type VARCHAR(50),
+                    reference_id INT,
+                    balance_before INT,
+                    balance_after INT,
+                    remarks TEXT,
+                    created_by INT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX(item_id), INDEX(reference_type)
+                )");
+            }
+
+            $count = 0;
+            foreach($item_ids as $idx => $raw_item_id){
+                $item_id = (int)$raw_item_id;
+                $received_qty = (int)($received_quantities[$idx] ?? 0);
+                $remark = trim($remarks_array[$idx] ?? '');
+                if($received_qty <= 0){
+                    continue;
+                }
+
+                // Verify item exists
+                $item_chk = $this->conn->query("SELECT id FROM item_list WHERE id = {$item_id}");
+                if(!$item_chk || $item_chk->num_rows == 0){
+                    continue;
+                }
+
+                $ms = $this->conn->prepare("INSERT INTO stock_movement (item_id, movement_type, quantity, reference_type, reference_id, remarks, created_by) VALUES (?, 'IN', ?, 'MANUAL', NULL, ?, ?)");
+                if(!$ms){
+                    throw new Exception('Prepare failed: ' . $this->conn->error);
+                }
+                $ms->bind_param('iisi', $item_id, $received_qty, $remark, $_SESSION['userdata']['id']);
+                if($ms->execute()){
+                    $count++;
+                }else{
+                    throw new Exception('Failed to log item ' . $item_id . ': ' . $ms->error);
+                }
+            }
+
+            if($count == 0){
+                throw new Exception('No valid quantities to receive');
+            }
+
+            $resp['status'] = 'success';
+            $this->settings->set_flashdata('success', "Successfully received $count item(s) (Manual Receipt)");
+        }catch(Exception $e){
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+        }
+        return json_encode($resp);
+    }
 }
 $Master = new Master();
 $action = !isset($_GET['f']) ? 'none' : strtolower($_GET['f']);
@@ -3587,6 +3766,15 @@ switch ($action) {
     break;
     case 'get_po_detail_specs':
         echo $Master->get_po_detail_specs();
+    break;
+    case 'receive_stock_batch':
+        echo $Master->receive_stock_batch();
+    break;
+    case 'receive_stock_manual':
+        echo $Master->receive_stock_manual();
+    break;
+    case 'delete_receipt':
+        echo $Master->delete_receipt();
     break;
 	default:
 		// echo $sysset->index();
