@@ -418,7 +418,7 @@ if(isset($_GET['id'])){
                 <div class="row" style="margin: 0;">
                     <div class="col-6 text-left" style="font-size: 15px; padding: 0;">
                         <p><strong>
-                        <t style="font-size:20px; color:red;">Freight: <?php echo $invoice['freight_note']; ?></t>
+                        <t style="font-size:20px; color:red;">Note: <?php echo $invoice['freight_note']; ?></t>
                         <br
                         <br>
                         NEFT DETAILS: S.B. PANCHAL AND COMPANY<br>

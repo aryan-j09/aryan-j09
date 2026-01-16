@@ -344,6 +344,7 @@ while($row = $item_query->fetch_assoc()) {
                 <option value="30% advance 70% against delivery" <?php echo (isset($payment_terms) && $payment_terms == '30% advance 70% against delivery') ? 'selected' : ''; ?>>30% advance 70% against delivery</option>
                 <option value="40% advance 60% against delivery" <?php echo (isset($payment_terms) && $payment_terms == '40% advance 60% against delivery') ? 'selected' : ''; ?>>40% advance 60% against delivery</option>
                 <option value="50% advance 50% against delivery" <?php echo (isset($payment_terms) && $payment_terms == '50% advance 50% against delivery') ? 'selected' : ''; ?>>50% advance 50% against delivery</option>
+                <option value="40% Adv 50% Delivery & 10% Inst at factory" <?php echo (isset($payment_terms) && $payment_terms == '40% Adv 50% Delivery & 10% Inst at factory') ? 'selected' : ''; ?>>40% Advance 50% against Delivery & 10% against Installation at factory</option>
                 <option value="100% Advance against PI" <?php echo (isset($payment_terms) && $payment_terms == '100% Advance against PI') ? 'selected' : ''; ?>>100% Advance against PI</option>
             </select>
         </div>
@@ -377,6 +378,7 @@ while($row = $item_query->fetch_assoc()) {
                 <option value="Included" <?php echo (isset($freight) && $freight == 'Included') ? 'selected' : ''; ?>>Included</option>
                 <option value="To Pay Basis" <?php echo (isset($freight) && $freight == 'To Pay Basis') ? 'selected' : ''; ?>>To Pay Basis</option>
                 <option value="Clients Scope" <?php echo (isset($freight) && $freight == 'Clients Scope') ? 'selected' : ''; ?>>Clients Scope</option>
+                <option value="EXTRA AS APPLICABLE" <?php echo (isset($freight) && $freight == 'EXTRA AS APPLICABLE') ? 'selected' : ''; ?>>EXTRA AS APPLICABLE</option>
             </select>
         </div>
     </div>
