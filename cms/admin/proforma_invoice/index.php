@@ -44,14 +44,17 @@ $where_clause = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) :
 
 // Use FORCE INDEX to ensure index usage
 $query = "SELECT SQL_NO_CACHE pi.id, pi.po_code, pi.po_date_created, 
-          pi.total_amount, pi.company, c.company_name as client
+          pi.total_amount, pi.company, c.company_name as client,
+          GROUP_CONCAT(pii.description ORDER BY pii.id SEPARATOR ', ') AS requirements
           FROM proforma_invoice_list pi FORCE INDEX (idx_date, idx_company)
-          JOIN clients c ON c.id = pi.client_id";
+          JOIN clients c ON c.id = pi.client_id
+          LEFT JOIN proforma_invoice_items pii ON pii.proforma_invoice_id = pi.id";
 
 if (!empty($conditions)) {
     $query .= " WHERE " . implode(" AND ", $conditions);
 }
 
+$query .= " GROUP BY pi.id, pi.po_code, pi.po_date_created, pi.total_amount, pi.company, c.company_name";
 $query .= " ORDER BY pi.po_date_created DESC, pi.id DESC";
 
 $result = $conn->query($query);
@@ -120,12 +123,22 @@ $result = $conn->query($query);
                 <?php unset($_SESSION['flashdata']); ?>
             <?php endif; ?>
             <table class="table table-bordered table-striped" id="proforma_invoice_table">
+                <colgroup>
+                    <col style="width: 6%;">
+                    <col style="width: 20%;">
+                    <col style="width: 14%;">
+                    <col style="width: 12%;">
+                    <col style="width: 26%;">
+                    <col style="width: 12%;">
+                    <col style="width: 10%;">
+                </colgroup>
                 <thead>
                     <tr>
                         <th>Sr.</th>
                         <th>Client Name</th>
                         <th>PO Code</th>
                         <th>PO Date</th>
+                        <th>Requirements</th>
                         <th>Total Amt.</th>
                         <th>Action</th>
                     </tr>
@@ -140,6 +153,7 @@ $result = $conn->query($query);
                             <td><?php echo $row['client'] ?></td>
                             <td><?php echo $row['po_code'] ?></td>
                             <td><?php echo date("d-M-Y", strtotime($row['po_date_created'])) ?></td>
+                            <td><?php echo !empty($row['requirements']) ? $row['requirements'] : '—'; ?></td>
                             <td><?php echo number_format($row['total_amount'], 2) ?></td>
                             <td align="center">
                                 <button type="button" class="btn btn-flat btn-default btn-sm dropdown-toggle dropdown-icon" data-toggle="dropdown">
@@ -207,7 +221,7 @@ $result = $conn->query($query);
             "ordering": true,
             "pageLength": 10,
             "rowCallback": function(row, data, index) {
-                if ($(row).find('td:eq(5)').find('.dropdown-menu a:first').attr('href').includes('sbp_pi')) {
+                if ($(row).find('td:eq(6)').find('.dropdown-menu a:first').attr('href').includes('sbp_pi')) {
                     $(row).addClass('sbpanchal-row');
                 } else {
                     $(row).addClass('hugopharm-row');

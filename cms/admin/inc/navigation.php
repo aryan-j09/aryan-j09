@@ -1,4 +1,10 @@
 <?php
+// Check if user is logged in before accessing session data
+if (!isset($_SESSION['userdata']) || empty($_SESSION['userdata']['id'])) {
+    header('Location: ' . base_url . 'admin/login.php');
+    exit;
+}
+
 $user_id = $_SESSION['userdata']['id'];
 $today = date('Y-m-d');
 
