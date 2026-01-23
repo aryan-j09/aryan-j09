@@ -126,10 +126,10 @@ $result = $conn->query($query);
                 <colgroup>
                     <col style="width: 6%;">
                     <col style="width: 20%;">
-                    <col style="width: 14%;">
                     <col style="width: 12%;">
-                    <col style="width: 26%;">
-                    <col style="width: 12%;">
+                    <col style="width: 8%;">
+                    <col style="width: 35%;">
+                    <col style="width: 9%;">
                     <col style="width: 10%;">
                 </colgroup>
                 <thead>
@@ -138,7 +138,7 @@ $result = $conn->query($query);
                         <th>Client Name</th>
                         <th>PO Code</th>
                         <th>PO Date</th>
-                        <th>Requirements</th>
+                        <th>Items</th>
                         <th>Total Amt.</th>
                         <th>Action</th>
                     </tr>
