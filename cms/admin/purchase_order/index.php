@@ -27,13 +27,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
             <table class="table table-striped table-bordered" id="purchase_order_table">
                 <colgroup>
                     <col width="5%">                        
-                    <col width="10%">
-                    <col width="20%">
-                    <col width="25%">
-                    <col width="10%">
-                    <col width="10%">
+                    <col width="16%">
+                    <col width="14%">
+                    <col width="28%">
                     <col width="10%">
                     <col width="10%">
+                    <col width="10%">
+                    <col width="7%">
                 </colgroup>
                 <thead>
                     <tr>
