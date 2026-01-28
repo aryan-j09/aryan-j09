@@ -111,9 +111,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
 </style>
 <script>
     $(document).ready(function(){
-        $('.delete_data').click(function(){
+        // Use event delegation for dynamically rendered table rows
+        $(document).on('click', '.delete_data', function(){
             _conf("Are you sure to delete this Purchase order permanently?","delete_po",[$(this).attr('data-id')])
-        })
+        });
+        
+        $(document).on('click', '.receive_data', function(){
+            uni_modal("<i class='fa fa-boxes'></i> Receive Items","receiving/manage_receiving.php?po_id="+$(this).attr('data-id'),"large")
+        });
+        
+        $(document).on('click', '.repeat_order', function(){
+            _conf("Are you sure to create a repeat order?", "repeat_po", [$(this).attr('data-id')]);
+        });
+        
         $('.table td,.table th').addClass('py-1 px-2 align-middle')
         $('#purchase_order_table').dataTable({
             "drawCallback": function(settings) {
@@ -127,13 +137,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                     }
                 });
             }
-        });
-        
-        $('.receive_data').click(function(){
-            uni_modal("<i class='fa fa-boxes'></i> Receive Items","receiving/manage_receiving.php?po_id="+$(this).attr('data-id'),"large")
-        })
-        $('.repeat_order').click(function(){
-            _conf("Are you sure to create a repeat order?", "repeat_po", [$(this).attr('data-id')]);
         });
     })
     function delete_po($id){

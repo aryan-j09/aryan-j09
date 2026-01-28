@@ -321,7 +321,7 @@ if (isset($_GET['id']) && $_GET['id'] > 0) {
                                 FROM `tasks` t 
                                 LEFT JOIN project_planner p ON p.id = t.project_id
                                 INNER JOIN users u ON u.id = t.assigned_to 
-                                WHERE t.project_id IS NOT NULL AND t.project_id != 0
+                                WHERE t.project_id IS NOT NULL AND t.project_id != 0 AND t.assigned_to = '{$user_id}'
                                 ORDER BY 
                                     CASE t.priority 
                                         WHEN 'high' THEN 1 
@@ -378,9 +378,9 @@ if (isset($_GET['id']) && $_GET['id'] > 0) {
                 <!-- My Daily Tasks -->
                 <div class="tab-pane fade show active" id="daily-tasks" role="tabpanel">
                     <!-- Add task form -->
-                    <form method="POST" class="mb-3 d-flex">
+                    <form id="add-daily-task-form" class="mb-3 d-flex">
                         <input type="text" name="task" class="form-control mr-2" placeholder="Add new daily task..." required>
-                        <button class="btn btn-primary" name="add_daily_task" value="1">Add</button>
+                        <button type="submit" class="btn btn-primary">Add</button>
                     </form>
 
                     <div class="row">
@@ -529,10 +529,11 @@ if (isset($_GET['id']) && $_GET['id'] > 0) {
         $('#create_new').click(function() {
             uni_modal("<i class='fa fa-plus'></i> New Task", "tasks/manage_task.php", "large")
         })
-        $('.edit_data').click(function() {
+        // Use event delegation for dynamically rendered table rows
+        $(document).on('click', '.edit_data', function() {
             uni_modal("<i class='fa fa-edit'></i> Edit Task", "tasks/manage_task.php?id=" + $(this).attr('data-id'), "large")
         })
-        $('.delete_data').click(function() {
+        $(document).on('click', '.delete_data', function() {
             var id = $(this).attr('data-id');
             _conf_sweet("Are you sure to delete this task permanently?", function(result) {
                 if (result)
@@ -542,6 +543,36 @@ if (isset($_GET['id']) && $_GET['id'] > 0) {
         // Initialize both datatables
         $('#task-list-assigned-to').dataTable();
         $('#task-list-assigned-by').dataTable();
+
+        // Add daily task via AJAX
+        $('#add-daily-task-form').submit(function(e) {
+            e.preventDefault();
+            var task = $('input[name="task"]').val();
+            
+            if(task.trim() === '') {
+                alert_toast("Please enter a task", 'warning');
+                return;
+            }
+            
+            start_loader();
+            $.ajax({
+                url: window.location.href,
+                method: 'POST',
+                data: {
+                    add_daily_task: 1,
+                    task: task
+                },
+                error: function(err) {
+                    console.log(err);
+                    alert_toast("An error occurred.", 'error');
+                    end_loader();
+                },
+                success: function(resp) {
+                    $('input[name="task"]').val('');
+                    location.reload();
+                }
+            });
+        });
 
         // Daily task completion
         $('#daily-task-list').on('change', '.complete-daily-task', function() {
