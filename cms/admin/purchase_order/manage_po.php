@@ -445,6 +445,7 @@ while($row = $item_query->fetch_assoc()) {
                                     <option value="nos" <?php echo ($item['unit'] == 'nos') ? 'selected' : ''; ?>>nos</option>
                                     <option value="packet" <?php echo ($item['unit'] == 'packet') ? 'selected' : ''; ?>>packet</option>
                                     <option value="box" <?php echo ($item['unit'] == 'box') ? 'selected' : ''; ?>>box</option>
+                                    <option value="mtr" <?php echo ($item['unit'] == 'mtr') ? 'selected' : ''; ?>>mtr</option>
                                 </select>
                             </td>
                             <td><input type="number" name="item_discount[]" class="form-control discount" value="<?php echo $item['discount']; ?>" required step="0.01"></td>
