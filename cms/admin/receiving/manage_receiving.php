@@ -150,6 +150,131 @@ foreach($pos as $po) {
 ?>
 var poItems = <?php echo json_encode($po_items); ?>;
 
+function showQRPrintDialog(barcodeCode, itemName, qty, qrData) {
+    var printWindow = window.open('', 'QRPrint', 'height=900,width=900,left=50,top=50');
+    printWindow.document.write('<html><head><title>Loading QR Codes...</title></head><body><h3>Generating QR codes, please wait...</h3></body></html>');
+    
+    var htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Print QR - ${itemName}</title>
+            <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"><\/script>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: Arial, sans-serif; 
+                    background: white;
+                    padding: 10px;
+                }
+                .qr-container { 
+                    display: grid;
+                    grid-template-columns: repeat(5, 1fr);
+                    gap: 10px;
+                }
+                .qr-label {
+                    border: 2px solid #000;
+                    padding: 8px;
+                    text-align: center;
+                    page-break-inside: avoid;
+                    background: white;
+                    min-width: 110px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                }
+                .item-name { 
+                    font-size: 8px; 
+                    font-weight: bold; 
+                    margin-bottom: 2px;
+                    word-wrap: break-word;
+                }
+                .serial-num { 
+                    font-size: 10px; 
+                    font-weight: bold; 
+                    color: #d9534f; 
+                    margin: 2px 0;
+                }
+                .qr-code {
+                    width: 80px;
+                    height: 80px;
+                    margin: 3px auto;
+                }
+                .barcode-code {
+                    font-size: 6px;
+                    font-family: 'Courier New', monospace;
+                    margin-top: 2px;
+                    word-break: break-all;
+                }
+                .date {
+                    font-size: 6px;
+                    color: #666;
+                    margin-top: 1px;
+                }
+                @media print {
+                    @page { size: A4; margin: 5mm; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="qr-container" id="qrContainer"></div>
+            <script>
+                const barcodeCode = "${barcodeCode}";
+                const itemName = "${itemName}";
+                const qty = ${qty};
+                const qrData = ${JSON.stringify(qrData)};
+                
+                let currentIndex = 1;
+                const container = document.getElementById('qrContainer');
+                
+                function generateNext() {
+                    if (currentIndex > qty) {
+                        setTimeout(() => window.print(), 500);
+                        return;
+                    }
+                    
+                    const serialCode = barcodeCode + '-' + currentIndex;
+                    const qrContent = JSON.stringify({
+                        barcode: serialCode,
+                        serial: currentIndex + '/' + qty,
+                        item_id: qrData.item_id,
+                        item_name: qrData.item_name,
+                        po_id: qrData.po_id,
+                        timestamp: new Date().toLocaleString()
+                    });
+                    
+                    const labelDiv = document.createElement('div');
+                    labelDiv.className = 'qr-label';
+                    labelDiv.innerHTML = '<div class="item-name">' + itemName + '</div>' +
+                                       '<div class="serial-num">S/N: ' + currentIndex + '/' + qty + '</div>' +
+                                       '<div class="qr-code" id="qr' + currentIndex + '"></div>' +
+                                       '<div class="barcode-code">' + serialCode + '</div>' +
+                                       '<div class="date">' + new Date().toLocaleDateString() + '</div>';
+                    
+                    container.appendChild(labelDiv);
+                    
+                    new QRCode(document.getElementById('qr' + currentIndex), {
+                        text: qrContent,
+                        width: 80,
+                        height: 80
+                    });
+                    
+                    currentIndex++;
+                    setTimeout(generateNext, 50);
+                }
+                
+                setTimeout(generateNext, 100);
+            <\/script>
+        </body>
+        </html>
+    `;
+    
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+}
+
 $(document).ready(function() {
     // Enhance PO dropdown with search
     $('#po_select').select2({
@@ -196,21 +321,24 @@ $(document).ready(function() {
         $.each(poItems[po_id], function(index, item) {
             var row = `
                 <tr>
-                    <td>
-                        <input type="checkbox" class="item-checkbox" 
-                               value="${item.item_id}" 
-                               data-item-name="${item.name}"
-                               data-quantity="${item.quantity}">
-                    </td>
-                    <td><strong>${item.name}</strong></td>
+                    <td style="width: 300px;"><strong>${item.name}</strong></td>
                     <td class="text-center">${item.quantity}</td>
                     <td>
                         <input type="number" class="form-control form-control-sm received-qty" 
-                               min="0" max="${item.quantity}" placeholder="Qty">
+                               min="0" max="${item.quantity}" placeholder="Qty" 
+                               data-item-id="${item.item_id}" data-item-name="${item.name}" data-po-id="${po_id}">
                     </td>
-                    <td>
+                    <td style="min-width: 120px;">
                         <input type="text" class="form-control form-control-sm item-remarks" 
                                placeholder="Notes...">
+                    </td>
+                    <td style="width: 160px;">
+                        <button type="button" class="btn btn-sm btn-info generate-qr-btn" 
+                                data-item-id="${item.item_id}" data-item-name="${item.name}" 
+                                style="display: none; width: 100%;">
+                            <i class="fas fa-qrcode"></i> Gen & Print
+                        </button>
+                        <span class="qr-status text-success" style="display: none; font-size: 11px;">✓ Done</span>
                     </td>
                 </tr>
             `;
@@ -220,81 +348,98 @@ $(document).ready(function() {
         itemsSection.show();
     });
     
-    // Handle submit (PO mode) - AJAX request
-    $('#submit-btn').click(function() {
-        var po_id = $('#po_select').val();
+    // Show Generate QR button when quantity is entered
+    $(document).on('input', '#po-items-table .received-qty', function() {
+        var qty = parseInt($(this).val()) || 0;
+        var row = $(this).closest('tr');
+        var btn = row.find('.generate-qr-btn');
         
-        if (!po_id) {
-            alert_toast('Please select a PO', 'warning');
+        if (qty > 0) {
+            btn.show();
+        } else {
+            btn.hide();
+        }
+    });
+
+    // Generate and print QR code
+    $(document).on('click', '.generate-qr-btn', function(e) {
+        e.preventDefault();
+        var btn = $(this);
+        var row = btn.closest('tr');
+        var itemId = btn.data('item-id');
+        var itemName = btn.data('item-name');
+        var qty = parseInt(row.find('.received-qty').val()) || 0;
+        var remarks = row.find('.item-remarks').val() || '';
+        var poId = $('#po_select').val();
+        
+        if (qty <= 0) {
+            alert_toast('Please enter a quantity first', 'warning');
             return;
         }
         
-        // Collect selected items
-        var selectedItems = [];
-        $('#po-items-table tbody').find('input[type="checkbox"]:checked').each(function() {
-            var checkbox = $(this);
-            var row = checkbox.closest('tr');
-            var receivedQty = parseInt(row.find('.received-qty').val()) || 0;
-            var remarks = row.find('.item-remarks').val() || '';
-            
-            if (receivedQty > 0) {
-                selectedItems.push({
-                    item_id: checkbox.val(),
-                    received_qty: receivedQty,
-                    remarks: remarks
-                });
-            }
-        });
+        btn.prop('disabled', true);
+        btn.html('<i class="fas fa-spinner fa-spin"></i> Processing...');
         
-        if (selectedItems.length === 0) {
-            alert_toast('Please select at least one item and enter received quantity', 'warning');
-            return;
-        }
+        var timestamp = new Date().toISOString().replace(/[:\-T.]/g, '').substring(0, 14);
+        var random = Math.random().toString(36).substring(2, 8).toUpperCase();
+        var barcodeCode = 'PO-' + poId + '-IT-' + itemId + '-' + timestamp + '-' + random;
         
-        // Disable submit button during submission
-        var submitBtn = $(this);
-        submitBtn.prop('disabled', true);
-        submitBtn.html('<i class="fas fa-spinner fa-spin"></i> Processing...');
+        var qrData = {
+            barcode: barcodeCode,
+            item_id: itemId,
+            item_name: itemName,
+            quantity: qty,
+            po_id: poId,
+            received_at: new Date().toLocaleString(),
+            remarks: remarks
+        };
         
-        // Prepare form data
-        var formData = new FormData();
-        formData.append('action', 'receive_stock_batch');
-        formData.append('po_id', po_id);
-        
-        $.each(selectedItems, function(index, item) {
-            formData.append('item_id[]', item.item_id);
-            formData.append('received_qty[]', item.received_qty);
-            formData.append('remarks[]', item.remarks);
-        });
-        
-        // Submit via AJAX
         $.ajax({
-            url: '<?php echo base_url ?>classes/Master.php?f=receive_stock_batch',
+            url: '<?php echo base_url ?>classes/Master.php?f=save_received_barcode',
             type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
+            data: {
+                barcode_code: barcodeCode,
+                item_id: itemId,
+                quantity: qty,
+                reference_type: 'PO',
+                po_id: poId,
+                remarks: remarks,
+                qr_data: JSON.stringify(qrData)
+            },
             dataType: 'json',
             success: function(response) {
-                    if (response.status === 'success') {
-                    // Redirect immediately to main receiving page
-                    window.location.href = '<?php echo base_url ?>admin/?page=receiving';
+                if (response.status === 'success') {
+                    showQRPrintDialog(barcodeCode, itemName, qty, qrData);
+                    row.find('.qr-status').show();
+                    btn.hide();
                 } else {
-                        alert_toast('Error: ' + (response.msg || 'Unknown error'), 'error');
-                    
-                    // Re-enable submit button on error
-                    submitBtn.prop('disabled', false);
-                    submitBtn.html('<i class="fas fa-check"></i> Submit');
+                    alert_toast('Error: ' + response.msg, 'error');
+                    btn.prop('disabled', false);
+                    btn.html('<i class="fas fa-qrcode"></i> Gen & Print');
                 }
             },
-            error: function(xhr, status, error) {
-                alert_toast('Error: ' + (xhr.responseText || error), 'error');
-                
-                // Re-enable submit button
-                submitBtn.prop('disabled', false);
-                submitBtn.html('<i class="fas fa-check"></i> Submit');
+            error: function(xhr) {
+                alert_toast('Error saving barcode', 'error');
+                btn.prop('disabled', false);
+                btn.html('<i class="fas fa-qrcode"></i> Gen & Print');
             }
         });
+    });
+
+    // Handle submit (only collects already-printed items)
+    $('#submit-btn').click(function() {
+        var po_id = $('#po_select').val();
+        var doneCount = $('#po-items-table').find('.qr-status:visible').length;
+        
+        if (doneCount === 0) {
+            alert_toast('Please generate and print QR codes for items first', 'warning');
+            return;
+        }
+        
+        alert_toast('All items have been recorded with barcodes!', 'success');
+        setTimeout(function() {
+            window.location.href = '<?php echo base_url ?>admin/?page=receiving';
+        }, 1500);
     });
 
     // Add manual item row
@@ -308,7 +453,7 @@ $(document).ready(function() {
         // Prevent duplicate rows for same item
         var exists = false;
         $('#manual-items-tbody tr').each(function(){
-            var val = $(this).find('.manual-item-checkbox').val();
+            var val = $(this).find('[data-item-id]').data('item-id');
             if(val == itemId){ exists = true; return false; }
         });
         if(exists){
@@ -317,92 +462,105 @@ $(document).ready(function() {
         }
         var row = `
             <tr>
+                <td style="width: 300px;"><strong>${itemName}</strong></td>
                 <td>
-                    <input type="checkbox" class="manual-item-checkbox" value="${itemId}" checked>
+                    <input type="number" class="form-control form-control-sm manual-received-qty" min="1" placeholder="Qty" value="1" 
+                           data-item-id="${itemId}" data-item-name="${itemName}">
                 </td>
-                <td><strong>${itemName}</strong></td>
-                <td>
-                    <input type="number" class="form-control form-control-sm manual-received-qty" min="1" placeholder="Qty" value="1">
-                </td>
-                <td>
+                <td style="min-width: 120px;">
                     <input type="text" class="form-control form-control-sm manual-item-remarks" placeholder="Notes...">
+                </td>
+                <td style="width: 160px;">
+                    <button type="button" class="btn btn-sm btn-info generate-qr-btn-manual" 
+                            data-item-id="${itemId}" data-item-name="${itemName}" 
+                            style="width: 100%;">
+                        <i class="fas fa-qrcode"></i> Gen & Print
+                    </button>
+                    <span class="qr-status text-success" style="display: none; font-size: 11px;">✓ Done</span>
                 </td>
             </tr>
         `;
         $('#manual-items-tbody').append(row);
-        // Show table and clear selection
         $('#manual-table-wrapper').show();
         $('#manual_item_select').val(null).trigger('change');
     });
 
-    // Handle submit (Manual mode) - AJAX request
-    $('#submit-manual-btn').click(function(){
-        // Collect selected items from manual table
-        var selectedItems = [];
-        $('#manual-items-table tbody').find('input[type="checkbox"]:checked').each(function(){
-            var checkbox = $(this);
-            var row = checkbox.closest('tr');
-            var receivedQty = parseInt(row.find('.manual-received-qty').val()) || 0;
-            var remarks = row.find('.manual-item-remarks').val() || '';
-            if(receivedQty > 0){
-                selectedItems.push({
-                    item_id: checkbox.val(),
-                    received_qty: receivedQty,
-                    remarks: remarks
-                });
-            }
-        });
-        if(selectedItems.length === 0){
-            alert_toast('Add and select at least one item with quantity', 'warning');
+    // Manual QR generation
+    $(document).on('click', '.generate-qr-btn-manual', function(e) {
+        e.preventDefault();
+        var btn = $(this);
+        var row = btn.closest('tr');
+        var itemId = btn.data('item-id');
+        var itemName = btn.data('item-name');
+        var qty = parseInt(row.find('.manual-received-qty').val()) || 0;
+        var remarks = row.find('.manual-item-remarks').val() || '';
+        
+        if (qty <= 0) {
+            alert_toast('Please enter a quantity first', 'warning');
             return;
         }
-        var submitBtn = $(this);
-        submitBtn.prop('disabled', true);
-        submitBtn.html('<i class="fas fa-spinner fa-spin"></i> Processing...');
-
-        var formData = new FormData();
-        formData.append('action', 'receive_stock_manual');
-        $.each(selectedItems, function(index, item){
-            formData.append('item_id[]', item.item_id);
-            formData.append('received_qty[]', item.received_qty);
-            formData.append('remarks[]', item.remarks);
-        });
+        
+        btn.prop('disabled', true);
+        btn.html('<i class="fas fa-spinner fa-spin"></i> Processing...');
+        
+        var timestamp = new Date().toISOString().replace(/[:\-T.]/g, '').substring(0, 14);
+        var random = Math.random().toString(36).substring(2, 8).toUpperCase();
+        var barcodeCode = 'MANUAL-IT-' + itemId + '-' + timestamp + '-' + random;
+        
+        var qrData = {
+            barcode: barcodeCode,
+            item_id: itemId,
+            item_name: itemName,
+            quantity: qty,
+            received_at: new Date().toLocaleString(),
+            remarks: remarks
+        };
+        
         $.ajax({
-            url: '<?php echo base_url ?>classes/Master.php?f=receive_stock_manual',
+            url: '<?php echo base_url ?>classes/Master.php?f=save_received_barcode',
             type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
+            data: {
+                barcode_code: barcodeCode,
+                item_id: itemId,
+                quantity: qty,
+                reference_type: 'MANUAL',
+                po_id: null,
+                remarks: remarks,
+                qr_data: JSON.stringify(qrData)
+            },
             dataType: 'json',
-            success: function(response){
-                if(response.status === 'success'){
-                    window.location.href = '<?php echo base_url ?>admin/?page=receiving';
-                }else{
-                    alert_toast('Error: ' + (response.msg || 'Unknown error'), 'error');
-                    submitBtn.prop('disabled', false);
-                    submitBtn.html('<i class="fas fa-check"></i> Submit');
+            success: function(response) {
+                if (response.status === 'success') {
+                    showQRPrintDialog(barcodeCode, itemName, qty, qrData);
+                    row.find('.qr-status').show();
+                    btn.hide();
+                } else {
+                    alert_toast('Error: ' + response.msg, 'error');
+                    btn.prop('disabled', false);
+                    btn.html('<i class="fas fa-qrcode"></i> Gen & Print');
                 }
             },
-            error: function(xhr, status, error){
-                alert_toast('Error: ' + (xhr.responseText || error), 'error');
-                submitBtn.prop('disabled', false);
-                submitBtn.html('<i class="fas fa-check"></i> Submit');
+            error: function(xhr) {
+                alert_toast('Error saving barcode', 'error');
+                btn.prop('disabled', false);
+                btn.html('<i class="fas fa-qrcode"></i> Gen & Print');
             }
         });
     });
-    
-    // Toggle received qty input when checkbox changes
-    $(document).on('change', '.item-checkbox', function() {
-        var row = $(this).closest('tr');
-        var receivedQtyInput = row.find('.received-qty');
+
+    // Handle submit (Manual mode)
+    $('#submit-manual-btn').click(function(){
+        var doneCount = $('#manual-items-table').find('.qr-status:visible').length;
         
-        if ($(this).is(':checked')) {
-            receivedQtyInput.focus();
-            var maxQty = $(this).data('quantity');
-            receivedQtyInput.val(maxQty); // Auto-fill with ordered quantity
-        } else {
-            receivedQtyInput.val('');
+        if (doneCount === 0) {
+            alert_toast('Please generate and print QR codes for items first', 'warning');
+            return;
         }
+        
+        alert_toast('All items have been recorded with barcodes!', 'success');
+        setTimeout(function() {
+            window.location.href = '<?php echo base_url ?>admin/?page=receiving';
+        }, 1500);
     });
 });
 </script>

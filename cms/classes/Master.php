@@ -3419,7 +3419,7 @@ function delete_utility_supplier(){
 
     function receive_stock_batch(){
         header('Content-Type: application/json');
-        $resp = array('status' => 'failed', 'msg' => '');
+        $resp = array('status' => 'failed', 'msg' => '', 'barcodes' => []);
     
         try {
             extract($_POST);
@@ -3444,16 +3444,26 @@ function delete_utility_supplier(){
                     quantity INT NOT NULL,
                     reference_type VARCHAR(50),
                     reference_id INT,
+                    barcode_id INT,
+                    serial_number_id INT,
                     balance_before INT,
                     balance_after INT,
                     remarks TEXT,
                     created_by INT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    INDEX(item_id), INDEX(reference_type)
+                    INDEX(item_id), INDEX(reference_type), INDEX(barcode_id)
                 )");
             }
+            
+            // Load barcode generator
+            if(!class_exists('StockBarcodeGenerator')) {
+                require_once(__DIR__ . '/StockBarcodeGenerator.php');
+            }
+            $barcodeGen = new StockBarcodeGenerator($this->conn);
         
             $count = 0;
+            $generated_barcodes = [];
+            
             // Process each item
             foreach($item_ids as $idx => $item_id) {
                 $item_id = (int)$item_id;
@@ -3469,20 +3479,37 @@ function delete_utility_supplier(){
                 if (!$po_item_result || $po_item_result->num_rows == 0) {
                     continue; // Skip invalid items
                 }
+                
+                // Generate barcode for this receipt
+                $barcode_result = $barcodeGen->generateBarcode(
+                    $item_id,
+                    $received_qty,
+                    'PO',
+                    $po_id,
+                    $_SESSION['userdata']['id'],
+                    ['remarks' => $remark]
+                );
+                
+                if (!$barcode_result['success']) {
+                    throw new Exception("Barcode generation failed for item $item_id: " . $barcode_result['error']);
+                }
+                
+                $barcode_id = $barcode_result['barcode_id'];
             
-                // Insert into stock_movement for logging
+                // Insert into stock_movement for logging with barcode_id
                 $ms = $this->conn->prepare("INSERT INTO stock_movement 
-                    (item_id, movement_type, quantity, reference_type, reference_id, remarks, created_by)
-                    VALUES (?, 'IN', ?, 'PO', ?, ?, ?)");
+                    (item_id, movement_type, quantity, reference_type, reference_id, barcode_id, remarks, created_by)
+                    VALUES (?, 'IN', ?, 'PO', ?, ?, ?, ?)");
             
                 if (!$ms) {
                     throw new Exception("Prepare failed: " . $this->conn->error);
                 }
             
-                $ms->bind_param('iiiis', $item_id, $received_qty, $po_id, $remark, $_SESSION['userdata']['id']);
+                $ms->bind_param('iiiisi', $item_id, $received_qty, $po_id, $barcode_id, $remark, $_SESSION['userdata']['id']);
             
                 if ($ms->execute()) {
                     $count++;
+                    $generated_barcodes[] = $barcode_result;
                 } else {
                     throw new Exception("Failed to log item $item_id: " . $ms->error);
                 }
@@ -3493,7 +3520,9 @@ function delete_utility_supplier(){
             }
         
             $resp['status'] = 'success';
-            $this->settings->set_flashdata('success', "Successfully received $count item(s) against PO #$po_id!");
+            $resp['barcodes'] = $generated_barcodes;
+            $resp['barcode_count'] = count($generated_barcodes);
+            $this->settings->set_flashdata('success', "Successfully received $count item(s) against PO #$po_id with barcodes generated!");
         
         } catch (Exception $e) {
             $resp['status'] = 'failed';
@@ -3505,7 +3534,7 @@ function delete_utility_supplier(){
 
     function receive_stock_manual(){
         header('Content-Type: application/json');
-        $resp = array('status' => 'failed', 'msg' => '');
+        $resp = array('status' => 'failed', 'msg' => '', 'barcodes' => []);
         try{
             // Ensure items present
             $item_ids = isset($_POST['item_id']) ? (array)$_POST['item_id'] : [];
@@ -3525,16 +3554,26 @@ function delete_utility_supplier(){
                     quantity INT NOT NULL,
                     reference_type VARCHAR(50),
                     reference_id INT,
+                    barcode_id INT,
+                    serial_number_id INT,
                     balance_before INT,
                     balance_after INT,
                     remarks TEXT,
                     created_by INT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    INDEX(item_id), INDEX(reference_type)
+                    INDEX(item_id), INDEX(reference_type), INDEX(barcode_id)
                 )");
             }
+            
+            // Load barcode generator
+            if(!class_exists('StockBarcodeGenerator')) {
+                require_once(__DIR__ . '/StockBarcodeGenerator.php');
+            }
+            $barcodeGen = new StockBarcodeGenerator($this->conn);
 
             $count = 0;
+            $generated_barcodes = [];
+            
             foreach($item_ids as $idx => $raw_item_id){
                 $item_id = (int)$raw_item_id;
                 $received_qty = (int)($received_quantities[$idx] ?? 0);
@@ -3548,14 +3587,31 @@ function delete_utility_supplier(){
                 if(!$item_chk || $item_chk->num_rows == 0){
                     continue;
                 }
+                
+                // Generate barcode for manual receipt
+                $barcode_result = $barcodeGen->generateBarcode(
+                    $item_id,
+                    $received_qty,
+                    'MANUAL',
+                    null,
+                    $_SESSION['userdata']['id'],
+                    ['remarks' => $remark]
+                );
+                
+                if (!$barcode_result['success']) {
+                    throw new Exception("Barcode generation failed for item $item_id: " . $barcode_result['error']);
+                }
+                
+                $barcode_id = $barcode_result['barcode_id'];
 
-                $ms = $this->conn->prepare("INSERT INTO stock_movement (item_id, movement_type, quantity, reference_type, reference_id, remarks, created_by) VALUES (?, 'IN', ?, 'MANUAL', NULL, ?, ?)");
+                $ms = $this->conn->prepare("INSERT INTO stock_movement (item_id, movement_type, quantity, reference_type, reference_id, barcode_id, remarks, created_by) VALUES (?, 'IN', ?, 'MANUAL', NULL, ?, ?, ?)");
                 if(!$ms){
                     throw new Exception('Prepare failed: ' . $this->conn->error);
                 }
-                $ms->bind_param('iisi', $item_id, $received_qty, $remark, $_SESSION['userdata']['id']);
+                $ms->bind_param('iiisi', $item_id, $received_qty, $barcode_id, $remark, $_SESSION['userdata']['id']);
                 if($ms->execute()){
                     $count++;
+                    $generated_barcodes[] = $barcode_result;
                 }else{
                     throw new Exception('Failed to log item ' . $item_id . ': ' . $ms->error);
                 }
@@ -3566,11 +3622,64 @@ function delete_utility_supplier(){
             }
 
             $resp['status'] = 'success';
-            $this->settings->set_flashdata('success', "Successfully received $count item(s) (Manual Receipt)");
+            $resp['barcodes'] = $generated_barcodes;
+            $resp['barcode_count'] = count($generated_barcodes);
+            $this->settings->set_flashdata('success', "Successfully received $count item(s) (Manual Receipt) with barcodes generated!");
         }catch(Exception $e){
             $resp['status'] = 'failed';
             $resp['msg'] = $e->getMessage();
         }
+        return json_encode($resp);
+    }
+
+    function save_received_barcode(){
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'An error occurred'];
+        
+        try {
+            // Validate input
+            if(empty($_POST['barcode_code']) || empty($_POST['item_id']) || empty($_POST['quantity'])) {
+                $resp['msg'] = 'Missing required fields';
+                return json_encode($resp);
+            }
+            
+            $barcode_code = $this->conn->real_escape_string($_POST['barcode_code']);
+            $item_id = intval($_POST['item_id']);
+            $quantity = intval($_POST['quantity']);
+            $reference_type = $this->conn->real_escape_string($_POST['reference_type']);
+            $po_id = !empty($_POST['po_id']) ? intval($_POST['po_id']) : NULL;
+            $remarks = !empty($_POST['remarks']) ? $this->conn->real_escape_string($_POST['remarks']) : '';
+            $created_by = $_SESSION['userdata']['id'];
+            
+            // Insert barcode record
+            $sql = "INSERT INTO item_barcodes (barcode_code, item_id, quantity, reference_type, po_id, created_by, created_at) 
+                    VALUES ('$barcode_code', $item_id, $quantity, '$reference_type', " . ($po_id ? $po_id : 'NULL') . ", $created_by, NOW())";
+            
+            if(!$this->conn->query($sql)) {
+                $resp['msg'] = 'Failed to save barcode: ' . $this->conn->error;
+                return json_encode($resp);
+            }
+            
+            $barcode_id = $this->conn->insert_id;
+            
+            // Insert stock movement record
+            $movement_sql = "INSERT INTO stock_movement (item_id, quantity, reference_type, reference_id, barcode_id, movement_type, remarks, created_by, created_at) 
+                            VALUES ($item_id, $quantity, '$reference_type', " . ($po_id ? $po_id : 'NULL') . ", $barcode_id, 'IN', '$remarks', $created_by, NOW())";
+            
+            if(!$this->conn->query($movement_sql)) {
+                $resp['msg'] = 'Failed to record stock movement: ' . $this->conn->error;
+                return json_encode($resp);
+            }
+            
+            $resp['status'] = 'success';
+            $resp['barcode_id'] = $barcode_id;
+            $resp['barcode_code'] = $barcode_code;
+            
+        } catch (Exception $e) {
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('save_received_barcode error: ' . $e->getMessage());
+        }
+        
         return json_encode($resp);
     }
 }
@@ -3772,6 +3881,9 @@ switch ($action) {
     break;
     case 'receive_stock_manual':
         echo $Master->receive_stock_manual();
+    break;
+    case 'save_received_barcode':
+        echo $Master->save_received_barcode();
     break;
     case 'delete_receipt':
         echo $Master->delete_receipt();
