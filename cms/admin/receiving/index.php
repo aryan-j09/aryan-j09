@@ -83,9 +83,6 @@ if ($summary_query && $summary_query->num_rows > 0) {
     <div class="card-header">
         <h3 class="card-title">📋 Stock Received History</h3>
         <div class="card-tools">
-            <button type="button" class="btn btn-flat btn-success" onclick="window.location.href='<?php echo base_url ?>admin/?page=receiving/serial_receive'">
-                <span class="fas fa-qrcode"></span> Receive with Serials
-            </button>
             <a class="btn btn-flat btn-primary" href="<?php echo base_url ?>admin/?page=receiving/manage_receiving">
                 <span class="fas fa-plus"></span> Receive Stock
             </a>
