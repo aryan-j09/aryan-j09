@@ -77,14 +77,25 @@ if ($po_query) {
     <div id="items-section" style="display: none;">
         <h6 style="margin-bottom: 15px; color: #333;">Step 3: Select Items to Receive</h6>
         <div class="table-responsive">
-            <table class="table table-bordered table-hover table-sm" id="po-items-table" style="min-width: 700px;">
+            <table class="table table-bordered table-hover table-sm" id="po-items-table" style="min-width: 900px;">
+                <colgroup>
+                    <col width="20%">
+                    <col width="10%">
+                    <col width="10%">
+                    <col width="10%">
+                    <col width="10%">
+                    <col width="10%">
+                    <col width="20%">
+                </colgroup>
                 <thead style="background-color: rgb(0, 31, 63); color: white; font-size: 12px;">
                     <tr>
-                        <th style="width: 50px;">Select</th>
-                        <th style="min-width: 250px;">Item Name</th>
-                        <th style="width: 80px;" class="text-center">Ordered</th>
-                        <th style="width: 100px;" class="text-center">Receive Qty</th>
-                        <th style="min-width: 150px;">Remarks</th>
+                        <th>Item Name</th>
+                        <th class="text-center">Ordered</th>
+                        <th class="text-center">Receive Qty</th>
+                        <th class="text-center">QR Mode</th>
+                        <th class="text-center">Box Size</th>
+                        <th class="text-center">Action</th>
+                        <th>Remarks</th>
                     </tr>
                 </thead>
                 <tbody id="items-tbody">
@@ -117,13 +128,23 @@ if ($po_query) {
             </div>
         </div>
         <div class="table-responsive" id="manual-table-wrapper" style="display: none;">
-            <table class="table table-bordered table-hover table-sm" id="manual-items-table" style="min-width: 700px;">
+            <table class="table table-bordered table-hover table-sm" id="manual-items-table" style="min-width: 900px;">
+                <colgroup>
+                    <col style="width: 260px;">
+                    <col style="width: 110px;">
+                    <col style="width: 110px;">
+                    <col style="width: 90px;">
+                    <col style="width: 160px;">
+                    <col style="width: 110px;">
+                </colgroup>
                 <thead style="background-color: rgb(0, 31, 63); color: white; font-size: 12px;">
                     <tr>
-                        <th style="width: 50px;">Select</th>
-                        <th style="min-width: 250px;">Item Name</th>
-                        <th style="width: 100px;" class="text-center">Receive Qty</th>
-                        <th style="min-width: 150px;">Remarks</th>
+                        <th>Item Name</th>
+                        <th class="text-center">Receive Qty</th>
+                        <th class="text-center">QR Mode</th>
+                        <th class="text-center">Box Size</th>
+                        <th class="text-center">Action</th>
+                        <th>Remarks</th>
                     </tr>
                 </thead>
                 <tbody id="manual-items-tbody"></tbody>
@@ -150,129 +171,22 @@ foreach($pos as $po) {
 ?>
 var poItems = <?php echo json_encode($po_items); ?>;
 
-function showQRPrintDialog(barcodeCode, itemName, qty, qrData) {
-    var printWindow = window.open('', 'QRPrint', 'height=900,width=900,left=50,top=50');
-    printWindow.document.write('<html><head><title>Loading QR Codes...</title></head><body><h3>Generating QR codes, please wait...</h3></body></html>');
-    
-    var htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Print QR - ${itemName}</title>
-            <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"><\/script>
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    font-family: Arial, sans-serif; 
-                    background: white;
-                    padding: 10px;
-                }
-                .qr-container { 
-                    display: grid;
-                    grid-template-columns: repeat(5, 1fr);
-                    gap: 10px;
-                }
-                .qr-label {
-                    border: 2px solid #000;
-                    padding: 8px;
-                    text-align: center;
-                    page-break-inside: avoid;
-                    background: white;
-                    min-width: 110px;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: center;
-                    align-items: center;
-                }
-                .item-name { 
-                    font-size: 8px; 
-                    font-weight: bold; 
-                    margin-bottom: 2px;
-                    word-wrap: break-word;
-                }
-                .serial-num { 
-                    font-size: 10px; 
-                    font-weight: bold; 
-                    color: #d9534f; 
-                    margin: 2px 0;
-                }
-                .qr-code {
-                    width: 80px;
-                    height: 80px;
-                    margin: 3px auto;
-                }
-                .barcode-code {
-                    font-size: 6px;
-                    font-family: 'Courier New', monospace;
-                    margin-top: 2px;
-                    word-break: break-all;
-                }
-                .date {
-                    font-size: 6px;
-                    color: #666;
-                    margin-top: 1px;
-                }
-                @media print {
-                    @page { size: A4; margin: 5mm; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="qr-container" id="qrContainer"></div>
-            <script>
-                const barcodeCode = "${barcodeCode}";
-                const itemName = "${itemName}";
-                const qty = ${qty};
-                const qrData = ${JSON.stringify(qrData)};
-                
-                let currentIndex = 1;
-                const container = document.getElementById('qrContainer');
-                
-                function generateNext() {
-                    if (currentIndex > qty) {
-                        setTimeout(() => window.print(), 500);
-                        return;
-                    }
-                    
-                    const serialCode = barcodeCode + '-' + currentIndex;
-                    const qrContent = JSON.stringify({
-                        barcode: serialCode,
-                        serial: currentIndex + '/' + qty,
-                        item_id: qrData.item_id,
-                        item_name: qrData.item_name,
-                        po_id: qrData.po_id,
-                        timestamp: new Date().toLocaleString()
-                    });
-                    
-                    const labelDiv = document.createElement('div');
-                    labelDiv.className = 'qr-label';
-                    labelDiv.innerHTML = '<div class="item-name">' + itemName + '</div>' +
-                                       '<div class="serial-num">S/N: ' + currentIndex + '/' + qty + '</div>' +
-                                       '<div class="qr-code" id="qr' + currentIndex + '"></div>' +
-                                       '<div class="barcode-code">' + serialCode + '</div>' +
-                                       '<div class="date">' + new Date().toLocaleDateString() + '</div>';
-                    
-                    container.appendChild(labelDiv);
-                    
-                    new QRCode(document.getElementById('qr' + currentIndex), {
-                        text: qrContent,
-                        width: 80,
-                        height: 80
-                    });
-                    
-                    currentIndex++;
-                    setTimeout(generateNext, 50);
-                }
-                
-                setTimeout(generateNext, 100);
-            <\/script>
-        </body>
-        </html>
-    `;
-    
-    printWindow.document.open();
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+function showQRPrintDialog(barcodeCode, itemName, qrCount, qrData, mode, totalQty, boxSize) {
+    var params = new URLSearchParams({
+        barcode: barcodeCode,
+        item: itemName,
+        count: qrCount,
+        mode: mode,
+        qty: totalQty,
+        box: boxSize,
+        po: qrData.po_id || ''
+    });
+
+    window.open(
+        '<?php echo base_url ?>admin/receiving/print_qr.php?' + params.toString(),
+        'QRPrint',
+        'height=900,width=900,left=50,top=50'
+    );
 }
 
 $(document).ready(function() {
@@ -321,24 +235,34 @@ $(document).ready(function() {
         $.each(poItems[po_id], function(index, item) {
             var row = `
                 <tr>
-                    <td style="width: 300px;"><strong>${item.name}</strong></td>
+                    <td><strong>${item.name}</strong></td>
                     <td class="text-center">${item.quantity}</td>
                     <td>
                         <input type="number" class="form-control form-control-sm received-qty" 
                                min="0" max="${item.quantity}" placeholder="Qty" 
                                data-item-id="${item.item_id}" data-item-name="${item.name}" data-po-id="${po_id}">
                     </td>
-                    <td style="min-width: 120px;">
-                        <input type="text" class="form-control form-control-sm item-remarks" 
-                               placeholder="Notes...">
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm" role="group" style="width: 100%;">
+                            <button type="button" class="btn btn-secondary qr-mode-btn active" data-mode="qty" title="One QR per item">Per Qty</button>
+                            <button type="button" class="btn btn-outline-secondary qr-mode-btn" data-mode="box" title="One QR per box">Per Box</button>
+                        </div>
                     </td>
-                    <td style="width: 160px;">
+                    <td>
+                        <input type="number" class="form-control form-control-sm box-size" 
+                               min="1" placeholder="Items/Box" style="display: none;">
+                    </td>
+                    <td>
                         <button type="button" class="btn btn-sm btn-info generate-qr-btn" 
                                 data-item-id="${item.item_id}" data-item-name="${item.name}" 
                                 style="display: none; width: 100%;">
                             <i class="fas fa-qrcode"></i> Gen & Print
                         </button>
                         <span class="qr-status text-success" style="display: none; font-size: 11px;">✓ Done</span>
+                    </td>
+                    <td>
+                        <input type="text" class="form-control form-control-sm item-remarks" 
+                               placeholder="Notes...">
                     </td>
                 </tr>
             `;
@@ -353,12 +277,47 @@ $(document).ready(function() {
         var qty = parseInt($(this).val()) || 0;
         var row = $(this).closest('tr');
         var btn = row.find('.generate-qr-btn');
+        var mode = row.find('.qr-mode-btn.active').data('mode');
+        var boxSize = parseInt(row.find('.box-size').val()) || 0;
         
-        if (qty > 0) {
+        var canShow = false;
+        if (mode === 'qty') {
+            canShow = qty > 0;
+        } else if (mode === 'box') {
+            canShow = qty > 0 && boxSize > 0;
+        }
+        
+        if (canShow) {
             btn.show();
         } else {
             btn.hide();
         }
+    });
+
+    // Handle QR mode toggle
+    $(document).on('click', '#po-items-table .qr-mode-btn', function() {
+        var btn = $(this);
+        var row = btn.closest('tr');
+        var mode = btn.data('mode');
+        
+        // Update active state
+        row.find('.qr-mode-btn').removeClass('active btn-secondary').addClass('btn-outline-secondary');
+        btn.addClass('active btn-secondary').removeClass('btn-outline-secondary');
+        
+        // Show/hide box size field
+        if (mode === 'box') {
+            row.find('.box-size').show();
+        } else {
+            row.find('.box-size').hide().val('');
+        }
+        
+        // Check if button should be shown
+        row.find('.received-qty').trigger('input');
+    });
+
+    // Update button visibility when box size changes
+    $(document).on('input', '#po-items-table .box-size', function() {
+        $(this).closest('tr').find('.received-qty').trigger('input');
     });
 
     // Generate and print QR code
@@ -371,9 +330,16 @@ $(document).ready(function() {
         var qty = parseInt(row.find('.received-qty').val()) || 0;
         var remarks = row.find('.item-remarks').val() || '';
         var poId = $('#po_select').val();
+        var mode = row.find('.qr-mode-btn.active').data('mode');
+        var boxSize = parseInt(row.find('.box-size').val()) || 1;
         
         if (qty <= 0) {
             alert_toast('Please enter a quantity first', 'warning');
+            return;
+        }
+        
+        if (mode === 'box' && boxSize <= 0) {
+            alert_toast('Please enter box size', 'warning');
             return;
         }
         
@@ -384,6 +350,12 @@ $(document).ready(function() {
         var random = Math.random().toString(36).substring(2, 8).toUpperCase();
         var barcodeCode = 'PO-' + poId + '-IT-' + itemId + '-' + timestamp + '-' + random;
         
+        // Calculate number of QR codes to generate
+        var qrCount = qty;
+        if (mode === 'box') {
+            qrCount = Math.ceil(qty / boxSize);
+        }
+        
         var qrData = {
             barcode: barcodeCode,
             item_id: itemId,
@@ -391,7 +363,9 @@ $(document).ready(function() {
             quantity: qty,
             po_id: poId,
             received_at: new Date().toLocaleString(),
-            remarks: remarks
+            remarks: remarks,
+            qr_mode: mode,
+            box_size: boxSize
         };
         
         $.ajax({
@@ -404,12 +378,14 @@ $(document).ready(function() {
                 reference_type: 'PO',
                 po_id: poId,
                 remarks: remarks,
+                qr_mode: mode,
+                box_size: boxSize,
                 qr_data: JSON.stringify(qrData)
             },
             dataType: 'json',
             success: function(response) {
                 if (response.status === 'success') {
-                    showQRPrintDialog(barcodeCode, itemName, qty, qrData);
+                    showQRPrintDialog(barcodeCode, itemName, qrCount, qrData, mode, qty, boxSize);
                     row.find('.qr-status').show();
                     btn.hide();
                 } else {
@@ -462,21 +438,31 @@ $(document).ready(function() {
         }
         var row = `
             <tr>
-                <td style="width: 300px;"><strong>${itemName}</strong></td>
+                <td><strong>${itemName}</strong></td>
                 <td>
                     <input type="number" class="form-control form-control-sm manual-received-qty" min="1" placeholder="Qty" value="1" 
                            data-item-id="${itemId}" data-item-name="${itemName}">
                 </td>
-                <td style="min-width: 120px;">
-                    <input type="text" class="form-control form-control-sm manual-item-remarks" placeholder="Notes...">
+                <td class="text-center">
+                    <div class="btn-group btn-group-sm" role="group" style="width: 100%;">
+                        <button type="button" class="btn btn-secondary qr-mode-btn-manual active" data-mode="qty" title="One QR per item">Per Qty</button>
+                        <button type="button" class="btn btn-outline-secondary qr-mode-btn-manual" data-mode="box" title="One QR per box">Per Box</button>
+                    </div>
                 </td>
-                <td style="width: 160px;">
+                <td>
+                    <input type="number" class="form-control form-control-sm box-size-manual" 
+                           min="1" placeholder="Items/Box" style="display: none;">
+                </td>
+                <td>
                     <button type="button" class="btn btn-sm btn-info generate-qr-btn-manual" 
                             data-item-id="${itemId}" data-item-name="${itemName}" 
                             style="width: 100%;">
                         <i class="fas fa-qrcode"></i> Gen & Print
                     </button>
                     <span class="qr-status text-success" style="display: none; font-size: 11px;">✓ Done</span>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm manual-item-remarks" placeholder="Notes...">
                 </td>
             </tr>
         `;
@@ -494,9 +480,16 @@ $(document).ready(function() {
         var itemName = btn.data('item-name');
         var qty = parseInt(row.find('.manual-received-qty').val()) || 0;
         var remarks = row.find('.manual-item-remarks').val() || '';
+        var mode = row.find('.qr-mode-btn-manual.active').data('mode');
+        var boxSize = parseInt(row.find('.box-size-manual').val()) || 1;
         
         if (qty <= 0) {
             alert_toast('Please enter a quantity first', 'warning');
+            return;
+        }
+        
+        if (mode === 'box' && boxSize <= 0) {
+            alert_toast('Please enter box size', 'warning');
             return;
         }
         
@@ -507,13 +500,21 @@ $(document).ready(function() {
         var random = Math.random().toString(36).substring(2, 8).toUpperCase();
         var barcodeCode = 'MANUAL-IT-' + itemId + '-' + timestamp + '-' + random;
         
+        // Calculate number of QR codes to generate
+        var qrCount = qty;
+        if (mode === 'box') {
+            qrCount = Math.ceil(qty / boxSize);
+        }
+        
         var qrData = {
             barcode: barcodeCode,
             item_id: itemId,
             item_name: itemName,
             quantity: qty,
             received_at: new Date().toLocaleString(),
-            remarks: remarks
+            remarks: remarks,
+            qr_mode: mode,
+            box_size: boxSize
         };
         
         $.ajax({
@@ -526,12 +527,14 @@ $(document).ready(function() {
                 reference_type: 'MANUAL',
                 po_id: null,
                 remarks: remarks,
+                qr_mode: mode,
+                box_size: boxSize,
                 qr_data: JSON.stringify(qrData)
             },
             dataType: 'json',
             success: function(response) {
                 if (response.status === 'success') {
-                    showQRPrintDialog(barcodeCode, itemName, qty, qrData);
+                    showQRPrintDialog(barcodeCode, itemName, qrCount, qrData, mode, qty, boxSize);
                     row.find('.qr-status').show();
                     btn.hide();
                 } else {
@@ -561,6 +564,29 @@ $(document).ready(function() {
         setTimeout(function() {
             window.location.href = '<?php echo base_url ?>admin/?page=receiving';
         }, 1500);
+    });
+
+    // Handle manual QR mode toggle
+    $(document).on('click', '#manual-items-table .qr-mode-btn-manual', function() {
+        var btn = $(this);
+        var row = btn.closest('tr');
+        var mode = btn.data('mode');
+        
+        // Update active state
+        row.find('.qr-mode-btn-manual').removeClass('active btn-secondary').addClass('btn-outline-secondary');
+        btn.addClass('active btn-secondary').removeClass('btn-outline-secondary');
+        
+        // Show/hide box size field
+        if (mode === 'box') {
+            row.find('.box-size-manual').show();
+        } else {
+            row.find('.box-size-manual').hide().val('');
+        }
+    });
+
+    // Update button visibility when manual box size changes
+    $(document).on('input', '#manual-items-table .box-size-manual', function() {
+        // Optional: can add validation logic here if needed
     });
 });
 </script>
