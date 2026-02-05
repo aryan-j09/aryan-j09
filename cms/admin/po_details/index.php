@@ -23,6 +23,7 @@ $from_date = isset($_GET['from_date']) ? $_GET['from_date'] : '';
 $to_date = isset($_GET['to_date']) ? $_GET['to_date'] : '';
 $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
 $selected_fy = isset($_GET['fy']) ? $_GET['fy'] : '';
+$selected_po_type = isset($_GET['po_type']) ? $_GET['po_type'] : '';
 
 // Determine date range for summary based on financial year
 $summary_from_date = '';
@@ -200,6 +201,16 @@ $summary_data = $summary_qry->fetch_assoc();
                                     <input type="month" id="to_date" class="form-control" value="<?php echo $to_date; ?>">
                                 </div>
                             </div>
+                            <div class="form-group row mb-2">
+                                <label class="col-sm-4 col-form-label">PO Type:</label>
+                                <div class="col-sm-8">
+                                    <select id="po_type" class="form-control">
+                                        <option value="">All Types</option>
+                                        <option value="machine" <?php echo $selected_po_type == 'machine' ? 'selected' : ''; ?>>Machine</option>
+                                        <option value="spares" <?php echo $selected_po_type == 'spares' ? 'selected' : ''; ?>>Spares</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div class="text-right">
                                 <button type="button" class="btn btn-sm btn-default" id="clearFilter">Clear</button>
                                 <button type="button" class="btn btn-sm btn-primary" id="filter_date">Apply</button>
@@ -251,6 +262,9 @@ $summary_data = $summary_qry->fetch_assoc();
                     }
                     if (!empty($selected_company)) {
                         $conditions[] = "pil.company = '$selected_company'";
+                    }
+                    if (!empty($selected_po_type)) {
+                        $conditions[] = "po.po_type = '$selected_po_type'";
                     }
                     $where_clause = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
 
@@ -559,12 +573,14 @@ $summary_data = $summary_qry->fetch_assoc();
                 var from_date = $('#from_date').val();
                 var to_date = $('#to_date').val();
                 var company = $('#company').val();
+                var po_type = $('#po_type').val();
                 var url = '<?php echo base_url ?>admin/?page=po_details';
 
                 var params = [];
                 if (company) params.push('company=' + encodeURIComponent(company));
                 if (from_date) params.push('from_date=' + from_date);
                 if (to_date) params.push('to_date=' + to_date);
+                if (po_type) params.push('po_type=' + encodeURIComponent(po_type));
 
                 if (params.length > 0) {
                     url += '&' + params.join('&');
@@ -579,6 +595,7 @@ $summary_data = $summary_qry->fetch_assoc();
                 $('#from_date').val('');
                 $('#to_date').val('');
                 $('#company').val('');
+                $('#po_type').val('');
                 window.location.href = '<?php echo base_url ?>admin/?page=po_details';
             });
 

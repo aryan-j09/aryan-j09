@@ -35,7 +35,8 @@ if ($id) {
         pil.credit_payment_amount,
         pil.credit_payment_days,
         pil.inspection_payment_type,
-        pil.currency
+        pil.currency,
+        po.po_type
     FROM purchase_orders po 
     LEFT JOIN proforma_invoice_list pil ON po.po_code = pil.po_code 
     LEFT JOIN clients c ON pil.client_id = c.id
@@ -69,7 +70,7 @@ $proforma_qry = $conn->query("
             <input type="hidden" name="id" value="<?= $id ?? '' ?>">
 
             <div class="row">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <div class="form-group">
                         <label for="po_code">PO Number</label>
                         <?php if ($id): ?>
@@ -87,7 +88,7 @@ $proforma_qry = $conn->query("
                         <?php endif; ?>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <div class="form-group">
                         <label>Client Name</label>
                         <input type="text" class="form-control" id="client_name" readonly
@@ -96,11 +97,21 @@ $proforma_qry = $conn->query("
                             value="<?= $po['client_id'] ?? '' ?>">
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <div class="form-group">
                         <label>PO Date</label>
                         <input type="text" class="form-control" id="po_date" readonly
                             value="<?= $po['po_date'] ?? '' ?>">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label>PO Type</label>
+                        <select class="form-control" name="po_type" required>
+                            <option value="">Select Type</option>
+                            <option value="machine" <?= ($po['po_type'] ?? '') == 'machine' ? 'selected' : '' ?>>Machine</option>
+                            <option value="spares" <?= ($po['po_type'] ?? '') == 'spares' ? 'selected' : '' ?>>Spares</option>
+                        </select>
                     </div>
                 </div>
             </div>
