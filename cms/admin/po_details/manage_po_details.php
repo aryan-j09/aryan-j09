@@ -111,6 +111,8 @@ $proforma_qry = $conn->query("
                             <option value="">Select Type</option>
                             <option value="machine" <?= ($po['po_type'] ?? '') == 'machine' ? 'selected' : '' ?>>Machine</option>
                             <option value="spares" <?= ($po['po_type'] ?? '') == 'spares' ? 'selected' : '' ?>>Spares</option>
+                            <option value="service" <?= ($po['po_type'] ?? '') == 'service' ? 'selected' : '' ?>>Service</option>
+                            <option value="trials" <?= ($po['po_type'] ?? '') == 'trials' ? 'selected' : '' ?>>Trials</option>
                         </select>
                     </div>
                 </div>

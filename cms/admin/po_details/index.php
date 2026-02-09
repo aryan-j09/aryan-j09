@@ -103,8 +103,46 @@ $summary_data = $summary_qry->fetch_assoc();
             ?>
             <div class="card-header" id="summaryHeader" data-toggle="collapse" data-target="#summaryBody" aria-expanded="<?= !empty($selected_fy) ? 'true' : 'false' ?>" aria-controls="summaryBody" style="cursor: pointer;">
                 <h3 class="card-title">PO Summary</h3>
-                <div class="card-tools" style="user-select: none;">
-                    <i class="fas <?= !empty($selected_fy) ? 'fa-minus' : 'fa-plus' ?>"></i>
+                <div class="card-tools">
+                    <div class="dropdown d-inline-block mr-2">
+                        <button class="btn btn-sm btn-primary dropdown-toggle" type="button" id="filterDropdown" data-toggle="dropdown">
+                            <i class="fas fa-filter"></i> Filter
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-right p-3" style="min-width: 300px;">
+                            <form id="filterForm">
+                                <div class="form-group row mb-2">
+                                    <label class="col-sm-4 col-form-label">Company:</label>
+                                    <div class="col-sm-8">
+                                        <select id="company" class="form-control">
+                                            <option value="">All Companies</option>
+                                            <option value="Hugopharm" <?php echo $selected_company == 'Hugopharm' ? 'selected' : ''; ?>>Hugopharm</option>
+                                            <option value="S.B. Panchal" <?php echo $selected_company == 'S.B. Panchal' ? 'selected' : ''; ?>>S.B. Panchal</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group row mb-2">
+                                    <label class="col-sm-4 col-form-label">From:</label>
+                                    <div class="col-sm-8">
+                                        <input type="month" id="from_date" class="form-control" value="<?php echo $from_date; ?>">
+                                    </div>
+                                </div>
+                                <div class="form-group row mb-2">
+                                    <label class="col-sm-4 col-form-label">To:</label>
+                                    <div class="col-sm-8">
+                                        <input type="month" id="to_date" class="form-control" value="<?php echo $to_date; ?>">
+                                    </div>
+                                </div>
+
+                                <div class="text-right">
+                                    <button type="button" class="btn btn-sm btn-default" id="clearFilter">Clear</button>
+                                    <button type="button" class="btn btn-sm btn-primary" id="filter_date">Apply</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <a href="<?php echo base_url ?>admin/?page=po_details/manage_po_details" class="btn btn-flat btn-primary">
+                        <span class="fas fa-plus"></span> Add New PO
+                    </a>
                 </div>
             </div>
             <div id="summaryBody" class="collapse <?= !empty($selected_fy) ? 'show' : '' ?>" aria-labelledby="summaryHeader">
@@ -170,60 +208,35 @@ $summary_data = $summary_qry->fetch_assoc();
                 </div>
             </div>
         <?php endif; ?>
-        <div class="card-header">
-            <h3 class="card-title">PO Records</h3>
-            <div class="card-tools">
-                <div class="dropdown d-inline-block mr-2">
-                    <button class="btn btn-sm btn-primary dropdown-toggle" type="button" id="filterDropdown" data-toggle="dropdown">
-                        <i class="fas fa-filter"></i> Filter
-                    </button>
-                    <div class="dropdown-menu dropdown-menu-right p-3" style="min-width: 300px;">
-                        <form id="filterForm">
-                            <div class="form-group row mb-2">
-                                <label class="col-sm-4 col-form-label">Company:</label>
-                                <div class="col-sm-8">
-                                    <select id="company" class="form-control">
-                                        <option value="">All Companies</option>
-                                        <option value="Hugopharm" <?php echo $selected_company == 'Hugopharm' ? 'selected' : ''; ?>>Hugopharm</option>
-                                        <option value="S.B. Panchal" <?php echo $selected_company == 'S.B. Panchal' ? 'selected' : ''; ?>>S.B. Panchal</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="form-group row mb-2">
-                                <label class="col-sm-4 col-form-label">From:</label>
-                                <div class="col-sm-8">
-                                    <input type="month" id="from_date" class="form-control" value="<?php echo $from_date; ?>">
-                                </div>
-                            </div>
-                            <div class="form-group row mb-2">
-                                <label class="col-sm-4 col-form-label">To:</label>
-                                <div class="col-sm-8">
-                                    <input type="month" id="to_date" class="form-control" value="<?php echo $to_date; ?>">
-                                </div>
-                            </div>
-                            <div class="form-group row mb-2">
-                                <label class="col-sm-4 col-form-label">PO Type:</label>
-                                <div class="col-sm-8">
-                                    <select id="po_type" class="form-control">
-                                        <option value="">All Types</option>
-                                        <option value="machine" <?php echo $selected_po_type == 'machine' ? 'selected' : ''; ?>>Machine</option>
-                                        <option value="spares" <?php echo $selected_po_type == 'spares' ? 'selected' : ''; ?>>Spares</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="text-right">
-                                <button type="button" class="btn btn-sm btn-default" id="clearFilter">Clear</button>
-                                <button type="button" class="btn btn-sm btn-primary" id="filter_date">Apply</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-                <a href="<?php echo base_url ?>admin/?page=po_details/manage_po_details" class="btn btn-flat btn-primary">
-                    <span class="fas fa-plus"></span> Add New PO
-                </a>
-            </div>
-        </div>
         <div class="card-body">
+            <!-- PO Type Tabs -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link po-type-tab <?= empty($selected_po_type) ? 'active' : '' ?>" href="#" data-type="" role="tab">
+                        All Types
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link po-type-tab <?= $selected_po_type == 'machine' ? 'active' : '' ?>" href="#" data-type="machine" role="tab">
+                        Machine
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link po-type-tab <?= $selected_po_type == 'spares' ? 'active' : '' ?>" href="#" data-type="spares" role="tab">
+                        Spares
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link po-type-tab <?= $selected_po_type == 'service' ? 'active' : '' ?>" href="#" data-type="service" role="tab">
+                        Service
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link po-type-tab <?= $selected_po_type == 'trials' ? 'active' : '' ?>" href="#" data-type="trials" role="tab">
+                        Trials
+                    </a>
+                </li>
+            </ul>
             <table class="table table-bordered table-hover table-striped" id="po_details_table">
                 <colgroup>
                     <col width="5%">
@@ -309,7 +322,7 @@ $summary_data = $summary_qry->fetch_assoc();
                             $progress = min(100, max(0, ($days_passed / $total_days) * 100));
                         }
                     ?>
-                        <tr class="data-row" data-company="<?php echo $row['company']; ?>">
+                        <tr class="data-row" data-company="<?php echo $row['company']; ?>" data-po-type="<?php echo $row['po_type'] ?? ''; ?>">
                             <td class="align-middle"><?php echo $i++; ?>.</td>
                             <td class="align-middle"><?php echo $row['po_code']; ?></td>
                             <td class="align-middle"><?php echo $row['client_name']; ?></td>
@@ -431,6 +444,18 @@ $summary_data = $summary_qry->fetch_assoc();
 
         $(document).ready(function() {
             // Initialize DataTable
+            var currentPoTypeFilter = '<?= $selected_po_type ?>';
+            
+            // Add custom filter before DataTable init
+            $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+                if (currentPoTypeFilter === '') {
+                    return true; // Show all
+                }
+                const row = $(settings.aoData[dataIndex]['nTr']);
+                const rowPoType = row.data('po-type');
+                return rowPoType === currentPoTypeFilter;
+            });
+
             var table = $('#po_details_table').DataTable({
                 "ordering": true,
                 "pageLength": 10,
@@ -573,14 +598,12 @@ $summary_data = $summary_qry->fetch_assoc();
                 var from_date = $('#from_date').val();
                 var to_date = $('#to_date').val();
                 var company = $('#company').val();
-                var po_type = $('#po_type').val();
                 var url = '<?php echo base_url ?>admin/?page=po_details';
 
                 var params = [];
                 if (company) params.push('company=' + encodeURIComponent(company));
                 if (from_date) params.push('from_date=' + from_date);
                 if (to_date) params.push('to_date=' + to_date);
-                if (po_type) params.push('po_type=' + encodeURIComponent(po_type));
 
                 if (params.length > 0) {
                     url += '&' + params.join('&');
@@ -595,13 +618,26 @@ $summary_data = $summary_qry->fetch_assoc();
                 $('#from_date').val('');
                 $('#to_date').val('');
                 $('#company').val('');
-                $('#po_type').val('');
                 window.location.href = '<?php echo base_url ?>admin/?page=po_details';
             });
 
             // Prevent dropdown from closing when clicking inside
             $('.dropdown-menu').click(function(e) {
                 e.stopPropagation();
+            });
+
+            // Handle PO Type Tab Switching
+            $('.po-type-tab').on('click', function(e) {
+                e.preventDefault();
+                const poType = $(this).data('type');
+
+                // Update active tab
+                $('.po-type-tab').removeClass('active');
+                $(this).addClass('active');
+
+                // Update filter and redraw table immediately
+                currentPoTypeFilter = poType;
+                table.draw();
             });
         });
 
