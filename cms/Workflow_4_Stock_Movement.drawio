@@ -1,0 +1,214 @@
+<mxfile host="app.diagrams.net" modified="2026-02-24T00:00:00.000Z" agent="5.0" version="21.6.5" etag="drawio" type="device">
+  <diagram name="Stock Movement: In vs Out" id="workflow-stock">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title" value="WORKFLOW 4: Stock Movement - Receiving vs Utilization (Detailed)" style="text;html=1;strokeColor=none;fillColor=none;fontSize=16;fontStyle=1;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="50" y="20" width="800" height="30" as="geometry" />
+        </mxCell>
+        
+        <!-- LEFT SIDE: STOCK IN (RECEIVING) -->
+        <mxCell id="stock_in_title" value="STOCK IN (Receiving from Supplier)" style="text;html=1;strokeColor=none;fillColor=none;fontSize=13;fontStyle=1;fontColor=#00AA00;align=center;" vertex="1" parent="1">
+          <mxGeometry x="50" y="80" width="300" height="25" as="geometry" />
+        </mxCell>
+        
+        <!-- Step 1: Goods Arrive -->
+        <mxCell id="in_step1_label" value="1. Goods Arrive" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;fontColor=#006600;" vertex="1" parent="1">
+          <mxGeometry x="50" y="120" width="120" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="in_step1" value="Goods received from\nsupplier against PO" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=10;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="50" y="140" width="140" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow down -->
+        <mxCell id="in_arrow1" edge="1" parent="1" source="in_step1" target="in_step2" style="strokeColor=#00AA00;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="120" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Step 2: QC/Inspection -->
+        <mxCell id="in_step2_label" value="2. Quality Check" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;fontColor=#006600;" vertex="1" parent="1">
+          <mxGeometry x="50" y="210" width="120" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="in_step2" value="Inspect goods for\ndamage/defects" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=10;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="50" y="230" width="140" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow down -->
+        <mxCell id="in_arrow2" edge="1" parent="1" source="in_step2" target="in_step3" style="strokeColor:#00AA00;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="120" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Step 3: Barcode Scan -->
+        <mxCell id="in_step3_label" value="3. Barcode Scan" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;fontColor=#006600;" vertex="1" parent="1">
+          <mxGeometry x="50" y="300" width="120" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="in_step3" value="Scan barcodes/SKUs\nMatch to PO item" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=10;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="50" y="320" width="140" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow down -->
+        <mxCell id="in_arrow3" edge="1" parent="1" source="in_step3" target="in_step4" style="strokeColor:#00AA00;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="120" y="390" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="in_step4_label" value="4. Record Receipt" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;fontColor=#006600;" vertex="1" parent="1">
+          <mxGeometry x="50" y="390" width="120" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="in_step4" value="Master.php: receive_stock_batch\nUpdate: stock_list + stock_movement" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#00AA00;fontSize=9;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="50" y="410" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="in_endpoint" value="Endpoint: receive_stock_batch()" style="text;html=1;strokeColor=#00AA00;fillColor=#C8E6C9;fontSize=8;fontColor=#000000;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="480" width="140" height="15" as="geometry" />
+        </mxCell>
+        
+        <!-- Data logged -->
+        <mxCell id="in_logged" value="LOGGED:\n- Item ID, Qty, Date\n- Warehouse location\n- User who received\n- Supplier PO link" style="text;html=1;strokeColor=#00AA00;fillColor=#F1F8E9;fontSize=8;fontColor=#000000;align=left;" vertex="1" parent="1">
+          <mxGeometry x="50" y="505" width="140" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- RIGHT SIDE: STOCK OUT (UTILIZATION) -->
+        <mxCell id="stock_out_title" value="STOCK OUT (Utilization/Allocation)" style="text;html=1;strokeColor=none;fillColor=none;fontSize=13;fontStyle=1;fontColor=#00AA00;align=center;" vertex="1" parent="1">
+          <mxGeometry x="350" y="80" width="300" height="25" as="geometry" />
+        </mxCell>
+        
+        <!-- Step 1: Request Usage -->
+        <mxCell id="out_step1_label" value="1. Request Usage" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;fontColor=#006600;" vertex="1" parent="1">
+          <mxGeometry x="350" y="120" width="120" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="out_step1" value="Project requests item\nfor use/assembly" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=10;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="350" y="140" width="140" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow down -->
+        <mxCell id="out_arrow1" edge="1" parent="1" source="out_step1" target="out_step2" style="strokeColor:#00AA00;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="420" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Step 2: Check Availability -->
+        <mxCell id="out_step2_label" value="2. Check Stock" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;fontColor=#006600;" vertex="1" parent="1">
+          <mxGeometry x="350" y="210" width="120" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="out_step2" value="Query stock_list for\navailable quantity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=10;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="350" y="230" width="140" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow down -->
+        <mxCell id="out_arrow2" edge="1" parent="1" source="out_step2" target="out_step3" style="strokeColor:#00AA00;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="420" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Step 3: Deduct Quantity -->
+        <mxCell id="out_step3_label" value="3. Deduct Qty" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;fontColor:#006600;" vertex="1" parent="1">
+          <mxGeometry x="350" y="300" width="120" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="out_step3" value="Reduce stock_list qty\nby utilization amount" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=10;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="350" y="320" width="140" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow down -->
+        <mxCell id="out_arrow3" edge="1" parent="1" source="out_step3" target="out_step4" style="strokeColor:#00AA00;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="420" y="390" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Step 4: Log Movement -->
+        <mxCell id="out_step4_label" value="4. Log Movement" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;fontColor=#006600;" vertex="1" parent="1">
+          <mxGeometry x="350" y="390" width="120" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="out_step4" value="Master.php: save_utilization\nInsert: utilization_history + stock_movement" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#00AA00;fontSize=9;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="350" y="410" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="out_endpoint" value="Endpoint: save_utilization()" style="text;html=1;strokeColor=#00AA00;fillColor=#C8E6C9;fontSize=8;fontColor=#000000;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="350" y="480" width="140" height="15" as="geometry" />
+        </mxCell>
+        
+        <!-- Data logged -->
+        <mxCell id="out_logged" value="LOGGED:\n- Item ID, Qty used\n- Project/purpose\n- Date of usage\n- User who allocated\n- Cost of item" style="text;html=1;strokeColor=#00AA00;fillColor=#F1F8E9;fontSize=8;fontColor=#000000;align=left;" vertex="1" parent="1">
+          <mxGeometry x="350" y="505" width="140" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- CENTRAL: DATABASE TABLES -->
+        <mxCell id="table_title" value="DATABASE TABLES" style="text;html=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=1;fontColor=#FFDD00;align=center;backgroundColor=#CCCCCC;" vertex="1" parent="1">
+          <mxGeometry x="650" y="80" width="300" height="25" as="geometry" />
+        </mxCell>
+        
+        <!-- Stock List -->
+        <mxCell id="stock_list_box" value="stock_list\n(Current Inventory)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFDD00;strokeColor=#FF9900;fontSize=10;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="650" y="120" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="stock_list_cols" value="• item_id\n• quantity (updated)\n• warehouse_location\n• received_date\n• last_updated" style="text;html=1;strokeColor=none;fillColor=none;fontSize=8;fontColor=#000000;align=left;" vertex="1" parent="1">
+          <mxGeometry x="650" y="190" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Stock Movement -->
+        <mxCell id="stock_mov_box" value="stock_movement\n(Audit Trail)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFDD00;strokeColor=#FF9900;fontSize=10;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="650" y="270" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="stock_mov_cols" value="• movement_id\n• item_id, qty_changed\n• movement_type (in/out)\n• reference (PO/project)\n• timestamp" style="text;html=1;strokeColor=none;fillColor=none;fontSize=8;fontColor=#000000;align=left;" vertex="1" parent="1">
+          <mxGeometry x="650" y="340" width="140" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Utilization History -->
+        <mxCell id="util_hist_box" value="utilization_history\n(Usage Records)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFDD00;strokeColor=#FF9900;fontSize=10;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="650" y="430" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="util_hist_cols" value="• util_id, item_id\n• qty_used, cost\n• project_id, user_id\n• purpose, date_used" style="text;html=1;strokeColor=none;fillColor=none;fontSize=8;fontColor=#000000;align=left;" vertex="1" parent="1">
+          <mxGeometry x="650" y="500" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Connections -->
+        <mxCell id="in_to_stock_list" edge="1" parent="1" source="in_step4" target="stock_list_box" style="strokeColor:#FF9900;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="in_to_stock_mov" edge="1" parent="1" source="in_step4" target="stock_mov_box" style="strokeColor:#FF9900;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="out_to_stock_list" edge="1" parent="1" source="out_step4" target="stock_list_box" style="strokeColor:#FF9900;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="out_to_util_hist" edge="1" parent="1" source="out_step4" target="util_hist_box" style="strokeColor:#FF9900;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- MASTER.PHP -->
+        <mxCell id="master_box" value="Master.php Hub\n(Executes all operations)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF0000;strokeColor=#990000;fontSize=11;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="640" width="900" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- DATABASE -->
+        <mxCell id="db_box" value="MySQL Database" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFDD00;strokeColor=#FF9900;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="450" y="760" width="120" height="70" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="to_db" edge="1" parent="1" source="master_box" target="db_box" style="strokeColor=#000000;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- LEGEND -->
+        <mxCell id="legend_bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#CCCCCC;" vertex="1" parent="1">
+          <mxGeometry x="50" y="860" width="900" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_note" value="KEY DIFFERENCE: STOCK IN increases available qty (warehouse receiving), STOCK OUT decreases available qty (project usage). Both create audit trails for full inventory visibility. The stock_list is the &quot;current state&quot;, while stock_movement &amp; utilization_history are &quot;history logs&quot;." style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#000000;align=left;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="60" y="870" width="880" height="80" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

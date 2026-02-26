@@ -1,0 +1,184 @@
+<mxfile host="app.diagrams.net" modified="2026-02-24T00:00:00.000Z" agent="5.0" version="21.6.5" etag="drawio" type="device">
+  <diagram name="Module Architecture" id="module-arch">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Central Controller -->
+        <mxCell id="master" value="Master.php&#xa;(Central AJAX Controller)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF0000;strokeColor=#990000;fontSize=14;fontStyle=1;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="500" y="350" width="180" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Database -->
+        <mxCell id="db" value="MySQL Database&#xa;(35+ Tables)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFDD00;strokeColor=#FF9900;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="540" y="550" width="100" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Sales & CRM Group -->
+        <mxCell id="leads" value="Leads&#xa;(CRM)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="quotations" value="Quotations&#xa;(Build Quote)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="quote_items" value="Quote Items&#xa;(Machine Catalog)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="200" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="proforma" value="Proforma Invoice&#xa;(Quote→Invoice)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="280" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="clients" value="Clients&#xa;(Customer Master)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="360" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Procurement Group -->
+        <mxCell id="purchase_orders" value="Purchase Orders&#xa;(Supplier PO)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="220" y="40" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="stock" value="Stock&#xa;(In/Out)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="220" y="120" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="po_details" value="PO Details&#xa;(Factory PO)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="220" y="200" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="back_order" value="Back Orders&#xa;(Supplier Backlog)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="220" y="280" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="suppliers" value="Suppliers&#xa;(Vendor Master)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="220" y="360" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Inventory Group -->
+        <mxCell id="items" value="Items&#xa;(Item Master)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8B00FF;strokeColor=#5500AA;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="880" y="40" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="machines" value="Machine Items&#xa;(Spare Parts)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8B00FF;strokeColor=#5500AA;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="880" y="120" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Project Management -->
+        <mxCell id="projects" value="Project Planner&#xa;(Tracking)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;strokeColor=#CC7700;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="880" y="220" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Task Management -->
+        <mxCell id="tasks" value="Tasks&#xa;(Assignment)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="880" y="300" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Utilities -->
+        <mxCell id="utility" value="Utility Suppliers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="880" y="380" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="users" value="Users&#xa;(System Users)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="880" y="460" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="users_c" value="Users(C)&#xa;(Client Users)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="880" y="540" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="system_info" value="System Info&#xa;(Settings)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="880" y="620" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Connections: Sales Flow -->
+        <mxCell id="edge1" edge="1" parent="1" source="leads" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge2" edge="1" parent="1" source="quotations" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge3" edge="1" parent="1" source="quote_items" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge4" edge="1" parent="1" source="proforma" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge5" edge="1" parent="1" source="clients" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Connections: Procurement Flow -->
+        <mxCell id="edge6" edge="1" parent="1" source="purchase_orders" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge7" edge="1" parent="1" source="stock" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge8" edge="1" parent="1" source="po_details" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge9" edge="1" parent="1" source="back_order" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge10" edge="1" parent="1" source="suppliers" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Connections: Inventory -->
+        <mxCell id="edge11" edge="1" parent="1" source="items" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge12" edge="1" parent="1" source="machines" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Connections: Projects & Tasks -->
+        <mxCell id="edge13" edge="1" parent="1" source="projects" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge14" edge="1" parent="1" source="tasks" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Connections: Utilities -->
+        <mxCell id="edge15" edge="1" parent="1" source="utility" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge16" edge="1" parent="1" source="users" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge17" edge="1" parent="1" source="users_c" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge18" edge="1" parent="1" source="system_info" target="master">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Master to DB -->
+        <mxCell id="edge_db" edge="1" parent="1" source="master" target="db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Data Flow Arrows -->
+        <mxCell id="flow1" value="" edge="1" parent="1" source="leads" target="quotations" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow2" value="" edge="1" parent="1" source="quotations" target="proforma" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow3" value="" edge="1" parent="1" source="proforma" target="po_details" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow4" value="" edge="1" parent="1" source="purchase_orders" target="stock" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow5" value="" edge="1" parent="1" source="stock" target="projects" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Legend -->
+        <mxCell id="legend_box" value="LEGEND" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#333333;fontColor=#FFFFFF;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="680" width="300" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="legend1" value="BLUE: Sales &amp; CRM | GREEN: Procurement | PURPLE: Inventory | ORANGE: Projects | GRAY: Admin | RED: Master.php" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="720" width="500" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="legend2" value="Solid lines: AJAX calls to Master.php | Dashed lines: Data flow between modules" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="750" width="500" height="30" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
