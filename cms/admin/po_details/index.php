@@ -24,6 +24,8 @@ $to_date = isset($_GET['to_date']) ? $_GET['to_date'] : '';
 $selected_company = isset($_GET['company']) ? $_GET['company'] : '';
 $selected_fy = isset($_GET['fy']) ? $_GET['fy'] : '';
 $selected_po_type = isset($_GET['po_type']) ? $_GET['po_type'] : '';
+$payment_pending_only = isset($_GET['payment_pending']) && $_GET['payment_pending'] == '1';
+$overdue_delivery_only = isset($_GET['overdue_delivery']) && $_GET['overdue_delivery'] == '1';
 
 // Determine date range for summary based on financial year
 $summary_from_date = '';
@@ -62,6 +64,22 @@ if (!empty($summary_from_date) && !empty($summary_to_date)) {
 if (!empty($selected_company)) {
     $summary_conditions[] = "pil.company = '$selected_company'";
 }
+if ($payment_pending_only) {
+    $summary_conditions[] = "(po.status = 'completed' OR po.actual_delivery_date IS NOT NULL)";
+    $summary_conditions[] = "IFNULL(po.balance_amount,0) > 0";
+    $summary_conditions[] = "(
+        IFNULL(pil.advance_payment_amount,0) > IFNULL(po.advance_received,0)
+        OR IFNULL(pil.inspection_payment_amount,0) > IFNULL(po.inspection_received,0)
+        OR IFNULL(pil.installation_payment_amount,0) > IFNULL(po.installation_received,0)
+        OR IFNULL(pil.credit_payment_amount,0) > IFNULL(po.credit_received,0)
+    )";
+}
+if ($overdue_delivery_only) {
+    $summary_conditions[] = "po.status = 'pending'";
+    $summary_conditions[] = "po.expected_delivery IS NOT NULL";
+    $summary_conditions[] = "po.expected_delivery < CURDATE()";
+    $summary_conditions[] = "po.actual_delivery_date IS NULL";
+}
 $summary_where_clause = !empty($summary_conditions) ? "WHERE " . implode(" AND ", $summary_conditions) : "";
 
 $summary_qry = $conn->query("
@@ -69,7 +87,8 @@ $summary_qry = $conn->query("
         SUM(CASE WHEN po.status = 'completed' THEN 1 ELSE 0 END) as completed_orders,
         SUM(CASE WHEN po.status != 'completed' THEN 1 ELSE 0 END) as pending_orders,
         SUM(pil.total_amount) as total_amount,
-        SUM(po.advance_received + po.inspection_received + po.installation_received + po.credit_received) as total_received
+        SUM(po.advance_received + po.inspection_received + po.installation_received + po.credit_received) as total_received,
+        SUM(po.balance_amount) as total_pending
     FROM purchase_orders po
     LEFT JOIN proforma_invoice_list pil ON pil.po_code = po.po_code
     {$summary_where_clause}
@@ -176,7 +195,7 @@ $summary_data = $summary_qry->fetch_assoc();
                                 <?php
                                 $total_amount = $summary_data['total_amount'] ?? 0;
                                 $total_received = $summary_data['total_received'] ?? 0;
-                                $total_pending = $total_amount - $total_received;
+                                $total_pending = $summary_data['total_pending'] ?? 0;
                                 ?>
                                 <div class="col-md-4">
                                     <div class="info-box bg-light">
@@ -209,6 +228,16 @@ $summary_data = $summary_qry->fetch_assoc();
             </div>
         <?php endif; ?>
         <div class="card-body">
+            <?php if ($payment_pending_only): ?>
+                <div class="alert alert-warning py-2 mb-3">
+                    Showing delivered POs with pending payment terms only.
+                </div>
+            <?php endif; ?>
+            <?php if ($overdue_delivery_only): ?>
+                <div class="alert alert-danger py-2 mb-3">
+                    Showing overdue deliveries only.
+                </div>
+            <?php endif; ?>
             <!-- PO Type Tabs -->
             <ul class="nav nav-tabs mb-3" role="tablist">
                 <li class="nav-item">
@@ -279,6 +308,22 @@ $summary_data = $summary_qry->fetch_assoc();
                     if (!empty($selected_po_type)) {
                         $conditions[] = "po.po_type = '$selected_po_type'";
                     }
+                    if ($payment_pending_only) {
+                        $conditions[] = "(po.status = 'completed' OR po.actual_delivery_date IS NOT NULL)";
+                        $conditions[] = "IFNULL(po.balance_amount,0) > 0";
+                        $conditions[] = "(
+                            IFNULL(pil.advance_payment_amount,0) > IFNULL(po.advance_received,0)
+                            OR IFNULL(pil.inspection_payment_amount,0) > IFNULL(po.inspection_received,0)
+                            OR IFNULL(pil.installation_payment_amount,0) > IFNULL(po.installation_received,0)
+                            OR IFNULL(pil.credit_payment_amount,0) > IFNULL(po.credit_received,0)
+                        )";
+                    }
+                    if ($overdue_delivery_only) {
+                        $conditions[] = "po.status = 'pending'";
+                        $conditions[] = "po.expected_delivery IS NOT NULL";
+                        $conditions[] = "po.expected_delivery < CURDATE()";
+                        $conditions[] = "po.actual_delivery_date IS NULL";
+                    }
                     $where_clause = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
 
                     $result = $conn->query("
@@ -290,7 +335,8 @@ $summary_data = $summary_qry->fetch_assoc();
                             pil.total_amount,
                             pil.currency,
                             pil.company,
-                            (po.advance_received + po.inspection_received + po.installation_received + po.credit_received) as total_received
+                            (po.advance_received + po.inspection_received + po.installation_received + po.credit_received) as total_received,
+                            po.balance_amount
                         FROM purchase_orders po
                         LEFT JOIN clients c ON c.id = po.client_id 
                         LEFT JOIN proforma_invoice_list pil ON pil.po_code = po.po_code
@@ -348,7 +394,8 @@ $summary_data = $summary_qry->fetch_assoc();
                                 <td class="align-middle">
                                     <?php
                                     if ($row['total_amount'] > 0) {
-                                        $balance = $row['total_amount'] - ($row['advance_received'] + $row['inspection_received'] + $row['installation_received'] + $row['credit_received']);
+                                        $balance = $row['balance_amount'] ?? 0;
+                                        
                                         if ($balance > 0) {
                                             echo '<span class="badge badge-danger">' . getCurrencySymbol($row['currency'] ?? 'INR') . ' ' . formatIndianMoney($balance) . '</span>';
                                         } else {
@@ -604,6 +651,12 @@ $summary_data = $summary_qry->fetch_assoc();
                 if (company) params.push('company=' + encodeURIComponent(company));
                 if (from_date) params.push('from_date=' + from_date);
                 if (to_date) params.push('to_date=' + to_date);
+                <?php if($payment_pending_only): ?>
+                params.push('payment_pending=1');
+                <?php endif; ?>
+                <?php if($overdue_delivery_only): ?>
+                params.push('overdue_delivery=1');
+                <?php endif; ?>
 
                 if (params.length > 0) {
                     url += '&' + params.join('&');

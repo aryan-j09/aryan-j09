@@ -14,6 +14,11 @@
 </style>
 
 <div class="card card-outline card-primary">
+    <?php
+    $today_followups_only = isset($_GET['today_followups']) && $_GET['today_followups'] == '1';
+    $today_date = date('Y-m-d');
+    $current_user_id = $_SESSION['userdata']['id'];
+    ?>
     <div class="card-header">
         <h3 class="card-title">Leads Management</h3>
         <div class="card-tools">
@@ -27,6 +32,11 @@
     </div>
     <div class="card-body">
         <div class="container-fluid">
+            <?php if ($today_followups_only): ?>
+                <div class="alert alert-primary py-2 mb-3">
+                    Showing today&#39;s follow-ups assigned by you.
+                </div>
+            <?php endif; ?>
             <ul class="nav nav-tabs mb-3" id="leadTabs" role="tablist">
                 <li class="nav-item">
                     <a class="nav-link active" id="my-leads-tab" data-toggle="tab" href="#my-leads" role="tab">My Leads</a>
@@ -76,6 +86,14 @@
                             if(isset($_GET['status']) && !empty($_GET['status'])) {
                                 $status = $conn->real_escape_string($_GET['status']);
                                 $where .= " AND l.status = '{$status}'";
+                            }
+                            if($today_followups_only) {
+                                $where .= " AND EXISTS (
+                                    SELECT 1 FROM lead_activities la_today
+                                    WHERE la_today.lead_id = l.id
+                                    AND la_today.created_by = '{$current_user_id}'
+                                    AND DATE(la_today.next_followup) = '{$today_date}'
+                                )";
                             }
 
                             // Only leads with at least one activity
@@ -276,6 +294,9 @@ $(document).ready(function(){
         if(date_from) params.push('date_from=' + date_from);
         if(date_to) params.push('date_to=' + date_to);
         if(status) params.push('status=' + status);
+        <?php if($today_followups_only): ?>
+        params.push('today_followups=1');
+        <?php endif; ?>
         
         window.location.href = currentUrl + (params.length ? '&' + params.join('&') : '');
         $('#filterModal').modal('hide');

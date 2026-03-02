@@ -10,6 +10,11 @@
           <mxGeometry x="50" y="20" width="700" height="30" as="geometry" />
         </mxCell>
         
+        <!-- Deprecation Notice -->
+        <mxCell id="deprecation_notice" value="⚠️ DEPRECATED: Quote Items module NOT READY. This workflow is historical reference only." style="text;html=1;strokeColor=#FF0000;fillColor=#FFE0E0;fontSize=11;fontStyle=1;fontColor=#CC0000;" vertex="1" parent="1">
+          <mxGeometry x="50" y="55" width="700" height="20" as="geometry" />
+        </mxCell>
+        
         <!-- STEP 1: MACHINE CATALOG -->
         <mxCell id="step1_label" value="STEP 1: Browse Catalog" style="text;html=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=1;fontColor=#8B00FF;" vertex="1" parent="1">
           <mxGeometry x="50" y="80" width="140" height="20" as="geometry" />

@@ -73,15 +73,9 @@ $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
                 </a>
               </li>
               <li class="nav-item">
-                <a href="<?php echo base_url ?>admin/?page=receiving" class="nav-link nav-receiving">
-                  <i class="nav-icon fas fa-boxes"></i>
-                  <p>Stock Receiving</p>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a href="<?php echo base_url ?>admin/?page=utilization" class="nav-link nav-utilization">
-                  <i class="nav-icon fas fa-arrow-circle-down"></i>
-                  <p>Stock Utilization</p>
+                <a href="<?php echo base_url ?>admin/?page=stock" class="nav-link nav-stock">
+                  <i class="nav-icon fas fa-exchange-alt"></i>
+                  <p>Stock In/Out</p>
                 </a>
               </li>
               <!-- <li class="nav-item">
