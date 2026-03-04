@@ -231,11 +231,14 @@ $proforma_qry = $conn->query("
                         <div class="row mt-2">
                             <div class="col-12">
                                 <div class="form-group">
-                                    <label>TDS Amount (<?= getCurrencySymbol($po['currency'] ?? 'INR') ?>)</label>
-                                    <input type="number" name="tds_amount" class="form-control"
-                                        value="<?= $po['tds_amount'] ?? '' ?>"
-                                        min="0" step="0.01"
-                                        placeholder="Enter TDS amount">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" name="shortfall_is_tds" id="shortfall_is_tds"
+                                            <?= ($po['shortfall_is_tds'] ?? 0) == 1 ? 'checked' : '' ?>>
+                                        <label class="custom-control-label" for="shortfall_is_tds">
+                                            <strong>Payment shortfalls are due to TDS deduction</strong>
+                                        </label>
+                                    </div>
+                                    <small class="text-muted">Check this if clients deduct TDS from payments. The system will calculate TDS as the difference between expected and received amounts.</small>
                                 </div>
                             </div>
                         </div>
@@ -464,12 +467,13 @@ $proforma_qry = $conn->query("
     }
 
     function generateCreditPaymentInput(label, expected, existingValue = 0, symbol = '₹') {
+        const excess = Math.max(0, existingValue - expected);
         return `
     <div class="mb-2">
         <div class="mb-1">${label}</div>
         <div class="input-group input-group-sm">
             <input type="number" name="credit_received" class="form-control payment-received" 
-                max="${expected}" data-expected="${expected}" 
+                data-expected="${expected}" data-type="credit"
                 value="${existingValue}" step="0.01"
                 required>
             <div class="input-group-append">
@@ -478,16 +482,21 @@ $proforma_qry = $conn->query("
             <input type="text" class="form-control" value="${symbol}${formatNumber(expected)}" readonly>
         </div>
         <input type="hidden" name="credit_payment_amount" value="${expected}">
+        <input type="hidden" name="credit_excess" class="excess-hidden" value="${excess.toFixed(2)}">
+        <div class="excess-display mt-1" style="display:${excess > 0 ? 'block' : 'none'};">
+            <small class="text-danger"><i class="fas fa-exclamation-triangle"></i> Excess: ${symbol}<span class="excess-amount">${formatNumber(excess)}</span></small>
+        </div>
     </div>`;
     }
 
     function generatePaymentInput(type, label, percentage, expected, existingValue = 0, symbol = '₹') {
+        const excess = Math.max(0, existingValue - expected);
         return `
     <div class="mb-2">
         <div class="mb-1">${label} (${percentage}%)</div>
         <div class="input-group input-group-sm">
             <input type="number" name="${type}_received" class="form-control payment-received" 
-                max="${expected}" data-expected="${expected}" 
+                data-expected="${expected}" data-type="${type}"
                 value="${existingValue}" data-target="${type}_payment" step="0.01"
                 required>
             <div class="input-group-append">
@@ -499,6 +508,10 @@ $proforma_qry = $conn->query("
             </div>
         </div>
         <input type="hidden" name="${type}_payment_amount" value="${expected}">
+        <input type="hidden" name="${type}_excess" class="excess-hidden" value="${excess.toFixed(2)}">
+        <div class="excess-display mt-1" style="display:${excess > 0 ? 'block' : 'none'};">
+            <small class="text-danger"><i class="fas fa-exclamation-triangle"></i> Excess: ${symbol}<span class="excess-amount">${formatNumber(excess)}</span></small>
+        </div>
     </div>`;
     }
 
@@ -506,15 +519,26 @@ $proforma_qry = $conn->query("
         $('.payment-received').on('input', function() {
             const value = parseFloat($(this).val()) || 0;
             const expected = parseFloat($(this).data('expected'));
+            const type = $(this).data('type');
             const percentage = ((value / expected) * 100).toFixed(2);
+            const excess = Math.max(0, value - expected);
+            const symbol = getCurrencySymbolJS('<?= $po['currency'] ?? 'INR' ?>');
 
+            // Update percentage display
             $(this).closest('.input-group')
                 .find('.payment-percentage')
                 .text(`(${percentage}%)`);
 
-            if (Math.round(value * 100) > Math.round(expected * 100)) {
-                $(this).val((Math.floor(expected * 100) / 100).toFixed(2));
-                $(this).trigger('input');
+            // Update excess hidden field
+            const $container = $(this).closest('.mb-2');
+            $container.find('input[name="' + type + '_excess"]').val(excess.toFixed(2));
+
+            // Update excess display
+            const $excessDisplay = $container.find('.excess-display');
+            if (excess > 0) {
+                $excessDisplay.show().find('.excess-amount').text(formatNumber(excess));
+            } else {
+                $excessDisplay.hide();
             }
         });
     }

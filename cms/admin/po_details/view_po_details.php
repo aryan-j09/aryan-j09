@@ -73,10 +73,17 @@ $qry = $conn->query("
         DATE_FORMAT(pil.po_date_created, '%d-%b-%Y') as po_date,
         GROUP_CONCAT(pi.description ORDER BY pi.id ASC SEPARATOR '\n') as specifications,
         (po.advance_received + po.inspection_received + po.installation_received + po.credit_received) as total_received,
-        (pil.total_amount - (po.advance_received + po.inspection_received + po.installation_received + po.credit_received)) as balance_amount,
+        (COALESCE(po.advance_excess, 0) + COALESCE(po.inspection_excess, 0) + COALESCE(po.installation_excess, 0) + COALESCE(po.credit_excess, 0)) as total_excess,
         po.verified_by,
         po.verified_at,
-        po.tds_amount
+        po.shortfall_is_tds,
+        (
+            GREATEST(0, COALESCE(pil.advance_payment_amount, 0) - COALESCE(po.advance_received, 0)) +
+            GREATEST(0, COALESCE(pil.inspection_payment_amount, 0) - COALESCE(po.inspection_received, 0)) +
+            GREATEST(0, COALESCE(pil.installation_payment_amount, 0) - COALESCE(po.installation_received, 0)) +
+            GREATEST(0, COALESCE(pil.credit_payment_amount, 0) - COALESCE(po.credit_received, 0))
+        ) as total_shortfall,
+        po.balance_amount
     FROM purchase_orders po 
     LEFT JOIN proforma_invoice_list pil ON po.po_code = pil.po_code 
     LEFT JOIN clients c ON pil.client_id = c.id
@@ -505,14 +512,25 @@ while ($step = $steps_qry->fetch_assoc()) {
                                                 $status = 'Received';
                                                 $badge = 'success';
                                             } else {
-                                                $status = getCurrencySymbol($po['currency'] ?? 'INR') . ' ' . formatIndianMoney($received) . ' received';
-                                                $badge = 'warning';
+                                                // Check if shortfall should be attributed to TDS
+                                                if ($po['shortfall_is_tds'] == 1) {
+                                                    $status = 'Deducted as TDS';
+                                                    $badge = 'info';
+                                                } else {
+                                                    $status = getCurrencySymbol($po['currency'] ?? 'INR') . ' ' . formatIndianMoney($received) . ' received';
+                                                    $badge = 'warning';
+                                                }
                                             }
                                 ?>
                                             <div class="d-flex align-items-center mb-2">
                                                 <div class="flex-grow-1" style="max-width: 80%">
                                                     <?= $payment['label'] ?> -
                                                     <span class="text-muted"><?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($expected) ?></span>
+                                                    <?php if (($po['credit_excess'] ?? 0) > 0): ?>
+                                                        <span class="badge badge-warning ml-1">
+                                                            <i class="fas fa-exclamation-triangle"></i> Excess: <?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($po['credit_excess']) ?>
+                                                        </span>
+                                                    <?php endif; ?>
                                                 </div>
                                                 <span class="badge badge-<?= $badge ?> ml-1"><?= $status ?></span>
                                             </div>
@@ -532,8 +550,14 @@ while ($step = $steps_qry->fetch_assoc()) {
                                                 $status = 'Received';
                                                 $badge = 'success';
                                             } else {
-                                                $status = getCurrencySymbol($po['currency'] ?? 'INR') . ' ' . formatIndianMoney($received) . ' received';
-                                                $badge = 'warning';
+                                                // Check if shortfall should be attributed to TDS
+                                                if ($po['shortfall_is_tds'] == 1) {
+                                                    $status = 'Deducted as TDS';
+                                                    $badge = 'info';
+                                                } else {
+                                                    $status = getCurrencySymbol($po['currency'] ?? 'INR') . ' ' . formatIndianMoney($received) . ' received';
+                                                    $badge = 'warning';
+                                                }
                                             }
 
                                             // Add bank guarantee indicators
@@ -549,6 +573,11 @@ while ($step = $steps_qry->fetch_assoc()) {
                                                     <?= $payment['label'] ?> (<?= $po["{$type}_payment"] ?>%) -
                                                     <span class="text-muted"><?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($expected) ?></span>
                                                     <?= $bg_text ?>
+                                                    <?php if (($po["{$type}_excess"] ?? 0) > 0): ?>
+                                                        <span class="badge badge-warning ml-1">
+                                                            <i class="fas fa-exclamation-triangle"></i> Excess: <?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($po["{$type}_excess"]) ?>
+                                                        </span>
+                                                    <?php endif; ?>
                                                 </div>
                                                 <span class="badge badge-<?= $badge ?> ml-1"><?= $status ?></span>
                                             </div>
@@ -562,16 +591,35 @@ while ($step = $steps_qry->fetch_assoc()) {
 
                         <div class="mb-2 border p-1">
                             <dt class="border-bottom">Payment status:</dt>
+                            <?php 
+                            // Use pre-calculated balance_amount from database
+                            $tds_amount = ($po['shortfall_is_tds'] == 1 && ($po['total_shortfall'] ?? 0) > 0) ? $po['total_shortfall'] : 0;
+                            $actual_balance = $po['balance_amount'] ?? 0;
+                            ?>
                             <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="text-success">Amount Received: <?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($po['total_received'] ?? 0) ?></div>
-                                    <div class="text-danger">Balance Amount: <?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($po['balance_amount'] ?? 0) ?></div>
-                                </div>
-                                <?php if (($po['tds_amount'] ?? 0) > 0): ?>
-                                    <div class="text-info">
-                                        TDS Amount: <?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($po['tds_amount']) ?>
+                                <div style="width: 100%;">
+                                    <div class="mb-2">
+                                        <strong>Contract Total:</strong> 
+                                        <span class="text-info"><?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($po['total_amount'] ?? 0) ?></span>
                                     </div>
-                                <?php endif; ?>
+                                    <div class="mb-2">
+                                        <strong>Total Paid:</strong> 
+                                        <span class="<?= ($po['total_received'] ?? 0) >= ($po['total_amount'] ?? 0) ? 'text-success' : 'text-primary' ?>"><?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($po['total_received'] ?? 0) ?></span>
+                                    </div>
+                                    <?php if ($tds_amount > 0): ?>
+                                        <div class="mb-2">
+                                            <strong>TDS Deducted:</strong> 
+                                            <span class="text-info"><?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($tds_amount) ?></span>
+                                        </div>
+                                    <?php endif; ?>
+                                    <hr class="my-2">
+                                    <div class="mb-2">
+                                        <strong>Balance Due:</strong> 
+                                        <span class="<?= $actual_balance > 0 ? 'text-danger' : 'text-success' ?>">
+                                            <?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($actual_balance) ?>
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     <?php endif; ?>
