@@ -2,20 +2,40 @@
 require_once('../config.php');
 Class Users extends DBConnection {
 	private $settings;
+	private $password_algo;
 	public function __construct(){
 		global $_settings;
 		$this->settings = $_settings;
+		$this->password_algo = defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT;
 		parent::__construct();
 	}
 	public function __destruct(){
 		parent::__destruct();
+	}
+	private function is_legacy_md5($hash){
+		return is_string($hash) && preg_match('/^[a-f0-9]{32}$/i', $hash);
+	}
+	private function verify_password($password, $hash){
+		if(empty($hash)) return false;
+		if($this->is_legacy_md5($hash)){
+			return hash_equals(strtolower($hash), md5($password));
+		}
+		return password_verify($password, $hash);
+	}
+	private function hash_password($password){
+		return password_hash($password, $this->password_algo);
 	}
 	public function save_users(){
 		extract($_POST);
 		$oid = $id;
 		$data = '';
 		if(isset($oldpassword)){
-			if(md5($oldpassword) != $this->settings->userdata('password')){
+			$current_hash = '';
+			$user_qry = $this->conn->query("SELECT password FROM users where id = '{$id}' limit 1");
+			if($user_qry && $user_qry->num_rows > 0){
+				$current_hash = $user_qry->fetch_assoc()['password'];
+			}
+			if(!$this->verify_password($oldpassword, $current_hash)){
 				return 4;
 			}
 		}
@@ -31,7 +51,7 @@ Class Users extends DBConnection {
 			}
 		}
 		if(!empty($password)){
-			$password = md5($password);
+			$password = $this->conn->real_escape_string($this->hash_password($password));
 			if(!empty($data)) $data .=" , ";
 			$data .= " `password` = '{$password}' ";
 		}
@@ -152,7 +172,7 @@ Class Users extends DBConnection {
 		}
 
 			if(!empty($password))
-			$data .= ", `password` = '".md5($password)."' ";
+			$data .= ", `password` = '".$this->conn->real_escape_string($this->hash_password($password))."' ";
 		
 			if(isset($_FILES['img']) && $_FILES['img']['tmp_name'] != ''){
 				$fname = 'uploads/'.strtotime(date('y-m-d H:i')).'_'.$_FILES['img']['name'];
@@ -191,9 +211,6 @@ $action = !isset($_GET['f']) ? 'none' : strtolower($_GET['f']);
 switch ($action) {
 	case 'save':
 		echo $users->save_users();
-	break;
-	case 'fsave':
-		echo $users->save_fusers();
 	break;
 	case 'ssave':
 		echo $users->save_susers();
