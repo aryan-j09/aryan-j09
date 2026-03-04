@@ -1094,7 +1094,7 @@ Class Master extends DBConnection {
     try {
         extract($_POST);
 
-        $tds_amount = isset($_POST['tds_amount']) ? floatval($_POST['tds_amount']) : 0;
+        $shortfall_is_tds = isset($_POST['shortfall_is_tds']) ? 1 : 0;
 
         // Handle file upload
         $uploadedFile = '';
@@ -1129,6 +1129,36 @@ Class Master extends DBConnection {
         $insp_received = isset($inspection_received) ? floatval($inspection_received) : 0;
         $inst_received = isset($installation_received) ? floatval($installation_received) : 0;
         $cred_received = isset($credit_received) ? floatval($credit_received) : 0; // Add this line
+
+        // Convert excess payment values to float
+        $adv_excess = isset($advance_excess) ? floatval($advance_excess) : 0;
+        $insp_excess = isset($inspection_excess) ? floatval($inspection_excess) : 0;
+        $inst_excess = isset($installation_excess) ? floatval($installation_excess) : 0;
+        $cred_excess = isset($credit_excess) ? floatval($credit_excess) : 0;
+
+        // Fetch payment expected amounts and total from proforma_invoice_list to calculate balance
+        $payment_qry = $this->conn->prepare("SELECT total_amount, advance_payment_amount, inspection_payment_amount, installation_payment_amount, credit_payment_amount FROM proforma_invoice_list WHERE po_code = ?");
+        $payment_qry->bind_param("s", $po_code);
+        $payment_qry->execute();
+        $payment_qry->bind_result($total_amount, $adv_expected, $insp_expected, $inst_expected, $cred_expected);
+        $payment_qry->fetch();
+        $payment_qry->close();
+
+        // Calculate total received
+        $total_received = $adv_received + $insp_received + $inst_received + $cred_received;
+
+        // Calculate shortfall (amount not paid from expected)
+        $total_shortfall = max(0, ($adv_expected - $adv_received)) + 
+                          max(0, ($insp_expected - $insp_received)) + 
+                          max(0, ($inst_expected - $inst_received)) + 
+                          max(0, ($cred_expected - $cred_received));
+
+        // Calculate balance: if shortfall_is_tds is checked, shortfall is TDS not pending
+        $balance_amount = $total_amount - $total_received;
+        if($shortfall_is_tds == 1) {
+            $balance_amount = $balance_amount - $total_shortfall;
+        }
+        $balance_amount = max(0, $balance_amount); // Balance can't be negative
 
         // Inside the save_po_details function, after handling the PO file upload
         // Add this code for e-way bill upload
@@ -1212,16 +1242,18 @@ Class Master extends DBConnection {
         // Modify the INSERT query to include the new fields
         if(empty($id)) {
             $sql = "INSERT INTO purchase_orders (
-                    client_id, po_code, requirement, specification, 
+                    client_id, po_code, po_type, requirement, specification, 
                     expected_delivery, remarks, advance_received,
                     inspection_received, installation_received,
-                    credit_received, tds_amount, po_file, eway_file, lr_file, quotation_file
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    credit_received, advance_excess, inspection_excess,
+                    installation_excess, credit_excess, shortfall_is_tds, balance_amount, po_file, eway_file, lr_file, quotation_file
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             
             $stmt = $this->conn->prepare($sql);
-            $stmt->bind_param("isssssdddddssss", 
+            $stmt->bind_param("issssssddddddddidssss", 
                 $client_id,
                 $po_code,
+                $po_type,
                 $requirement,
                 $specification,
                 $expected_delivery,
@@ -1230,7 +1262,12 @@ Class Master extends DBConnection {
                 $insp_received,
                 $inst_received,
                 $cred_received,
-                $tds_amount,
+                $adv_excess,
+                $insp_excess,
+                $inst_excess,
+                $cred_excess,
+                $shortfall_is_tds,
+                $balance_amount,
                 $uploadedFile,
                 $uploadedEwayFile,
                 $uploadedLrFile,
@@ -1239,6 +1276,7 @@ Class Master extends DBConnection {
         } else {
             // Build UPDATE query dynamically based on which files were uploaded
             $updateFields = [
+                "po_type = ?",
                 "requirement = ?",
                 "specification = ?",
                 "expected_delivery = ?",
@@ -1247,9 +1285,15 @@ Class Master extends DBConnection {
                 "inspection_received = ?",
                 "installation_received = ?",
                 "credit_received = ?",
-                "tds_amount = ?"
+                "advance_excess = ?",
+                "inspection_excess = ?",
+                "installation_excess = ?",
+                "credit_excess = ?",
+                "shortfall_is_tds = ?",
+                "balance_amount = ?"
             ];
             $params = [
+                $po_type,
                 $requirement,
                 $specification,
                 $expected_delivery,
@@ -1258,9 +1302,14 @@ Class Master extends DBConnection {
                 $insp_received,
                 $inst_received,
                 $cred_received,
-                $tds_amount
+                $adv_excess,
+                $insp_excess,
+                $inst_excess,
+                $cred_excess,
+                $shortfall_is_tds,
+                $balance_amount
             ];
-            $types = "ssssddddd";
+            $types = "sssssddddddddid";
 
             if($uploadedFile) {
                 $updateFields[] = "po_file = ?";
@@ -3612,6 +3661,17 @@ function delete_utility_supplier(){
             
             $barcode_id = $this->conn->insert_id;
             
+            // Generate unique short code (6-digit random number)
+            $short_code = null;
+            for($i = 0; $i < 10; $i++) {
+                $short_code = str_pad(mt_rand(100000, 999999), 6, '0', STR_PAD_LEFT);
+                $check = $this->conn->query("SELECT id FROM item_barcodes WHERE short_code = '$short_code'");
+                if($check && $check->num_rows == 0) break;
+            }
+            
+            // Try to update with short_code (column may not exist in old databases)
+            @$this->conn->query("UPDATE item_barcodes SET short_code = '$short_code' WHERE id = $barcode_id");
+            
             // Insert stock movement record
             $movement_sql = "INSERT INTO stock_movement (item_id, quantity, reference_type, reference_id, barcode_id, movement_type, remarks, created_by, created_at) 
                             VALUES ($item_id, $quantity, '$reference_type', " . ($po_id ? $po_id : 'NULL') . ", $barcode_id, 'IN', '$remarks', $created_by, NOW())";
@@ -3624,6 +3684,7 @@ function delete_utility_supplier(){
             $resp['status'] = 'success';
             $resp['barcode_id'] = $barcode_id;
             $resp['barcode_code'] = $barcode_code;
+            $resp['short_code'] = $short_code;
             
         } catch (Exception $e) {
             $resp['msg'] = 'Exception: ' . $e->getMessage();
@@ -3632,7 +3693,352 @@ function delete_utility_supplier(){
         
         return json_encode($resp);
     }
+
+    function get_barcode_info(){
+        $resp = ['status' => 'failed', 'msg' => 'Barcode not found'];
+        
+        try {
+            $barcode_id = isset($_POST['barcode_id']) ? trim($_POST['barcode_id']) : '';
+            
+            if(empty($barcode_id)){
+                $resp['msg'] = 'Barcode ID is required';
+                return json_encode($resp);
+            }
+            
+            // Use non-prepared statement for simplicity
+            $barcode_id = $this->conn->real_escape_string($barcode_id);
+
+            // Resolve scanned data to a stored barcode id (item_barcodes.id) when possible
+            $barcode_id_numeric = null;
+            $barcode_code = '';
+
+            // First try: lookup by short_code (6-digit hash)
+            if(ctype_digit($barcode_id) && strlen($barcode_id) >= 6 && strlen($barcode_id) <= 8){
+                $bc_res = @$this->conn->query("SELECT id, barcode_code FROM item_barcodes WHERE short_code = '{$barcode_id}' LIMIT 1");
+                if($bc_res && $bc_res->num_rows > 0){
+                    $bc_row = $bc_res->fetch_assoc();
+                    $barcode_id_numeric = intval($bc_row['id']);
+                    $barcode_code = $bc_row['barcode_code'];
+                }
+            }
+
+            if($barcode_id_numeric === null && ctype_digit($barcode_id)){
+                $barcode_id_numeric = intval($barcode_id);
+                $bc_res = $this->conn->query("SELECT id, barcode_code FROM item_barcodes WHERE id = {$barcode_id_numeric} LIMIT 1");
+                if($bc_res && $bc_res->num_rows > 0){
+                    $bc_row = $bc_res->fetch_assoc();
+                    $barcode_code = $bc_row['barcode_code'];
+                } else {
+                    $barcode_id_numeric = null;
+                }
+            }
+
+            if($barcode_id_numeric === null){
+                $bc_res = $this->conn->query("SELECT id, barcode_code FROM item_barcodes WHERE barcode_code = '{$barcode_id}' LIMIT 1");
+                if($bc_res && $bc_res->num_rows > 0){
+                    $bc_row = $bc_res->fetch_assoc();
+                    $barcode_id_numeric = intval($bc_row['id']);
+                    $barcode_code = $bc_row['barcode_code'];
+                } else {
+                    $bc_res = $this->conn->query("SELECT id, barcode_code FROM item_barcodes WHERE '{$barcode_id}' LIKE CONCAT(barcode_code, '-%') ORDER BY LENGTH(barcode_code) DESC LIMIT 1");
+                    if($bc_res && $bc_res->num_rows > 0){
+                        $bc_row = $bc_res->fetch_assoc();
+                        $barcode_id_numeric = intval($bc_row['id']);
+                        $barcode_code = $bc_row['barcode_code'];
+                    }
+                }
+            }
+
+            $barcode_id_for_stock = $barcode_id_numeric !== null ? (string)$barcode_id_numeric : $barcode_id;
+            
+            // DEBUG: Check what values we have before querying stock
+            if($barcode_id_numeric === null && $barcode_code === ''){
+                $resp['msg'] = 'DEBUG: Barcode lookup failed - no match found in item_barcodes';
+                $resp['debug_scanned'] = $barcode_id;
+                return json_encode($resp);
+            }
+            
+            $sql = "SELECT sm.item_id, il.name as item_name, sm.quantity as received_qty
+                FROM stock_movement sm
+                JOIN item_list il ON sm.item_id = il.id
+                WHERE sm.barcode_id = '{$barcode_id_for_stock}' AND sm.movement_type = 'IN'
+                LIMIT 1";
+            
+            $result = $this->conn->query($sql);
+            
+            if(!$result){
+                $resp['msg'] = 'Query error: ' . $this->conn->error;
+                return json_encode($resp);
+            }
+            
+            if($result->num_rows == 0){
+                $resp['msg'] = 'Barcode not found or no received stock';
+                $resp['debug_sql'] = $sql;
+                $resp['debug_barcode_id_for_stock'] = $barcode_id_for_stock;
+                $resp['debug_barcode_id_numeric'] = $barcode_id_numeric;
+                $resp['debug_barcode_code'] = $barcode_code;
+                return json_encode($resp);
+            }
+            
+            $row = $result->fetch_assoc();
+            
+            // Calculate qty used
+            $barcode_code_esc = $this->conn->real_escape_string($barcode_code);
+            $used_where = "barcode_id = '{$barcode_id_for_stock}'";
+            if($barcode_code_esc !== ''){
+                $used_where .= " OR barcode_id = '{$barcode_code_esc}' OR barcode_id LIKE '{$barcode_code_esc}-%'";
+            }
+
+            $used_sql = "SELECT COALESCE(SUM(quantity_used), 0) as qty_used 
+                FROM utilization_history 
+                WHERE {$used_where}";
+            
+            $used_result = $this->conn->query($used_sql);
+            $used_row = $used_result->fetch_assoc();
+            $qty_used = intval($used_row['qty_used']);
+            $available_qty = intval($row['received_qty']) - $qty_used;
+            
+            if($available_qty <= 0){
+                $resp['status'] = 'failed';
+                $resp['msg'] = 'No stock available for this barcode (fully utilized)';
+                return json_encode($resp);
+            }
+            
+            $resp['status'] = 'success';
+            $resp['barcode_id'] = $barcode_id_for_stock;
+            $resp['barcode_code'] = $barcode_code;
+            $resp['item_id'] = intval($row['item_id']);
+            $resp['item_name'] = $row['item_name'];
+            $resp['received_qty'] = intval($row['received_qty']);
+            $resp['qty_used'] = $qty_used;
+            $resp['available_qty'] = $available_qty;
+            
+        } catch (Exception $e) {
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('get_barcode_info error: ' . $e->getMessage());
+        }
+        
+        return json_encode($resp);
+    }
+
+    function save_utilization(){
+        $resp = ['status' => 'failed', 'msg' => 'Failed to save utilization'];
+        
+        try {
+            $barcode_id = isset($_POST['barcode_id']) ? $_POST['barcode_id'] : '';
+            $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
+            $quantity_used = isset($_POST['quantity_used']) ? intval($_POST['quantity_used']) : 0;
+            $purpose = isset($_POST['purpose']) ? $_POST['purpose'] : '';
+            $project_id = isset($_POST['project_id']) && !empty($_POST['project_id']) ? intval($_POST['project_id']) : null;
+            $remarks = isset($_POST['remarks']) ? $_POST['remarks'] : '';
+            
+            // Validate inputs
+            if(empty($barcode_id) || $item_id <= 0 || $quantity_used <= 0){
+                $resp['msg'] = 'Invalid barcode, item, or quantity';
+                return json_encode($resp);
+            }
+            
+            // Escape strings
+            $barcode_id = $this->conn->real_escape_string($barcode_id);
+            $purpose = $this->conn->real_escape_string($purpose);
+            $remarks = $this->conn->real_escape_string($remarks);
+            
+            // Get current available quantity
+            $check_sql = "SELECT sm.quantity as received_qty,
+                COALESCE(SUM(CASE WHEN uh.id IS NOT NULL THEN uh.quantity_used ELSE 0 END), 0) as qty_used
+                FROM stock_movement sm
+                LEFT JOIN utilization_history uh ON sm.barcode_id = uh.barcode_id
+                WHERE sm.barcode_id = '{$barcode_id}' AND sm.movement_type = 'IN'
+                GROUP BY sm.id";
+            
+            $check_result = $this->conn->query($check_sql);
+            
+            if(!$check_result || $check_result->num_rows === 0){
+                $resp['msg'] = 'Barcode not found';
+                return json_encode($resp);
+            }
+            
+            $row = $check_result->fetch_assoc();
+            $available = intval($row['received_qty']) - intval($row['qty_used']);
+            
+            if($quantity_used > $available){
+                $resp['msg'] = 'Quantity exceeds available stock';
+                return json_encode($resp);
+            }
+            
+            // Calculate remaining quantity after this utilization
+            $quantity_remaining = $available - $quantity_used;
+            
+            // Insert utilization record
+            $utilized_by = isset($_SESSION['userdata']['id']) ? $_SESSION['userdata']['id'] : 1;
+            $utilized_at = date('Y-m-d H:i:s');
+            
+            $project_id_sql = $project_id !== null ? $project_id : 'NULL';
+            
+            $insert_sql = "INSERT INTO utilization_history 
+                    (barcode_id, item_id, quantity_used, quantity_remaining, purpose, project_id, remarks, utilized_by, utilized_at)
+                    VALUES ('{$barcode_id}', {$item_id}, {$quantity_used}, {$quantity_remaining}, '{$purpose}', {$project_id_sql}, '{$remarks}', {$utilized_by}, '{$utilized_at}')";
+            
+            $insert_result = $this->conn->query($insert_sql);
+            
+            if(!$insert_result){
+                $resp['msg'] = 'Execute failed: ' . $this->conn->error;
+                return json_encode($resp);
+            }
+            
+            // Update is_fully_utilized flag if all stock is used
+            if($quantity_remaining <= 0){
+                $this->conn->query("UPDATE stock_movement SET is_fully_utilized = 1 WHERE barcode_id = '{$barcode_id}'");
+            }
+            
+            $resp['status'] = 'success';
+            $resp['msg'] = 'Stock utilization recorded successfully';
+            $this->settings->set_flashdata('success', 'Stock utilization recorded: ' . $quantity_used . ' units used');
+            
+        } catch (Exception $e) {
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('save_utilization error: ' . $e->getMessage());
+        }
+        
+        return json_encode($resp);
+    }
+
+    function delete_utilization(){
+        $resp = ['status' => 'failed', 'msg' => 'Failed to delete utilization'];
+        
+        try {
+            $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+            
+            if ($id <= 0) {
+                $resp['msg'] = 'Invalid utilization ID';
+                return json_encode($resp);
+            }
+            
+            // Delete the utilization record
+            $id_escaped = $this->conn->real_escape_string($id);
+            $sql = "DELETE FROM utilization_history WHERE id = {$id_escaped}";
+            $delete = $this->conn->query($sql);
+            
+            if ($delete) {
+                $resp['status'] = 'success';
+                $resp['msg'] = 'Utilization record deleted successfully';
+            } else {
+                $resp['msg'] = 'Database error: ' . $this->conn->error;
+            }
+            
+        } catch (Exception $e) {
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('delete_utilization error: ' . $e->getMessage());
+        }
+        
+        return json_encode($resp);
+    }
+
+    function universal_search(){
+        $resp = [
+            'status' => 'success',
+            'query' => '',
+            'clients' => [],
+            'suppliers' => [],
+            'proforma_invoices' => [],
+            'po_details' => [],
+            'item_purchase_orders' => []
+        ];
+
+        try {
+            $q = isset($_POST['q']) ? trim($_POST['q']) : '';
+            $resp['query'] = $q;
+
+            if($q === '' || strlen($q) < 2){
+                return json_encode($resp);
+            }
+
+            $q_esc = $this->conn->real_escape_string($q);
+            $like = "%{$q_esc}%";
+
+            $clients_sql = "SELECT id, company_name, contact_person, contact_no
+                            FROM clients
+                            WHERE company_name LIKE '{$like}'
+                               OR contact_person LIKE '{$like}'
+                               OR contact_no LIKE '{$like}'
+                            ORDER BY company_name ASC
+                            LIMIT 6";
+            $clients_q = $this->conn->query($clients_sql);
+            if($clients_q){
+                while($row = $clients_q->fetch_assoc()){
+                    $resp['clients'][] = $row;
+                }
+            }
+
+            $suppliers_sql = "SELECT id, name, cperson, contact, email
+                              FROM supplier_list
+                              WHERE name LIKE '{$like}'
+                                 OR cperson LIKE '{$like}'
+                                 OR contact LIKE '{$like}'
+                                 OR email LIKE '{$like}'
+                              ORDER BY name ASC
+                              LIMIT 6";
+            $suppliers_q = $this->conn->query($suppliers_sql);
+            if($suppliers_q){
+                while($row = $suppliers_q->fetch_assoc()){
+                    $resp['suppliers'][] = $row;
+                }
+            }
+
+            $pi_sql = "SELECT pi.id, pi.po_code, pi.total_amount, pi.po_date_created, c.company_name
+                       FROM proforma_invoice_list pi
+                       LEFT JOIN clients c ON c.id = pi.client_id
+                       WHERE pi.po_code LIKE '{$like}'
+                          OR c.company_name LIKE '{$like}'
+                       ORDER BY pi.id DESC
+                       LIMIT 6";
+            $pi_q = $this->conn->query($pi_sql);
+            if($pi_q){
+                while($row = $pi_q->fetch_assoc()){
+                    $resp['proforma_invoices'][] = $row;
+                }
+            }
+
+            $po_sql = "SELECT po.id, po.po_code, po.status, po.expected_delivery, c.company_name
+                       FROM purchase_orders po
+                       LEFT JOIN clients c ON c.id = po.client_id
+                       WHERE po.po_code LIKE '{$like}'
+                          OR c.company_name LIKE '{$like}'
+                       ORDER BY po.id DESC
+                       LIMIT 6";
+            $po_q = $this->conn->query($po_sql);
+            if($po_q){
+                while($row = $po_q->fetch_assoc()){
+                    $resp['po_details'][] = $row;
+                }
+            }
+
+            $item_po_sql = "SELECT pol.id, pol.po_code, pol.company, pol.created_at,
+                                i.name AS item_name, s.name AS supplier_name
+                            FROM po_items poi
+                            INNER JOIN purchase_order_list pol ON pol.id = poi.po_id
+                            INNER JOIN item_list i ON i.id = poi.item_id
+                            LEFT JOIN supplier_list s ON s.id = pol.supplier_id
+                            WHERE i.name LIKE '{$like}'
+                               OR pol.po_code LIKE '{$like}'
+                            ORDER BY pol.created_at DESC
+                            LIMIT 10";
+            $item_po_q = $this->conn->query($item_po_sql);
+            if($item_po_q){
+                while($row = $item_po_q->fetch_assoc()){
+                    $resp['item_purchase_orders'][] = $row;
+                }
+            }
+
+        } catch (Exception $e) {
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+        }
+
+        return json_encode($resp);
+    }
 }
+
 $Master = new Master();
 $action = !isset($_GET['f']) ? 'none' : strtolower($_GET['f']);
 $sysset = new SystemSettings();
@@ -3835,8 +4241,20 @@ switch ($action) {
     case 'save_received_barcode':
         echo $Master->save_received_barcode();
     break;
+    case 'get_barcode_info':
+        echo $Master->get_barcode_info();
+    break;
+    case 'save_utilization':
+        echo $Master->save_utilization();
+    break;
+    case 'delete_utilization':
+        echo $Master->delete_utilization();
+    break;
     case 'delete_receipt':
         echo $Master->delete_receipt();
+    break;
+    case 'universal_search':
+        echo $Master->universal_search();
     break;
 	default:
 		// echo $sysset->index();
