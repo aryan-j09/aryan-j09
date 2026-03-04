@@ -390,11 +390,12 @@ while ($row = $item_query->fetch_assoc()) {
             <table class="table table-striped table-bordered table-sm" id="list">
                 <colgroup>
                     <col width="5%">
-                    <col width="50%">
-                    <col width="13.5%">
-                    <col width="10%">
+                    <col width="45%">
+                    <col width="11%">
+                    <col width="9%">
                     <col width="8%">
-                    <col width="18.5%">
+                    <col width="10%">
+                    <col width="12%">
                 </colgroup>
                 <thead>
                     <tr class="text-light bg-navy">
@@ -403,6 +404,7 @@ while ($row = $item_query->fetch_assoc()) {
                         <th class="text-center py-1 px-2">Price</th>
                         <th class="text-center py-1 px-2">Qty.</th>
                         <th class="text-center py-1 px-2">Discount</th>
+                        <th class="text-center py-1 px-2">Discounted Price</th>
                         <th class="text-center py-1 px-2">Amount</th>
                     </tr>
                 </thead>
@@ -439,15 +441,16 @@ while ($row = $item_query->fetch_assoc()) {
                                 <td class="py-1 px-2 text-right"><?php echo number_format_indian($item['amount'], 2) ?></td>
                                 <td class="py-1 px-2 text-right"><?php echo number_format($item['quantity']) ?>(<?php echo $item['unit'] ?>)</td>
                                 <td class="py-1 px-2 text-right">
-                                    <?php echo number_format_indian($discounted_price_per_item, 2) ?>
+                                    <?php echo number_format_indian($per_item_discount_amount, 2) ?>
                                     (<?php echo number_format($item['discount'], 2) ?>%)
                                 </td>
+                                <td class="py-1 px-2 text-right"><?php echo number_format_indian($discounted_price_per_item, 2) ?></td>
                                 <td class="py-1 px-2 text-right"><?php echo number_format_indian($item['total_amount'], 2) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="8" class="text-center">No items found</td>
+                            <td colspan="7" class="text-center">No items found</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
@@ -475,34 +478,34 @@ while ($row = $item_query->fetch_assoc()) {
                 ?>
                 <tfoot>
                     <tr>
-                        <th class="text-right" colspan="5">Sub Total:</th>
+                        <th class="text-right" colspan="6">Sub Total:</th>
                         <td class="text-right"><?php echo number_format_indian($invoice['sub_total'], 2); ?></td>
                     </tr>
                     <tr>
                         <?php if ($invoice['tax'] > 0): ?>
-                            <th class="text-right" colspan="5">IGST (<?php echo $invoice['tax']; ?>%):</th>
+                            <th class="text-right" colspan="6">IGST (<?php echo $invoice['tax']; ?>%):</th>
                             <td class="text-right"><?php echo number_format_indian($invoice['tax_amount'], 2); ?></td>
                         <?php endif; ?>
                     </tr>
                     <tr>
                         <?php if ($invoice['cgst'] > 0): ?>
-                            <th class="text-right" colspan="5">CGST (<?php echo $invoice['cgst']; ?>%):</th>
+                            <th class="text-right" colspan="6">CGST (<?php echo $invoice['cgst']; ?>%):</th>
                             <td class="text-right"><?php echo number_format_indian($invoice['cgst_amount'], 2); ?></td>
                         <?php endif; ?>
                     </tr>
                     <tr>
                         <?php if ($invoice['sgst'] > 0): ?>
-                            <th class="text-right" colspan="5">SGST (<?php echo $invoice['sgst']; ?>%):</th>
+                            <th class="text-right" colspan="6">SGST (<?php echo $invoice['sgst']; ?>%):</th>
                             <td class="text-right"><?php echo $invoice['sgst_amount']; ?></td>
                         <?php endif; ?>
                     </tr>
                     <tr>
-                        <th class="text-right" style="color: red;" colspan="5"><u>Grand Total:</u></th>
+                        <th class="text-right" style="color: red;" colspan="6"><u>Grand Total:</u></th>
                         <th class="text-right"><?php echo number_format_indian($invoice['grand_total'], 2); ?></th>
                     </tr>
                     <tr>
                         <?php if ($invoice['final_discounted_price'] > 0): ?>
-                            <th class="text-right" colspan="5">Discounted Price:</th>
+                            <th class="text-right" colspan="6">Discounted Price:</th>
                             <th class="text-right"><?php echo number_format_indian($invoice['final_discounted_price'], 2); ?></th>
                         <?php endif; ?>
                     </tr>
