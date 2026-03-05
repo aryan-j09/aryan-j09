@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                                     <span class="sr-only">Toggle Dropdown</span>
                                 </button>
                                 <div class="dropdown-menu" role="menu">
-                                    <a class="dropdown-item" href="<?php echo base_url.'admin?page=purchase_order/view_po&id='.$row['id'].'&company='.urlencode($row['company']) ?>" data-id="<?php echo $row['id'] ?>">
+                                    <a class="dropdown-item" href="<?php echo base_url.'admin?page=purchase_order/view_po&id='.$row['id'].'&company='.urlencode($row['company']) ?>" data-id="<?php echo $row['id'] ?>" target="_blank" rel="noopener noreferrer">
                                         <span class="fa fa-eye text-dark"></span> View
                                     </a>
                                     <div class="dropdown-divider"></div>

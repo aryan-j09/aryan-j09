@@ -6,8 +6,35 @@ date_default_timezone_set('Asia/Kolkata');
 define('_base_url_', 'https://sbpanchal.com/cms/');
 
 $success_message = '';
+$duplicate_po_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (isset($_POST['action']) && $_POST['action'] === 'check_po_code') {
+        $po_code = isset($_POST['po_code']) ? trim($_POST['po_code']) : '';
+        $id = isset($_POST['id']) && $_POST['id'] !== '' ? (int)$_POST['id'] : 0;
+
+        $resp = ['status' => 'success', 'exists' => false];
+
+        if ($po_code !== '') {
+            if ($id > 0) {
+                $check_stmt = $conn->prepare("SELECT id FROM purchase_order_list WHERE po_code = ? AND id != ? LIMIT 1");
+                $check_stmt->bind_param("si", $po_code, $id);
+            } else {
+                $check_stmt = $conn->prepare("SELECT id FROM purchase_order_list WHERE po_code = ? LIMIT 1");
+                $check_stmt->bind_param("s", $po_code);
+            }
+
+            if ($check_stmt->execute()) {
+                $check_stmt->store_result();
+                $resp['exists'] = $check_stmt->num_rows > 0;
+            }
+        }
+
+        header('Content-Type: application/json');
+        echo json_encode($resp);
+        exit;
+    }
+
     $id = isset($_POST['id']) ? $_POST['id'] : null;
     $po_code = $_POST['po_code'];
     $internal_ref_no = $_POST['internal_ref_no'];
@@ -33,7 +60,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $cgst_amount = ($sub_total * $cgst) / 100;
     $sgst_amount = ($sub_total * $sgst) / 100;
 
-    if (empty($id)) {
+    // Block save when PO code already exists (excluding current record on edit).
+    if (!empty($id)) {
+        $dup_stmt = $conn->prepare("SELECT id FROM purchase_order_list WHERE po_code = ? AND id != ? LIMIT 1");
+        $dup_stmt->bind_param("si", $po_code, $id);
+    } else {
+        $dup_stmt = $conn->prepare("SELECT id FROM purchase_order_list WHERE po_code = ? LIMIT 1");
+        $dup_stmt->bind_param("s", $po_code);
+    }
+
+    $dup_stmt->execute();
+    $dup_stmt->store_result();
+    if ($dup_stmt->num_rows > 0) {
+        $duplicate_po_message = 'This PO code already exists.';
+    }
+
+    if (empty($duplicate_po_message) && empty($id)) {
         // Get current date/time in the correct timezone
         $created_at = date('Y-m-d H:i:s');
         
@@ -68,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $packing_forwarding,
             $created_at
         );
-    } else {
+    } else if (empty($duplicate_po_message)) {
         $stmt = $conn->prepare("UPDATE purchase_order_list SET 
             po_code = ?, internal_ref_no = ?, supplier_id = ?, remarks = ?, spec_sheet = ?,
             final_discounted_price = ?, tax = ?, cgst = ?, sgst = ?, sub_total = ?, 
@@ -104,7 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     // Execute the statement
-    if ($stmt->execute()) {
+    if (empty($duplicate_po_message) && $stmt->execute()) {
         if (empty($id)) {
             $id = $conn->insert_id;
         }
@@ -138,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 window.location.href = "' . $redirect_url . '";
               </script>';
         exit;
-    } else {
+    } else if (empty($duplicate_po_message)) {
         $success_message = 'Error: ' . $stmt->error;
     }
 }
@@ -284,6 +326,12 @@ while($row = $item_query->fetch_assoc()) {
     </div>
 <?php endif; ?>
 
+<?php if ($duplicate_po_message): ?>
+    <div class="alert alert-danger">
+        <?php echo $duplicate_po_message; ?>
+    </div>
+<?php endif; ?>
+
 <form id="manage-po" action="" method="POST">
     <input type="hidden" name="id" value="<?php echo isset($id) ? $id : ''; ?>">
     <div class="row">
@@ -291,6 +339,7 @@ while($row = $item_query->fetch_assoc()) {
             <div class="form-group">
                 <label for="po_code">PO Code</label>
                 <input type="text" name="po_code" id="po_code" class="form-control" placeholder="PO Code" value="<?php echo isset($po_code) ? $po_code : ''; ?>" required>
+                <small id="po-code-error" class="text-danger" style="display:none;">This PO code already exists.</small>
             </div>
             <div class="form-group">
                 <label for="internal_ref_no">Internal Ref No</label>
@@ -585,6 +634,49 @@ while($row = $item_query->fetch_assoc()) {
 var items = <?php echo json_encode($item_arr); ?>;
 
 $(document).ready(function() {
+    var poCodeExists = false;
+
+    function togglePoCodeError(show) {
+        poCodeExists = !!show;
+        if (poCodeExists) {
+            $('#po_code').addClass('is-invalid');
+            $('#po-code-error').show();
+        } else {
+            $('#po_code').removeClass('is-invalid');
+            $('#po-code-error').hide();
+        }
+    }
+
+    function checkPoCodeExists(callback) {
+        var poCode = $.trim($('#po_code').val());
+        var currentId = $('input[name="id"]').val();
+
+        if (poCode === '') {
+            poCodeExists = false;
+            if (typeof callback === 'function') callback(false);
+            return;
+        }
+
+        $.ajax({
+            url: '',
+            method: 'POST',
+            dataType: 'json',
+            data: {
+                action: 'check_po_code',
+                po_code: poCode,
+                id: currentId
+            },
+            success: function(resp) {
+                togglePoCodeError(!!(resp && resp.exists));
+                if (typeof callback === 'function') callback(poCodeExists);
+            },
+            error: function() {
+                togglePoCodeError(false);
+                if (typeof callback === 'function') callback(false);
+            }
+        });
+    }
+
     $('.select2').select2({
         placeholder: "Please select here",
         width: 'resolve',
@@ -608,6 +700,28 @@ $(document).ready(function() {
     $('#cancel-btn').click(function() {
         location.href = _base_url_ + "admin/?page=purchase_order";
     });
+
+    $('#po_code').on('blur change', function() {
+        checkPoCodeExists();
+    });
+
+    $('#manage-po').on('submit', function(e) {
+        e.preventDefault();
+        var form = this;
+        checkPoCodeExists(function(exists) {
+            if (exists || poCodeExists) {
+                togglePoCodeError(true);
+                $('#po_code').focus();
+                return;
+            }
+            form.submit();
+        });
+    });
+
+    <?php if ($duplicate_po_message): ?>
+    togglePoCodeError(true);
+    $('#po_code').focus();
+    <?php endif; ?>
 
     function updateItemSelects() {
         // Store current selections
