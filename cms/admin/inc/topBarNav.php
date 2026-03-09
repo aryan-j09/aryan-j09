@@ -167,6 +167,29 @@ $tasks_count += $tasks_pending;
   .bg-warning-light {
     background-color: rgba(255, 193, 7, 0.1);
   }
+
+  /* Mobile-only sidebar fallback for iOS/Safari rendering issues. */
+  @media (max-width: 991.98px) {
+    .main-sidebar .os-content-glue,
+    .main-sidebar .os-scrollbar,
+    .main-sidebar .os-resize-observer-host,
+    .main-sidebar .os-size-auto-observer {
+      display: none !important;
+    }
+
+    .main-sidebar .os-padding,
+    .main-sidebar .os-viewport,
+    .main-sidebar .os-content {
+      height: auto !important;
+      width: auto !important;
+      max-height: none !important;
+    }
+
+    .main-sidebar .sidebar {
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
 </style>
 <!-- Navbar -->
       <nav class="main-header navbar navbar-expand navbar-dark border border-light border-top-0  border-left-0 border-right-0 navbar-light text-sm bg-grey">
@@ -386,14 +409,34 @@ $tasks_count += $tasks_pending;
 </div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const isMobileViewport = window.matchMedia('(max-width: 991.98px)').matches;
+
     // Add the no-transition class initially
     document.body.classList.add('no-transition');
 
-    // Apply the saved state on page load
-    if (localStorage.getItem('sidebarHidden') === 'true') {
+    // Apply saved desktop state only on desktop.
+    if (!isMobileViewport && localStorage.getItem('sidebarHidden') === 'true') {
       document.querySelector('.main-sidebar').classList.add('hidden-nav');
       document.querySelector('.content-wrapper').classList.add('expanded-content');
       document.querySelector('.main-header').classList.add('expanded-header');
+    }
+
+    // Force clean state on mobile so desktop localStorage state can't affect iPhone.
+    if (isMobileViewport) {
+      localStorage.removeItem('sidebarHidden');
+      document.querySelector('.main-sidebar').classList.remove('hidden-nav');
+      document.querySelector('.content-wrapper').classList.remove('expanded-content');
+      document.querySelector('.main-header').classList.remove('expanded-header');
+
+      const osContent = document.querySelector('.main-sidebar .os-content');
+      const osViewport = document.querySelector('.main-sidebar .os-viewport');
+      if (osContent) {
+        osContent.style.height = 'auto';
+        osContent.style.width = 'auto';
+      }
+      if (osViewport) {
+        osViewport.style.overflowY = 'auto';
+      }
     }
 
     // Remove the no-transition class and add the page-loaded class after the page has loaded
@@ -403,7 +446,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 0);
 
     // Toggle the sidebar and save the state
-    document.getElementById('toggle-nav').addEventListener('click', function() {
+    document.getElementById('toggle-nav').addEventListener('click', function(e) {
+      if (isMobileViewport) {
+        // Keep desktop behavior unchanged; mobile uses AdminLTE off-canvas behavior.
+        e.preventDefault();
+        document.body.classList.toggle('sidebar-open');
+        return;
+      }
+
       document.querySelector('.main-sidebar').classList.toggle('hidden-nav');
       document.querySelector('.content-wrapper').classList.toggle('expanded-content');
       document.querySelector('.main-header').classList.toggle('expanded-header');
