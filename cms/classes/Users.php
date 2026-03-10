@@ -128,8 +128,6 @@ Class Users extends DBConnection {
 						if(is_file($dir_path))
 						unlink($dir_path);
 						$uploaded_img = imagepng($t_image,$dir_path);
-						imagedestroy($gdImg);
-						imagedestroy($t_image);
 				}else{
 				$resp['msg'].=" But Image failed to upload due to unkown reason.";
 				}

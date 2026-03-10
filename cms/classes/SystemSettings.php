@@ -29,6 +29,7 @@ class SystemSettings extends DBConnection{
 		return true;
 	}
 	function update_settings_info(){
+		$resp = array('msg' => '');
 		$data = "";
 		foreach ($_POST as $key => $value) {
 			if(!in_array($key,array("content")))
@@ -67,8 +68,6 @@ class SystemSettings extends DBConnection{
 						if(is_file($dir_path))
 						unlink($dir_path);
 						$uploaded_img = imagepng($t_image,$dir_path);
-						imagedestroy($gdImg);
-						imagedestroy($t_image);
 				}else{
 				$resp['msg'].=" But Image failed to upload due to unkown reason.";
 				}
@@ -103,8 +102,6 @@ class SystemSettings extends DBConnection{
 						if(is_file($dir_path))
 						unlink($dir_path);
 						$uploaded_img = imagepng($t_image,$dir_path);
-						imagedestroy($gdImg);
-						imagedestroy($t_image);
 				}else{
 				$resp['msg'].=" But Image failed to upload due to unkown reason.";
 				}
