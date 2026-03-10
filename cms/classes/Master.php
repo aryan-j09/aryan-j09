@@ -804,6 +804,49 @@ Class Master extends DBConnection {
         return json_encode($resp);
     }
 
+    function get_po_summary(){
+        header('Content-Type: application/json');
+        try {
+            $start_date = isset($_POST['start_date']) ? $_POST['start_date'] : date('Y-m-01');
+            $end_date = isset($_POST['end_date']) ? $_POST['end_date'] : date('Y-m-d');
+            
+            $resp = array();
+            
+            // Overall total
+            $overall_total = $this->conn->query("SELECT COALESCE(SUM(grand_total), 0) as total FROM `purchase_order_list` 
+                                           WHERE DATE(created_at) BETWEEN '{$start_date}' AND '{$end_date}'");
+            $overall_row = $overall_total->fetch_assoc();
+            $resp['overall_total'] = $overall_row['total'];
+            
+            // By Company
+            $company_totals = $this->conn->query("SELECT company, COALESCE(SUM(grand_total), 0) as total FROM `purchase_order_list` 
+                                            WHERE DATE(created_at) BETWEEN '{$start_date}' AND '{$end_date}'
+                                            GROUP BY company
+                                            ORDER BY total DESC");
+            $resp['by_company'] = array();
+            while($row = $company_totals->fetch_assoc()) {
+                $resp['by_company'][] = $row;
+            }
+            
+            // By Supplier
+            $supplier_totals = $this->conn->query("SELECT s.name as supplier, COALESCE(SUM(p.grand_total), 0) as total FROM `purchase_order_list` p 
+                                             INNER JOIN supplier_list s ON p.supplier_id = s.id
+                                             WHERE DATE(p.created_at) BETWEEN '{$start_date}' AND '{$end_date}'
+                                             GROUP BY p.supplier_id, s.name
+                                             ORDER BY total DESC");
+            $resp['by_supplier'] = array();
+            while($row = $supplier_totals->fetch_assoc()) {
+                $resp['by_supplier'][] = $row;
+            }
+            
+            echo json_encode($resp);
+        } catch (Exception $e) {
+            echo json_encode(['status' => 'failed', 'msg' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+
     function delete_receipt(){
         $po = isset($_POST['po']) ? $_POST['po'] : '';
         $date = isset($_POST['date']) ? $_POST['date'] : '';
@@ -4114,6 +4157,9 @@ switch ($action) {
 	break;
 	case 'delete_po':
 		echo $Master->delete_po();
+	break;
+	case 'get_po_summary':
+		echo $Master->get_po_summary();
 	break;
     case 'save_client':
         echo $Master->save_client();
