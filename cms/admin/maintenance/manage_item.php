@@ -27,8 +27,8 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
         </div>
         <div class="form-group">
             <label for="supplier_id" class="control-label">Supplier</label>
-            <select name="supplier_id" id="supplier_id" class="custom-select select2">
-            <option <?php echo !isset($supplier_id) ? 'selected' : '' ?> required disabled></option>
+            <select name="supplier_id" id="supplier_id" class="custom-select select2" required>
+            <option value="" <?php echo !isset($supplier_id) ? 'selected' : '' ?> disabled>Select a supplier</option>
             <?php 
             $supplier = $conn->query("SELECT * FROM `supplier_list` where status = 1 order by `name` asc");
             while($row=$supplier->fetch_assoc()):
@@ -82,7 +82,15 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
         $('#item-form').submit(function(e){
             e.preventDefault();
             var _this = $(this);
+            var supplierId = $('#supplier_id').val();
             $('.err-msg').remove();
+            if(!supplierId){
+                var el = $('<div>');
+                el.addClass("alert alert-danger err-msg").text('Please select a supplier.');
+                _this.prepend(el);
+                el.show('slow');
+                return;
+            }
             start_loader();
             $.ajax({
                 url: _base_url_ + "classes/Master.php?f=save_item",
