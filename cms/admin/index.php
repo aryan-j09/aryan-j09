@@ -11,7 +11,22 @@
         alert_toast("<?php echo $_settings->flashdata('success') ?>",'success')
       </script>
       <?php endif;?>    
-     <?php $page = isset($_GET['page']) ? $_GET['page'] : 'home';  ?>
+     <?php
+      $page = isset($_GET['page']) ? trim($_GET['page']) : 'home';
+      if($page === '') $page = 'home';
+      if(!cms_user_can_access_page($conn, $_SESSION['userdata'], $page)){
+        http_response_code(403);
+        ?>
+        <div class="container-fluid">
+          <div class="alert alert-danger">
+            Access denied: you do not have permission to open this module.
+          </div>
+        </div>
+        <?php
+        require_once('inc/footer.php');
+        exit;
+      }
+     ?>
       <!-- Content Wrapper. Contains page content -->
       <div class="content-wrapper pt-3" style="min-height: 567.854px;">
      
@@ -19,7 +34,7 @@
         <section class="content ">
           <div class="container-fluid">
             <?php 
-              if(!file_exists($page.".php") && !is_dir($page)){
+                if(!file_exists($page.".php") && !is_dir($page)){
                   include '404.html';
               }else{
                 if(is_dir($page))

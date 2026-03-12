@@ -6,6 +6,18 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
         $meta[$k] = $v;
     }
 }
+
+$editing_user_id = isset($meta['id']) ? (int)$meta['id'] : 0;
+$selected_type = isset($meta['type']) ? (int)$meta['type'] : 2;
+$assignable_modules = cms_assignable_user_modules();
+$assignable_catalog = array_intersect_key(cms_module_catalog(), array_flip($assignable_modules));
+$selected_modules = array();
+if($editing_user_id > 0){
+    $selected_modules = cms_get_user_access_modules($conn, $editing_user_id, $selected_type);
+}else{
+	$selected_modules = $assignable_modules;
+}
+$selected_modules_lookup = array_flip($selected_modules);
 ?>
 <?php if($_settings->chk_flashdata('success')): ?>
 <script>
@@ -40,9 +52,25 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
 				<div class="form-group col-6">
 					<label for="type">User Type</label>
 					<select name="type" id="type" class="custom-select" value="<?php echo isset($meta['type']) ? $meta['type']: '' ?>" required>
-						<option value="1" <?php echo isset($type) && $type == 1 ? 'selected': '' ?>>Administrator</option>
-						<option value="2"> <?php echo isset($type) && $type == 2 ? 'selected': '' ?>Staff</option>
+						<option value="1" <?php echo $selected_type === 1 ? 'selected': '' ?>>Admin</option>
+						<option value="2" <?php echo $selected_type === 2 ? 'selected': '' ?>>User</option>
 					</select>
+				</div>
+				<div class="form-group col-12" id="module-access-wrap">
+					<label class="mb-2">Module Access (for User type)</label>
+					<div class="border rounded p-3" style="max-height: 220px; overflow-y:auto;">
+						<div class="row">
+							<?php foreach($assignable_catalog as $module_key => $module_label): ?>
+							<div class="col-md-4 col-sm-6">
+								<div class="custom-control custom-checkbox mb-2">
+									<input class="custom-control-input module-access-input" type="checkbox" id="module_<?php echo $module_key ?>" name="access_modules[]" value="<?php echo $module_key ?>" <?php echo isset($selected_modules_lookup[$module_key]) ? 'checked' : '' ?>>
+									<label for="module_<?php echo $module_key ?>" class="custom-control-label"><?php echo $module_label ?></label>
+								</div>
+							</div>
+							<?php endforeach; ?>
+						</div>
+					</div>
+					<small class="text-muted">Admins always have complete access. For User type, choose modules to allow.</small>
 				</div>
 				<div class="form-group col-6">
 					<label for="" class="control-label">Avatar</label>
@@ -79,7 +107,23 @@ if(isset($_GET['id']) && $_GET['id'] > 0){
 		$('.select2').select2({
 			width:'resolve'
 		})
+		toggleModuleAccessByType();
 	})
+
+	function toggleModuleAccessByType(){
+		var selectedType = $('#type').val();
+		if(selectedType === '1'){
+			$('#module-access-wrap').hide();
+			$('.module-access-input').prop('disabled', true);
+		}else{
+			$('#module-access-wrap').show();
+			$('.module-access-input').prop('disabled', false);
+		}
+	}
+
+	$('#type').on('change', function(){
+		toggleModuleAccessByType();
+	});
 	function displayImg(input,_this) {
 	    if (input.files && input.files[0]) {
 	        var reader = new FileReader();

@@ -21,6 +21,7 @@ $daily_tasks_count = $conn->query("SELECT COUNT(*) as count FROM daily_tasks
       AND task_date <= '{$today}'")->fetch_assoc()['count'];
 
 $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
+$current_user = isset($_SESSION['userdata']) ? $_SESSION['userdata'] : array();
 ?>
 
 <!-- Flash CSS for Tasks link when user has pending assigned tasks -->
@@ -60,53 +61,69 @@ $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
           <!-- Sidebar Menu -->
           <nav class="mt-4">
             <ul class="nav nav-pills nav-sidebar flex-column text-sm nav-compact nav-flat nav-child-indent nav-collapse-hide-child" data-widget="treeview" role="menu" data-accordion="false">
+              <?php if(cms_user_can_access_module($conn, $current_user, 'home')): ?>
               <li class="nav-item dropdown">
                 <a href="./" class="nav-link nav-home">
                   <i class="nav-icon fas fa-tachometer-alt"></i>
                   <p>Dashboard</p>
                 </a>
               </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'purchase_order')): ?>
               <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=purchase_order" class="nav-link nav-purchase_order">
                   <i class="nav-icon fas fa-th-list"></i>
                   <p>Purchase Order</p>
                 </a>
               </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'stock')): ?>
               <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=stock" class="nav-link nav-stock">
                   <i class="nav-icon fas fa-exchange-alt"></i>
                   <p>Stock In/Out</p>
                 </a>
               </li>
+              <?php endif; ?>
               <!-- <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=stock_orders" class="nav-link nav-stock_orders">
                   <i class="nav-icon fas fa-shopping-cart"></i>
                   <p>Stock Order</p>
                 </a>
               </li> -->
+              <?php if(cms_user_can_access_module($conn, $current_user, 'proforma_invoice')): ?>
               <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=proforma_invoice" class="nav-link nav-proforma_invoice">
                   <i class="nav-icon fas fa-file-invoice-dollar"></i>
                   <p>Proforma Invoice</p>
                 </a>
               </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'po_details')): ?>
               <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=po_details" class="nav-link nav-po_details">
                   <i class="nav-icon fas fa-file-alt"></i>
                   <p>PO Factory Details</p>
                 </a>
               </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'project_planner2')): ?>
               <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=project_planner2" class="nav-link nav-project_planner2">
                   <i class="nav-icon fas fa-sitemap"></i>
                   <p>Project Planner</p>
                 </a>
-              </li>          
+              </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'leads')): ?>
               <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=leads" class="nav-link nav-leads">
                   <i class="nav-icon fas fa-user-tag"></i>
                   <p>CRM</p>
                 </a>
+              </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'tasks')): ?>
               <li class="nav-item">
                 <?php // Flash the Tasks link only immediately after login when user has pending assigned tasks. Use session flag set at login and clear it so refresh won't re-trigger. ?>
                 <?php
@@ -128,55 +145,70 @@ $total_tasks_count = $tasks_count + $followups_count + $daily_tasks_count;
                   </p>
                 </a>
               </li>
+              <?php endif; ?>
               <!-- <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=quotations" class="nav-link nav-quotations">
                   <i class="nav-icon fas fa-file-invoice"></i>
                   <p>Quotations</p>
                 </a>
               </li> -->
-              <?php if ($_settings->userdata('type') == 1): ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'clients')): ?>
                 <li class="nav-item dropdown">
                   <a href="<?php echo base_url ?>admin/?page=clients" class="nav-link nav-clients">
                     <i class="nav-icon fas fa-users"></i>
                     <p>Client list</p>
                   </a>
                 </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'maintenance')): ?>
                 <li class="nav-item dropdown">
                   <a href="<?php echo base_url ?>admin/?page=maintenance/supplier" class="nav-link nav-maintenance_supplier">
                     <i class="nav-icon fas fa-truck-loading"></i>
                     <p>Supplier List</p>
                   </a>
                 </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'utility')): ?>
                 <li class="nav-item dropdown">
                   <a href="<?php echo base_url ?>admin/?page=utility" class="nav-link nav-utility">
                     <i class="nav-icon fas fa-bolt"></i>
                     <p>Utility Suppliers</p>
                   </a>
                 </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'machine_items')): ?>
                 <li class="nav-item">
                   <a href="<?php echo base_url ?>admin/?page=machine_items" class="nav-link nav-machine_items">
                     <i class="nav-icon fas fa-cogs"></i>
                     <p>Machine Items</p>
                   </a>
                 </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'quote_items')): ?>
                 <li class="nav-item">
                   <a href="<?php echo base_url ?>admin/?page=quote_items" class="nav-link nav-quote_items">
                     <i class="nav-icon fas fa-cogs"></i>
                     <p>Quote Items</p>
                   </a>
                 </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'maintenance')): ?>
                 <li class="nav-item dropdown">
                   <a href="<?php echo base_url ?>admin/?page=maintenance/item" class="nav-link nav-maintenance_item">
                     <i class="nav-icon fas fa-box"></i>
                     <p>Item List</p>
                   </a>
                 </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'user')): ?>
                 <li class="nav-item dropdown">
                   <a href="<?php echo base_url ?>admin/?page=user/list" class="nav-link nav-user_list">
                     <i class="nav-icon fas fa-users"></i>
                     <p>User List</p>
                   </a>
                 </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'system_info')): ?>
                 <li class="nav-item dropdown">
                   <a href="<?php echo base_url ?>admin/?page=system_info" class="nav-link nav-system_info">
                     <i class="nav-icon fas fa-cogs"></i>

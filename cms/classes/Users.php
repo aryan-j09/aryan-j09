@@ -28,6 +28,7 @@ Class Users extends DBConnection {
 	public function save_users(){
 		extract($_POST);
 		$oid = $id;
+		$posted_access_modules = isset($_POST['access_modules']) ? $_POST['access_modules'] : array();
 		$data = '';
 		if(isset($oldpassword)){
 			$current_hash = '';
@@ -72,7 +73,7 @@ Class Users extends DBConnection {
 				$this->settings->set_flashdata('success','User Details successfully updated.');
 				if($id == $this->settings->userdata('id')){
 					foreach($_POST as $k => $v){
-						if($k != 'id'){
+						if($k != 'id' && $k != 'access_modules'){
 							if(!empty($data)) $data .=" , ";
 							$this->settings->set_userdata($k,$v);
 						}
@@ -86,9 +87,22 @@ Class Users extends DBConnection {
 			
 		}
 		if($resp['status'] == 1){
+			$user_type = isset($_POST['type']) ? (int)$_POST['type'] : 2;
+			$modules_to_save = array();
+			if($user_type === 1){
+				$modules_to_save = array_keys(cms_module_catalog());
+			}else{
+				$modules_to_save = is_array($posted_access_modules) ? $posted_access_modules : array();
+				$assignable = cms_assignable_user_modules();
+				$modules_to_save = array_values(array_filter($modules_to_save, function($module) use($assignable){
+					return in_array($module, $assignable, true);
+				}));
+			}
+			cms_save_user_access_modules($this->conn, (int)$id, $modules_to_save, (int)$this->settings->userdata('id'));
+
 			$data="";
 			foreach($_POST as $k => $v){
-				if(!in_array($k,array('id','firstname','middlename','lastname','username','password','type','oldpassword'))){
+				if(!in_array($k,array('id','firstname','middlename','lastname','username','password','type','oldpassword','access_modules'))){
 					if(!empty($data)) $data .=", ";
 					$v = $this->conn->real_escape_string($v);
 					$data .= "('{$id}','{$k}', '{$v}')";
