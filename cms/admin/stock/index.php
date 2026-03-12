@@ -84,8 +84,8 @@ if ($inventory_query) {
                         <span class="info-box-icon"><i class="fas fa-arrow-down"></i></span>
                         <div class="info-box-content">
                             <span class="info-box-text">Total Stock In</span>
-                            <span class="info-box-number"><?php echo $receive_summary['total_quantity']; ?> items</span>
-                            <span class="info-box-text"><?php echo $receive_summary['total_receives']; ?> transactions</span>
+                            <span class="info-box-number" id="stock-in-total"><?php echo $receive_summary['total_quantity']; ?> items</span>
+                            <span class="info-box-text" id="stock-in-transactions"><?php echo $receive_summary['total_receives']; ?> transactions</span>
                         </div>
                     </div>
                 </div>
@@ -94,8 +94,8 @@ if ($inventory_query) {
                         <span class="info-box-icon"><i class="fas fa-arrow-up"></i></span>
                         <div class="info-box-content">
                             <span class="info-box-text">Total Stock Out</span>
-                            <span class="info-box-number"><?php echo $utilize_summary['total_quantity_used']; ?> items</span>
-                            <span class="info-box-text"><?php echo $utilize_summary['total_utilizations']; ?> transactions</span>
+                            <span class="info-box-number" id="stock-out-total"><?php echo $utilize_summary['total_quantity_used']; ?> items</span>
+                            <span class="info-box-text" id="stock-out-transactions"><?php echo $utilize_summary['total_utilizations']; ?> transactions</span>
                         </div>
                     </div>
                 </div>
@@ -151,10 +151,7 @@ if ($inventory_query) {
                                     <td class="text-center">
                                         <button class="btn btn-sm btn-danger delete-receive" 
                                             data-id="<?php echo $rec['id']; ?>"
-                                            data-po="<?php echo $rec['po_code'] ?: ''; ?>"
-                                            data-date="<?php echo date('Y-m-d', strtotime($rec['created_at'])); ?>"
-                                            data-created-at="<?php echo $rec['created_at']; ?>"
-                                            data-reference-type="<?php echo $rec['reference_type']; ?>">
+                                            data-qty="<?php echo $rec['quantity']; ?>">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </td>
@@ -195,7 +192,7 @@ if ($inventory_query) {
                                     <td><small><?php echo htmlspecialchars($util['utilized_by_name']); ?></small></td>
                                     <td><small><?php echo htmlspecialchars($util['remarks']); ?></small></td>
                                     <td class="text-center">
-                                        <button class="btn btn-sm btn-danger delete-utilize" data-id="<?php echo $util['id']; ?>">
+                                        <button class="btn btn-sm btn-danger delete-utilize" data-id="<?php echo $util['id']; ?>" data-qty="<?php echo $util['quantity_used']; ?>">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </td>
@@ -248,65 +245,146 @@ if ($inventory_query) {
 
 <script>
 $(document).ready(function() {
+    function parseCount(text) {
+        var value = parseFloat(String(text).replace(/[^0-9.\-]/g, ''));
+        return isNaN(value) ? 0 : value;
+    }
+
+    function formatCount(value, label) {
+        return Math.max(0, value) + ' ' + label;
+    }
+
+    function updateSummary(type, qty) {
+        var totalSelector = type === 'in' ? '#stock-in-total' : '#stock-out-total';
+        var transactionSelector = type === 'in' ? '#stock-in-transactions' : '#stock-out-transactions';
+        var currentTotal = parseCount($(totalSelector).text());
+        var currentTransactions = parseCount($(transactionSelector).text());
+        var quantity = parseCount(qty);
+
+        $(totalSelector).text(formatCount(currentTotal - quantity, 'items'));
+        $(transactionSelector).text(formatCount(currentTransactions - 1, 'transactions'));
+    }
+
+    function confirmDelete(message, callback) {
+        Swal.fire({
+            title: 'Delete record?',
+            text: message,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#c82333',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, delete it',
+            cancelButtonText: 'Cancel'
+        }).then(function(result) {
+            if (result.isConfirmed) {
+                callback();
+            }
+        });
+    }
+
+    function parseDeleteResponse(xhr) {
+        if (xhr.responseJSON) {
+            return xhr.responseJSON;
+        }
+
+        if (!xhr.responseText) {
+            return null;
+        }
+
+        var responseText = $.trim(xhr.responseText);
+
+        try {
+            return JSON.parse(responseText);
+        } catch (e) {
+            var jsonStart = responseText.indexOf('{');
+            var jsonEnd = responseText.lastIndexOf('}');
+
+            if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+                try {
+                    return JSON.parse(responseText.substring(jsonStart, jsonEnd + 1));
+                } catch (innerError) {
+                    return null;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    function handleDeleteSuccess(btn, message, type, qty) {
+        updateSummary(type, qty);
+        alert_toast(message, 'success');
+        btn.closest('tr').fadeOut(function() { $(this).remove(); });
+    }
+
+    function handleDeleteError(xhr, fallbackMessage) {
+        var response = parseDeleteResponse(xhr);
+
+        if (response && response.status === 'success') {
+            return response;
+        }
+
+        alert_toast(response && response.msg ? 'Error: ' + response.msg : fallbackMessage, 'error');
+        return null;
+    }
+
     // Delete receiving record
     $('.delete-receive').click(function() {
         var id = $(this).data('id');
-        var po = $(this).data('po');
-        var date = $(this).data('date');
-        var createdAt = $(this).data('created-at');
-        var refType = $(this).data('reference-type');
+        var qty = $(this).data('qty');
         var btn = $(this);
 
-        if(!confirm('Are you sure you want to delete this receiving record?')) return;
-
-        $.ajax({
-            url: '<?php echo base_url ?>classes/Master.php?f=delete_receipt',
-            type: 'POST',
-            data: {
-                id: id,
-                po: po,
-                date: date,
-                created_at: createdAt,
-                reference_type: refType
-            },
-            dataType: 'json',
-            success: function(response) {
-                if(response.status === 'success') {
-                    alert_toast('Receiving record deleted', 'success');
-                    btn.closest('tr').fadeOut(function() { $(this).remove(); });
-                } else {
-                    alert_toast('Error: ' + response.msg, 'error');
+        confirmDelete('This stock-in entry will be removed permanently.', function() {
+            $.ajax({
+                url: '<?php echo base_url ?>classes/Master.php?f=delete_receipt',
+                type: 'POST',
+                data: {
+                    id: id
+                },
+                dataType: 'json',
+                success: function(response) {
+                    if(response.status === 'success') {
+                        handleDeleteSuccess(btn, 'Receiving record deleted', 'in', qty);
+                    } else {
+                        alert_toast('Error: ' + response.msg, 'error');
+                    }
+                },
+                error: function(xhr) {
+                    var response = handleDeleteError(xhr, 'Error deleting record');
+                    if (response && response.status === 'success') {
+                        handleDeleteSuccess(btn, 'Receiving record deleted', 'in', qty);
+                    }
                 }
-            },
-            error: function() {
-                alert_toast('Error deleting record', 'error');
-            }
+            });
         });
     });
 
     // Delete utilization record
     $('.delete-utilize').click(function() {
         var id = $(this).data('id');
+        var qty = $(this).data('qty');
         var btn = $(this);
 
-        if(!confirm('Are you sure you want to delete this utilization record?')) return;
-
-        $.ajax({
-            url: '<?php echo base_url ?>classes/Master.php?f=delete_utilization',
-            type: 'POST',
-            data: { id: id },
-            dataType: 'json',
-            success: function(response) {
-                if(response.status === 'success') {
-                    alert_toast('Utilization record deleted', 'success');
-                    btn.closest('tr').fadeOut(function() { $(this).remove(); });
-                } else {
-                    alert_toast('Error: ' + response.msg, 'error');
+        confirmDelete('This stock-out entry will be removed permanently.', function() {
+            $.ajax({
+                url: '<?php echo base_url ?>classes/Master.php?f=delete_utilization',
+                type: 'POST',
+                data: { id: id },
+                dataType: 'json',
+                success: function(response) {
+                    if(response.status === 'success') {
+                        handleDeleteSuccess(btn, 'Utilization record deleted', 'out', qty);
+                    } else {
+                        alert_toast('Error: ' + response.msg, 'error');
+                    }
+                },
+                error: function(xhr) {
+                    var response = handleDeleteError(xhr, 'Error deleting record');
+                    if (response && response.status === 'success') {
+                        handleDeleteSuccess(btn, 'Utilization record deleted', 'out', qty);
+                    }
                 }
-            },
-            error: function() {
-                alert_toast('Error deleting record', 'error');
-            }
+            });
         });
     });
 });
