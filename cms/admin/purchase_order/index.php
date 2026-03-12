@@ -62,13 +62,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
             <table class="table table-striped table-bordered" id="purchase_order_table">
                 <colgroup>
                     <col width="5%">                        
-                    <col width="16%">
-                    <col width="14%">
-                    <col width="28%">
-                    <col width="10%">
-                    <col width="10%">
-                    <col width="10%">
-                    <col width="7%">
+                    <col width="13%">
+                    <col width="11%">
+                    <col width="20%">
+                    <col width="9%">
+                    <col width="8%">
+                    <col width="8%">
+                    <col width="8%">
+                    <col width="8%">
+                    <col width="9%">
+                    <col width="6%">
                 </colgroup>
                 <thead>
                     <tr>
@@ -78,6 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                         <th>Items</th>
                         <th>Internal Ref</th>
                         <th>Total Amt.</th>
+                        <th>Paid Amt.</th>
+                        <th>Payment Status</th>
+                        <th>Close Status</th>
                         <th>Date Created</th>                        
                         <th>Action</th>
                     </tr>
@@ -85,7 +91,55 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                 <tbody>
                     <?php 
                     $i = 1;
-                    $qry = $conn->query("SELECT p.*, email, s.name as supplier FROM `purchase_order_list` p inner join supplier_list s on p.supplier_id = s.id ORDER BY p.created_at DESC");
+                    $has_paid_amount = false;
+                    $has_close_status = false;
+                    $paid_amount_check = $conn->query("SHOW COLUMNS FROM `purchase_order_list` LIKE 'paid_amount'");
+                    if($paid_amount_check && $paid_amount_check->num_rows > 0){
+                        $has_paid_amount = true;
+                    }
+                    $close_status_check = $conn->query("SHOW COLUMNS FROM `purchase_order_list` LIKE 'close_status'");
+                    if($close_status_check && $close_status_check->num_rows > 0){
+                        $has_close_status = true;
+                    }
+
+                    if($has_paid_amount && $has_close_status){
+                        // Reconcile closure status on load so old/missed records self-correct.
+                        $conn->query("UPDATE purchase_order_list p
+                            LEFT JOIN (
+                                SELECT po_id, COALESCE(SUM(quantity),0) AS total_ordered
+                                FROM po_items
+                                GROUP BY po_id
+                            ) poq ON poq.po_id = p.id
+                            LEFT JOIN (
+                                SELECT reference_id AS po_id, COALESCE(SUM(quantity),0) AS total_received
+                                FROM stock_movement
+                                WHERE UPPER(reference_type) = 'PO' AND UPPER(movement_type) = 'IN'
+                                GROUP BY reference_id
+                            ) smr ON smr.po_id = p.id
+                            SET p.close_status = CASE
+                                WHEN COALESCE(p.paid_amount,0) >= COALESCE(p.grand_total,0)
+                                 AND COALESCE(poq.total_ordered,0) > 0
+                                 AND COALESCE(smr.total_received,0) >= COALESCE(poq.total_ordered,0)
+                                THEN 'closed'
+                                ELSE 'open'
+                            END,
+                            p.closed_at = CASE
+                                WHEN COALESCE(p.paid_amount,0) >= COALESCE(p.grand_total,0)
+                                 AND COALESCE(poq.total_ordered,0) > 0
+                                 AND COALESCE(smr.total_received,0) >= COALESCE(poq.total_ordered,0)
+                                THEN IFNULL(p.closed_at, NOW())
+                                ELSE NULL
+                            END");
+
+                        $qry = $conn->query("SELECT p.*, email, s.name as supplier FROM `purchase_order_list` p inner join supplier_list s on p.supplier_id = s.id ORDER BY p.created_at DESC");
+                    } elseif($has_paid_amount && !$has_close_status) {
+                        $qry = $conn->query("SELECT p.*, 'open' as close_status, NULL as closed_at, email, s.name as supplier FROM `purchase_order_list` p inner join supplier_list s on p.supplier_id = s.id ORDER BY p.created_at DESC");
+                    } elseif(!$has_paid_amount && $has_close_status) {
+                        $qry = $conn->query("SELECT p.*, 0 as paid_amount, email, s.name as supplier FROM `purchase_order_list` p inner join supplier_list s on p.supplier_id = s.id ORDER BY p.created_at DESC");
+                    } else {
+                        $qry = $conn->query("SELECT p.*, 0 as paid_amount, 'open' as close_status, NULL as closed_at, email, s.name as supplier FROM `purchase_order_list` p inner join supplier_list s on p.supplier_id = s.id ORDER BY p.created_at DESC");
+                    }
+
                     while($row = $qry->fetch_assoc()):
                         // Get item names instead of count
                         $items_qry = $conn->query("SELECT i.name FROM `po_items` pi 
@@ -97,12 +151,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                         }
                     ?>
                         <tr class="data-row" data-company="<?php echo $row['company']; ?>">
+                            <?php
+                                $grand_total = (float)$row['grand_total'];
+                                $paid_amount = (float)$row['paid_amount'];
+                                if($paid_amount <= 0){
+                                    $payment_status = 'Unpaid';
+                                    $payment_badge = 'badge-secondary';
+                                } elseif($paid_amount < $grand_total){
+                                    $payment_status = 'Partially Paid';
+                                    $payment_badge = 'badge-warning';
+                                } elseif($paid_amount == $grand_total){
+                                    $payment_status = 'Fully Paid';
+                                    $payment_badge = 'badge-success';
+                                } else {
+                                    $payment_status = 'Overpaid';
+                                    $payment_badge = 'badge-danger';
+                                }
+
+                                $is_closed = isset($row['close_status']) && strtolower((string)$row['close_status']) === 'closed';
+                                $close_status = $is_closed ? 'Closed' : 'Open';
+                                $close_badge = $is_closed ? 'badge-success' : 'badge-warning';
+                            ?>
                             <td class="text-center"><?php echo $i++; ?>.</td>
                             <td><?php echo $row['po_code'] ?></td>
                             <td><?php echo $row['supplier'] ?></td>
                             <td><?php echo implode(', ', $item_names) ?></td>
                             <td><?php echo isset($row['internal_ref_no']) ? $row['internal_ref_no'] : ''; ?></td>
                             <td><?php echo number_format($row['grand_total'],2) ?></td>
+                            <td><?php echo number_format($paid_amount,2) ?></td>
+                            <td><span class="badge <?php echo $payment_badge; ?>"><?php echo $payment_status; ?></span></td>
+                            <td><span class="badge <?php echo $close_badge; ?>"><?php echo $close_status; ?></span></td>
                             <td><?php echo date("d-M-Y",strtotime($row['created_at'])) ?></td>                            
                             <td align="center">
                                 <button type="button" class="btn btn-flat btn-default btn-sm dropdown-toggle dropdown-icon" data-toggle="dropdown">
@@ -122,6 +200,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                                         <span class="fa fa-copy text-info"></span> Repeat Order
                                     </a>
                                     <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item update_paid_amount" href="javascript:void(0)"
+                                       data-id="<?php echo $row['id'] ?>"
+                                       data-po-code="<?php echo htmlspecialchars($row['po_code'], ENT_QUOTES) ?>"
+                                       data-grand-total="<?php echo (float)$row['grand_total'] ?>"
+                                       data-paid-amount="<?php echo (float)$row['paid_amount'] ?>">
+                                        <span class="fa fa-rupee-sign text-success"></span> Update Paid Amount
+                                    </a>
+                                    <div class="dropdown-divider"></div>
                                     <a class="dropdown-item" href="https://mail.google.com/mail/?view=cm&fs=1&to=<?php echo $row['email']; ?>" target="_blank">
                                         <span class="fa fa-envelope text-primary"></span> Send Email</a>
                                 </div>
@@ -130,7 +216,50 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                     <?php endwhile; ?>
                 </tbody>
             </table>
+            <?php if(!$has_paid_amount || !$has_close_status): ?>
+                <div class="alert alert-warning mt-3 mb-0">
+                    Add the <strong>paid_amount</strong> and <strong>close_status</strong> columns in <strong>purchase_order_list</strong> first for full payment/closure tracking.
+                </div>
+            <?php endif; ?>
         </div>    
+    </div>
+</div>
+
+<div class="modal fade" id="paidAmountModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Paid Amount</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="paid-amount-form">
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="paid_amount_po_id">
+                    <div class="form-group">
+                        <label for="paid_amount_po_code">PO Code</label>
+                        <input type="text" class="form-control" id="paid_amount_po_code" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="paid_amount_total">Total Amount</label>
+                        <input type="text" class="form-control" id="paid_amount_total" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="paid_amount_balance">Balance Amount</label>
+                        <input type="text" class="form-control" id="paid_amount_balance" readonly>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="paid_amount_input">Paid Amount</label>
+                        <input type="number" step="0.01" min="0" class="form-control" name="paid_amount" id="paid_amount_input" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 <style>
@@ -267,6 +396,42 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
         
         $(document).on('click', '.repeat_order', function(){
             _conf("Are you sure to create a repeat order?", "repeat_po", [$(this).attr('data-id')]);
+        });
+
+        $(document).on('click', '.update_paid_amount', function(){
+            const grandTotal = parseFloat($(this).attr('data-grand-total') || 0);
+            const paidAmount = parseFloat($(this).attr('data-paid-amount') || 0);
+            $('#paid_amount_po_id').val($(this).attr('data-id'));
+            $('#paid_amount_po_code').val($(this).attr('data-po-code'));
+            $('#paid_amount_total').val(grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            $('#paid_amount_balance').val((grandTotal - paidAmount).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            $('#paid_amount_input').val($(this).attr('data-paid-amount'));
+            $('#paidAmountModal').modal('show');
+        });
+
+        $('#paid-amount-form').on('submit', function(e){
+            e.preventDefault();
+            start_loader();
+            $.ajax({
+                url:_base_url_+"classes/Master.php?f=update_po_paid_amount",
+                method:"POST",
+                data: $(this).serialize(),
+                dataType:"json",
+                error:err=>{
+                    console.log(err)
+                    alert_toast("An error occured.",'error');
+                    end_loader();
+                },
+                success:function(resp){
+                    if(typeof resp == 'object' && resp.status == 'success'){
+                        $('#paidAmountModal').modal('hide');
+                        location.reload();
+                    }else{
+                        alert_toast(resp.msg || "An error occured.",'error');
+                        end_loader();
+                    }
+                }
+            })
         });
         
         $('.table td,.table th').addClass('py-1 px-2 align-middle')

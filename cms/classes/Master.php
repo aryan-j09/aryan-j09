@@ -643,6 +643,18 @@ Class Master extends DBConnection {
     }
 	function save_item(){
     extract($_POST);
+    $supplier_id = isset($supplier_id) ? (int)$supplier_id : 0;
+    if($supplier_id <= 0){
+        $resp['status'] = 'failed';
+        $resp['msg'] = "Please select a supplier.";
+        return json_encode($resp);
+    }
+    $name = isset($name) ? trim($name) : '';
+    if($name === ''){
+        $resp['status'] = 'failed';
+        $resp['msg'] = "Item name is required.";
+        return json_encode($resp);
+    }
     $data = "";
     foreach($_POST as $k =>$v){
         if(!in_array($k,array('id', 'attributes', 'values'))){
@@ -652,6 +664,7 @@ Class Master extends DBConnection {
         }
     }
 
+    $name = $this->conn->real_escape_string($name);
     $check = $this->conn->query("SELECT * FROM `item_list` where `name` = '{$name}' and `supplier_id` = '{$supplier_id}' ".(!empty($id) ? " and id != {$id} " : "")." ")->num_rows;
     if($this->capture_err())
         return $this->capture_err();
@@ -779,6 +792,7 @@ Class Master extends DBConnection {
                 $this->conn->query("DELETE FROM `po_items` where po_id = '{$po_id}'");
                 $this->conn->query("INSERT INTO `po_items` (`po_id`,`item_id`,`quantity`,`price`,`unit`,`total`) VALUES {$data}");
             }
+            $this->sync_po_closure_status($po_id);
         }else{
             $resp['status'] = 'failed';
             $resp['msg'] = 'An error occurred. Error: '.$this->conn->error;
@@ -802,6 +816,134 @@ Class Master extends DBConnection {
             $resp['error'] = $this->conn->error;
         }
         return json_encode($resp);
+    }
+
+    function update_po_paid_amount(){
+        $resp = ['status' => 'failed', 'msg' => 'An error occurred.'];
+
+        $po_id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+        $paid_amount = isset($_POST['paid_amount']) ? floatval($_POST['paid_amount']) : -1;
+
+        if($po_id <= 0){
+            $resp['msg'] = 'Invalid purchase order.';
+            return json_encode($resp);
+        }
+
+        if($paid_amount < 0){
+            $resp['msg'] = 'Paid amount cannot be negative.';
+            return json_encode($resp);
+        }
+
+        $column_check = $this->conn->query("SHOW COLUMNS FROM `purchase_order_list` LIKE 'paid_amount'");
+        if(!$column_check || $column_check->num_rows === 0){
+            $resp['msg'] = 'Please run the paid_amount SQL update first.';
+            return json_encode($resp);
+        }
+
+        $check_stmt = $this->conn->prepare("SELECT id FROM `purchase_order_list` WHERE id = ? LIMIT 1");
+        if(!$check_stmt){
+            $resp['msg'] = 'Prepare failed: ' . $this->conn->error;
+            return json_encode($resp);
+        }
+
+        $check_stmt->bind_param('i', $po_id);
+        $check_stmt->execute();
+        $check_stmt->store_result();
+
+        if($check_stmt->num_rows === 0){
+            $check_stmt->close();
+            $resp['msg'] = 'Purchase order not found.';
+            return json_encode($resp);
+        }
+        $check_stmt->close();
+
+        $stmt = $this->conn->prepare("UPDATE `purchase_order_list` SET `paid_amount` = ? WHERE `id` = ?");
+        if(!$stmt){
+            $resp['msg'] = 'Prepare failed: ' . $this->conn->error;
+            return json_encode($resp);
+        }
+
+        $stmt->bind_param('di', $paid_amount, $po_id);
+        if($stmt->execute()){
+            $this->sync_po_closure_status($po_id);
+            $resp['status'] = 'success';
+            $resp['msg'] = 'Paid amount updated successfully.';
+            $this->settings->set_flashdata('success', 'Paid amount updated successfully.');
+        }else{
+            $resp['msg'] = 'Update failed: ' . $stmt->error;
+        }
+        $stmt->close();
+
+        return json_encode($resp);
+    }
+
+    function sync_po_closure_status($po_id){
+        $po_id = intval($po_id);
+        if($po_id <= 0){
+            return false;
+        }
+
+        $grand_total = 0;
+        $paid_amount = 0;
+        $total_ordered = 0;
+        $total_received = 0;
+
+        $column_check = $this->conn->query("SHOW COLUMNS FROM `purchase_order_list` LIKE 'close_status'");
+        if(!$column_check || $column_check->num_rows === 0){
+            return false;
+        }
+
+        $po_stmt = $this->conn->prepare("SELECT COALESCE(grand_total,0), COALESCE(paid_amount,0) FROM `purchase_order_list` WHERE id = ? LIMIT 1");
+        if(!$po_stmt){
+            return false;
+        }
+        $po_stmt->bind_param('i', $po_id);
+        $po_stmt->execute();
+        $po_stmt->bind_result($grand_total, $paid_amount);
+        $found = $po_stmt->fetch();
+        $po_stmt->close();
+
+        if(!$found){
+            return false;
+        }
+
+        $ordered_stmt = $this->conn->prepare("SELECT COALESCE(SUM(quantity), 0) FROM `po_items` WHERE po_id = ?");
+        if(!$ordered_stmt){
+            return false;
+        }
+        $ordered_stmt->bind_param('i', $po_id);
+        $ordered_stmt->execute();
+        $ordered_stmt->bind_result($total_ordered);
+        $ordered_stmt->fetch();
+        $ordered_stmt->close();
+
+        $received_stmt = $this->conn->prepare("SELECT COALESCE(SUM(quantity), 0) FROM `stock_movement` WHERE reference_id = ? AND UPPER(reference_type) = 'PO' AND UPPER(movement_type) = 'IN'");
+        if(!$received_stmt){
+            return false;
+        }
+        $received_stmt->bind_param('i', $po_id);
+        $received_stmt->execute();
+        $received_stmt->bind_result($total_received);
+        $received_stmt->fetch();
+        $received_stmt->close();
+
+        $is_payment_done = (float)$paid_amount >= (float)$grand_total;
+        $is_receiving_done = (float)$total_ordered > 0 && (float)$total_received >= (float)$total_ordered;
+
+        if($is_payment_done && $is_receiving_done){
+            $close_stmt = $this->conn->prepare("UPDATE `purchase_order_list` SET close_status = 'closed', closed_at = NOW() WHERE id = ?");
+        } else {
+            $close_stmt = $this->conn->prepare("UPDATE `purchase_order_list` SET close_status = 'open', closed_at = NULL WHERE id = ?");
+        }
+
+        if(!$close_stmt){
+            return false;
+        }
+
+        $close_stmt->bind_param('i', $po_id);
+        $ok = $close_stmt->execute();
+        $close_stmt->close();
+        return $ok;
     }
 
     function get_po_summary(){
@@ -848,59 +990,60 @@ Class Master extends DBConnection {
 
 
     function delete_receipt(){
-        $po = isset($_POST['po']) ? $_POST['po'] : '';
-        $date = isset($_POST['date']) ? $_POST['date'] : '';
-        $created_at = isset($_POST['created_at']) ? $_POST['created_at'] : '';
-        $reference_type = isset($_POST['reference_type']) ? $_POST['reference_type'] : '';
-        $resp = ['status' => 'failed', 'msg' => 'Invalid parameters'];
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'Invalid receipt ID'];
 
-        if(empty($date) || empty($created_at) || empty($reference_type)){
-            return json_encode($resp);
-        }
-        
-        // Delete stock movements based on reference type
-        if($reference_type === 'PO' && !empty($po)) {
-            // Delete PO receipts: match by po_code and date
-            $delete_sql = "DELETE sm FROM stock_movement sm
-                          JOIN purchase_order_list pol ON sm.reference_id = pol.id
-                          WHERE pol.po_code = ? 
-                          AND DATE(sm.created_at) = ?
-                          AND sm.reference_type = 'PO'
-                          AND sm.movement_type = 'IN'";
-            
-            $stmt = $this->conn->prepare($delete_sql);
-            if (!$stmt) {
-                $resp['msg'] = "Prepare failed: " . $this->conn->error;
+        try {
+            $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+            if($id <= 0){
                 return json_encode($resp);
             }
-            
-            $stmt->bind_param('ss', $po, $date);
-        } else if($reference_type === 'MANUAL') {
-            // Delete manual receipts: match by created_at timestamp (to the minute)
-            $delete_sql = "DELETE FROM stock_movement 
-                          WHERE DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') = DATE_FORMAT(?, '%Y-%m-%d %H:%i')
-                          AND reference_type = 'MANUAL'
-                          AND movement_type = 'IN'";
-            
-            $stmt = $this->conn->prepare($delete_sql);
-            if (!$stmt) {
-                $resp['msg'] = "Prepare failed: " . $this->conn->error;
+
+            $lookup_stmt = $this->conn->prepare("SELECT reference_id, reference_type FROM stock_movement WHERE id = ? AND movement_type = 'IN' LIMIT 1");
+            if(!$lookup_stmt){
+                $resp['msg'] = 'Prepare failed: ' . $this->conn->error;
                 return json_encode($resp);
             }
-            
-            $stmt->bind_param('s', $created_at);
-        } else {
-            $resp['msg'] = 'Unknown receipt type';
-            return json_encode($resp);
+
+            $reference_id = 0;
+            $reference_type = '';
+            $lookup_stmt->bind_param('i', $id);
+            $lookup_stmt->execute();
+            $lookup_stmt->bind_result($reference_id, $reference_type);
+            $found = $lookup_stmt->fetch();
+            $lookup_stmt->close();
+
+            if(!$found){
+                $resp['msg'] = 'Receipt record not found';
+                return json_encode($resp);
+            }
+
+            $delete_stmt = $this->conn->prepare("DELETE FROM stock_movement WHERE id = ? AND movement_type = 'IN'");
+            if(!$delete_stmt){
+                $resp['msg'] = 'Prepare failed: ' . $this->conn->error;
+                return json_encode($resp);
+            }
+
+            $delete_stmt->bind_param('i', $id);
+            if($delete_stmt->execute()){
+                if($delete_stmt->affected_rows > 0){
+                    if(strtoupper((string)$reference_type) === 'PO' && intval($reference_id) > 0){
+                        $this->sync_po_closure_status($reference_id);
+                    }
+                    $resp['status'] = 'success';
+                    $resp['msg'] = 'Receipt deleted successfully';
+                } else {
+                    $resp['msg'] = 'Receipt record not found';
+                }
+            } else {
+                $resp['msg'] = 'Delete failed: ' . $delete_stmt->error;
+            }
+            $delete_stmt->close();
+        } catch (Exception $e) {
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('delete_receipt error: ' . $e->getMessage());
         }
-        
-        if ($stmt->execute()) {
-            $resp['status'] = 'success';
-            $resp['msg'] = 'Receipt deleted successfully';
-            $this->settings->set_flashdata('success', "Receipt deleted successfully.");
-        } else {
-            $resp['msg'] = "Delete failed: " . $stmt->error;
-        }
+
         return json_encode($resp);
     }
 
@@ -3549,6 +3692,7 @@ function delete_utility_supplier(){
             
             $count = 0;
             $generated_barcodes = [];
+            $pending_receipts = [];
             
             // Process each item
             foreach($item_ids as $idx => $item_id) {
@@ -3560,10 +3704,25 @@ function delete_utility_supplier(){
                     continue; // Skip if no quantity
                 }
             
-                // Verify PO item exists
-                $po_item_result = $this->conn->query("SELECT * FROM po_items WHERE po_id = $po_id AND item_id = $item_id");
+                // Verify PO item exists and enforce remaining quantity limit.
+                $po_item_result = $this->conn->query("SELECT COALESCE(SUM(quantity),0) as ordered_qty FROM po_items WHERE po_id = $po_id AND item_id = $item_id");
                 if (!$po_item_result || $po_item_result->num_rows == 0) {
                     continue; // Skip invalid items
+                }
+                $po_item_data = $po_item_result->fetch_assoc();
+                $ordered_qty = (int)$po_item_data['ordered_qty'];
+                if($ordered_qty <= 0){
+                    continue;
+                }
+
+                $received_result = $this->conn->query("SELECT COALESCE(SUM(quantity),0) as received_qty FROM stock_movement WHERE reference_type = 'PO' AND reference_id = $po_id AND movement_type = 'IN' AND item_id = $item_id");
+                $received_data = $received_result ? $received_result->fetch_assoc() : ['received_qty' => 0];
+                $already_received = (int)$received_data['received_qty'];
+                $pending_for_item = isset($pending_receipts[$item_id]) ? (int)$pending_receipts[$item_id] : 0;
+                $remaining_qty = $ordered_qty - $already_received - $pending_for_item;
+
+                if($received_qty > $remaining_qty){
+                    throw new Exception('Cannot receive more than ordered quantity for item ID ' . $item_id . '. Remaining allowed: ' . max(0, $remaining_qty));
                 }
             
                 // Insert into stock_movement for logging
@@ -3579,6 +3738,7 @@ function delete_utility_supplier(){
             
                 if ($ms->execute()) {
                     $count++;
+                    $pending_receipts[$item_id] = $pending_for_item + $received_qty;
                 } else {
                     throw new Exception("Failed to log item $item_id: " . $ms->error);
                 }
@@ -3587,6 +3747,8 @@ function delete_utility_supplier(){
             if ($count == 0) {
                 throw new Exception('No valid quantities to receive');
             }
+
+            $this->sync_po_closure_status($po_id);
         
             $resp['status'] = 'success';
             $this->settings->set_flashdata('success', "Successfully received $count item(s) against PO #$po_id!");
@@ -3692,6 +3854,39 @@ function delete_utility_supplier(){
             $po_id = !empty($_POST['po_id']) ? intval($_POST['po_id']) : NULL;
             $remarks = !empty($_POST['remarks']) ? $this->conn->real_escape_string($_POST['remarks']) : '';
             $created_by = $_SESSION['userdata']['id'];
+
+            if($quantity <= 0){
+                $resp['msg'] = 'Quantity must be greater than zero';
+                return json_encode($resp);
+            }
+
+            if($reference_type === 'PO'){
+                if(empty($po_id)){
+                    $resp['msg'] = 'PO ID is required for PO receiving';
+                    return json_encode($resp);
+                }
+
+                $po_item_sql = "SELECT COALESCE(SUM(quantity),0) as ordered_qty FROM po_items WHERE po_id = {$po_id} AND item_id = {$item_id}";
+                $po_item_res = $this->conn->query($po_item_sql);
+                $ordered_qty = ($po_item_res && $po_item_res->num_rows > 0) ? (int)$po_item_res->fetch_assoc()['ordered_qty'] : 0;
+
+                if($ordered_qty <= 0){
+                    $resp['msg'] = 'This item is not part of the selected PO';
+                    return json_encode($resp);
+                }
+
+                $received_sql = "SELECT COALESCE(SUM(quantity),0) as received_qty FROM stock_movement WHERE reference_type = 'PO' AND reference_id = {$po_id} AND movement_type = 'IN' AND item_id = {$item_id}";
+                $received_res = $this->conn->query($received_sql);
+                $received_qty = ($received_res && $received_res->num_rows > 0) ? (int)$received_res->fetch_assoc()['received_qty'] : 0;
+                $remaining_qty = $ordered_qty - $received_qty;
+
+                if($quantity > $remaining_qty){
+                    $resp['msg'] = 'Cannot receive more than ordered quantity. Remaining allowed: ' . max(0, $remaining_qty);
+                    return json_encode($resp);
+                }
+            }
+
+            $this->conn->begin_transaction();
             
             // Insert barcode record
             $sql = "INSERT INTO item_barcodes (barcode_code, item_id, quantity, reference_type, po_id, created_by, created_at) 
@@ -3699,6 +3894,7 @@ function delete_utility_supplier(){
             
             if(!$this->conn->query($sql)) {
                 $resp['msg'] = 'Failed to save barcode: ' . $this->conn->error;
+                $this->conn->rollback();
                 return json_encode($resp);
             }
             
@@ -3721,8 +3917,15 @@ function delete_utility_supplier(){
             
             if(!$this->conn->query($movement_sql)) {
                 $resp['msg'] = 'Failed to record stock movement: ' . $this->conn->error;
+                $this->conn->rollback();
                 return json_encode($resp);
             }
+
+            if($reference_type === 'PO' && !empty($po_id)){
+                $this->sync_po_closure_status($po_id);
+            }
+
+            $this->conn->commit();
             
             $resp['status'] = 'success';
             $resp['barcode_id'] = $barcode_id;
@@ -3730,6 +3933,7 @@ function delete_utility_supplier(){
             $resp['short_code'] = $short_code;
             
         } catch (Exception $e) {
+            @$this->conn->rollback();
             $resp['msg'] = 'Exception: ' . $e->getMessage();
             error_log('save_received_barcode error: ' . $e->getMessage());
         }
@@ -3947,6 +4151,7 @@ function delete_utility_supplier(){
     }
 
     function delete_utilization(){
+        header('Content-Type: application/json');
         $resp = ['status' => 'failed', 'msg' => 'Failed to delete utilization'];
         
         try {
@@ -3956,18 +4161,25 @@ function delete_utility_supplier(){
                 $resp['msg'] = 'Invalid utilization ID';
                 return json_encode($resp);
             }
-            
-            // Delete the utilization record
-            $id_escaped = $this->conn->real_escape_string($id);
-            $sql = "DELETE FROM utilization_history WHERE id = {$id_escaped}";
-            $delete = $this->conn->query($sql);
-            
-            if ($delete) {
-                $resp['status'] = 'success';
-                $resp['msg'] = 'Utilization record deleted successfully';
-            } else {
-                $resp['msg'] = 'Database error: ' . $this->conn->error;
+
+            $stmt = $this->conn->prepare("DELETE FROM utilization_history WHERE id = ?");
+            if(!$stmt){
+                $resp['msg'] = 'Prepare failed: ' . $this->conn->error;
+                return json_encode($resp);
             }
+
+            $stmt->bind_param('i', $id);
+            if ($stmt->execute()) {
+                if($stmt->affected_rows > 0){
+                    $resp['status'] = 'success';
+                    $resp['msg'] = 'Utilization record deleted successfully';
+                } else {
+                    $resp['msg'] = 'Utilization record not found';
+                }
+            } else {
+                $resp['msg'] = 'Database error: ' . $stmt->error;
+            }
+            $stmt->close();
             
         } catch (Exception $e) {
             $resp['msg'] = 'Exception: ' . $e->getMessage();
@@ -4158,6 +4370,9 @@ switch ($action) {
 	case 'delete_po':
 		echo $Master->delete_po();
 	break;
+    case 'update_po_paid_amount':
+        echo $Master->update_po_paid_amount();
+    break;
 	case 'get_po_summary':
 		echo $Master->get_po_summary();
 	break;

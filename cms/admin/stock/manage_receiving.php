@@ -85,12 +85,14 @@ if ($po_query) {
                     <col width="10%">
                     <col width="10%">
                     <col width="10%">
+                    <col width="10%">
                     <col width="20%">
                 </colgroup>
                 <thead style="background-color: rgb(0, 31, 63); color: white; font-size: 12px;">
                     <tr>
                         <th>Item Name</th>
                         <th class="text-center">Ordered</th>
+                        <th class="text-center">Remaining</th>
                         <th class="text-center">Receive Qty</th>
                         <th class="text-center">QR Mode</th>
                         <th class="text-center">Box Size</th>
@@ -162,10 +164,25 @@ if ($po_query) {
 // Create JavaScript object with PO items
 $po_items = [];
 foreach($pos as $po) {
-    $items = $conn->query("SELECT poi.id, poi.item_id, il.name, poi.quantity 
+    $items = $conn->query("SELECT poi.id, poi.item_id, il.name,
+        COALESCE(poi.quantity, 0) as quantity,
+        COALESCE((
+            SELECT SUM(sm.quantity)
+            FROM stock_movement sm
+            WHERE sm.reference_type = 'PO'
+              AND sm.reference_id = poi.po_id
+              AND sm.movement_type = 'IN'
+              AND sm.item_id = poi.item_id
+        ), 0) as received_qty
         FROM po_items poi
         JOIN item_list il ON poi.item_id = il.id
         WHERE poi.po_id = {$po['id']}")->fetch_all(MYSQLI_ASSOC);
+
+    foreach($items as &$it){
+        $it['remaining_qty'] = max(0, (int)$it['quantity'] - (int)$it['received_qty']);
+    }
+    unset($it);
+
     $po_items[$po['id']] = $items;
 }
 ?>
@@ -234,14 +251,22 @@ $(document).ready(function() {
         
         // Populate table with items
         $.each(poItems[po_id], function(index, item) {
+            var orderedQty = parseInt(item.quantity || 0, 10);
+            var remainingQty = parseInt(item.remaining_qty || 0, 10);
+
+            if (remainingQty <= 0) {
+                return;
+            }
+
             var row = `
                 <tr>
                     <td><strong>${item.name}</strong></td>
-                    <td class="text-center">${item.quantity}</td>
+                    <td class="text-center">${orderedQty}</td>
+                    <td class="text-center"><span class="badge badge-warning remaining-qty">${remainingQty}</span></td>
                     <td>
                         <input type="number" class="form-control form-control-sm received-qty" 
-                               min="0" max="${item.quantity}" placeholder="Qty" 
-                               data-item-id="${item.item_id}" data-item-name="${item.name}" data-po-id="${po_id}">
+                               min="0" max="${remainingQty}" placeholder="Qty" 
+                               data-item-id="${item.item_id}" data-item-name="${item.name}" data-po-id="${po_id}" data-remaining="${remainingQty}">
                     </td>
                     <td class="text-center">
                         <div class="btn-group btn-group-sm" role="group" style="width: 100%;">
@@ -269,6 +294,12 @@ $(document).ready(function() {
             `;
             itemsTable.append(row);
         });
+
+        if(itemsTable.children().length === 0){
+            itemsSection.hide();
+            alert_toast('All items for this PO are already fully received.', 'info');
+            return;
+        }
         
         itemsSection.show();
     });
@@ -280,6 +311,13 @@ $(document).ready(function() {
         var btn = row.find('.generate-qr-btn');
         var mode = row.find('.qr-mode-btn.active').data('mode');
         var boxSize = parseInt(row.find('.box-size').val()) || 0;
+        var remaining = parseInt($(this).data('remaining')) || 0;
+
+        if (qty > remaining) {
+            qty = remaining;
+            $(this).val(remaining);
+            alert_toast('Receive quantity cannot exceed remaining quantity (' + remaining + ')', 'warning');
+        }
         
         var canShow = false;
         if (mode === 'qty') {
@@ -333,9 +371,15 @@ $(document).ready(function() {
         var poId = $('#po_select').val();
         var mode = row.find('.qr-mode-btn.active').data('mode');
         var boxSize = parseInt(row.find('.box-size').val()) || 1;
+        var remaining = parseInt(row.find('.received-qty').data('remaining')) || 0;
         
         if (qty <= 0) {
             alert_toast('Please enter a quantity first', 'warning');
+            return;
+        }
+
+        if (qty > remaining) {
+            alert_toast('Receive quantity cannot exceed remaining quantity (' + remaining + ')', 'warning');
             return;
         }
         

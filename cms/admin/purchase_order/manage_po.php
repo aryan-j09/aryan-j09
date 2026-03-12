@@ -291,7 +291,7 @@ if (isset($_GET['id'])) {
 }
 
 $item_arr = [];
-$item_query = $conn->query("SELECT * FROM item_list");
+$item_query = $conn->query("SELECT * FROM item_list ORDER BY id DESC");
 while($row = $item_query->fetch_assoc()) {
     $item_arr[$row['supplier_id']][] = $row;
 }
