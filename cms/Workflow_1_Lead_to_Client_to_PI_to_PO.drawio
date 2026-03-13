@@ -1,0 +1,73 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.5.2 Chrome/142.0.7444.265 Electron/39.6.1 Safari/537.36" version="29.5.2">
+  <diagram name="CRM to PI to PO" id="workflow-active-sales">
+    <mxGraphModel dx="1106" dy="709" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=16;fontStyle=1;fontColor=#000000;" value="WORKFLOW 1: Lead → Client → Proforma Invoice → Purchase Order (+ PO Factory Details in Parallel)" vertex="1">
+          <mxGeometry x="40" y="20" width="900" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=1;strokeColor=#00AA00;fillColor=#E8F5E9;fontSize=11;fontStyle=1;fontColor=#006600;rounded=1;" value="Current active commercial flow. Quotations and Quote Items are intentionally excluded." vertex="1">
+          <mxGeometry x="40" y="55" width="740" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step1_label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=1;fontColor=#1E88E5;" value="STEP 1: Lead Capture" vertex="1"><mxGeometry x="40" y="100" width="150" height="20" as="geometry" /></mxCell>
+        <mxCell id="leads_mod" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=11;fontColor=#000000;" value="Leads Module" vertex="1"><mxGeometry x="40" y="130" width="130" height="50" as="geometry" /></mxCell>
+        <mxCell id="leads_action" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;fontColor=#000000;" value="Capture enquiry,&#xa;company, contact" vertex="1"><mxGeometry x="40" y="190" width="130" height="30" as="geometry" /></mxCell>
+        <mxCell id="leads_endpoint" parent="1" style="text;html=1;strokeColor=#1E88E5;fillColor=#E3F2FD;fontSize=9;fontColor=#000000;rounded=1;" value="Endpoint: save_lead" vertex="1"><mxGeometry x="40" y="230" width="130" height="20" as="geometry" /></mxCell>
+        <mxCell id="leads_table" parent="1" style="text;html=1;strokeColor=#FFDD00;fillColor=#FFFACD;fontSize=9;fontColor=#000000;rounded=1;" value="Tables: leads, lead_activities" vertex="1"><mxGeometry x="40" y="260" width="130" height="30" as="geometry" /></mxCell>
+
+        <mxCell id="arrow1" edge="1" parent="1" source="leads_mod" target="clients_mod" value="Convert to Client"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="step2_label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=1;fontColor=#1E88E5;" value="STEP 2: Client Conversion" vertex="1"><mxGeometry x="240" y="100" width="170" height="20" as="geometry" /></mxCell>
+        <mxCell id="clients_mod" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=11;fontColor=#000000;" value="Clients Module" vertex="1"><mxGeometry x="240" y="130" width="130" height="50" as="geometry" /></mxCell>
+        <mxCell id="clients_action" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;fontColor=#000000;" value="Lead converted to client&#xa;from CRM screen" vertex="1"><mxGeometry x="240" y="190" width="130" height="30" as="geometry" /></mxCell>
+        <mxCell id="clients_endpoint" parent="1" style="text;html=1;strokeColor=#1E88E5;fillColor=#E3F2FD;fontSize=9;fontColor=#000000;rounded=1;" value="Endpoint: save_client" vertex="1"><mxGeometry x="240" y="230" width="130" height="20" as="geometry" /></mxCell>
+        <mxCell id="clients_table" parent="1" style="text;html=1;strokeColor=#FFDD00;fillColor=#FFFACD;fontSize=9;fontColor=#000000;rounded=1;" value="Tables: clients + lead status update" vertex="1"><mxGeometry x="240" y="260" width="130" height="30" as="geometry" /></mxCell>
+
+        <mxCell id="arrow2" edge="1" parent="1" source="clients_mod" target="pi_mod" value="Create PI"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="step3_label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=1;fontColor=#1E88E5;" value="STEP 3: Proforma Invoice" vertex="1"><mxGeometry x="450" y="100" width="160" height="20" as="geometry" /></mxCell>
+        <mxCell id="pi_mod" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=11;fontColor=#000000;" value="Proforma Invoice" vertex="1"><mxGeometry x="450" y="130" width="130" height="50" as="geometry" /></mxCell>
+        <mxCell id="pi_action" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;fontColor=#000000;" value="Create commercial PI&#xa;for selected client" vertex="1"><mxGeometry x="450" y="190" width="130" height="30" as="geometry" /></mxCell>
+        <mxCell id="pi_endpoint" parent="1" style="text;html=1;strokeColor=#1E88E5;fillColor=#E3F2FD;fontSize=9;fontColor=#000000;rounded=1;" value="Endpoint: save_pi" vertex="1"><mxGeometry x="450" y="230" width="130" height="20" as="geometry" /></mxCell>
+        <mxCell id="pi_table" parent="1" style="text;html=1;strokeColor=#FFDD00;fillColor=#FFFACD;fontSize=9;fontColor=#000000;rounded=1;" value="Tables: proforma_invoice_list,&#xa;proforma_invoice_items" vertex="1"><mxGeometry x="450" y="260" width="130" height="30" as="geometry" /></mxCell>
+
+        <mxCell id="arrow3" edge="1" parent="1" source="pi_mod" target="pod_mod" value="Add Factory Details"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="step4_label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=1;fontColor=#00AA00;" value="STEP 4: Factory PO Details (Parallel)" vertex="1"><mxGeometry x="660" y="100" width="220" height="20" as="geometry" /></mxCell>
+        <mxCell id="pod_mod" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=11;fontColor=#000000;" value="PO Factory Details" vertex="1"><mxGeometry x="660" y="130" width="140" height="50" as="geometry" /></mxCell>
+        <mxCell id="pod_action" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;fontColor=#000000;" value="Store factory PO data,&#xa;eway / files / shipment refs" vertex="1"><mxGeometry x="660" y="190" width="140" height="30" as="geometry" /></mxCell>
+        <mxCell id="pod_endpoint" parent="1" style="text;html=1;strokeColor=#00AA00;fillColor=#E8F5E9;fontSize=9;fontColor=#000000;rounded=1;" value="Endpoint: save_po_details" vertex="1"><mxGeometry x="660" y="230" width="140" height="20" as="geometry" /></mxCell>
+        <mxCell id="pod_table" parent="1" style="text;html=1;strokeColor=#FFDD00;fillColor=#FFFACD;fontSize=9;fontColor=#000000;rounded=1;" value="Table: purchase_orders / PO detail data" vertex="1"><mxGeometry x="660" y="260" width="140" height="30" as="geometry" /></mxCell>
+
+        <mxCell id="arrow4" edge="1" parent="1" source="pod_mod" target="po_mod" value="Update / Enrich PO"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="arrow_pi_to_po" edge="1" parent="1" source="pi_mod" target="po_mod" value="Start Procurement Immediately"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="step5_label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=1;fontColor=#00AA00;" value="STEP 5: Supplier Purchase Order (Immediate after PI)" vertex="1"><mxGeometry x="900" y="100" width="300" height="20" as="geometry" /></mxCell>
+        <mxCell id="po_mod" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=11;fontColor=#000000;" value="Purchase Order" vertex="1"><mxGeometry x="900" y="130" width="140" height="50" as="geometry" /></mxCell>
+        <mxCell id="po_action" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;fontColor=#000000;" value="Create supplier-facing PO&#xa;and line items" vertex="1"><mxGeometry x="900" y="190" width="140" height="30" as="geometry" /></mxCell>
+        <mxCell id="po_endpoint" parent="1" style="text;html=1;strokeColor=#00AA00;fillColor=#E8F5E9;fontSize=9;fontColor=#000000;rounded=1;" value="Endpoint: save_po" vertex="1"><mxGeometry x="900" y="230" width="140" height="20" as="geometry" /></mxCell>
+        <mxCell id="po_table" parent="1" style="text;html=1;strokeColor=#FFDD00;fillColor=#FFFACD;fontSize=9;fontColor=#000000;rounded=1;" value="Tables: purchase_order_list, po_items" vertex="1"><mxGeometry x="900" y="260" width="140" height="30" as="geometry" /></mxCell>
+
+        <mxCell id="master_center" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF0000;strokeColor=#990000;fontSize=12;fontStyle=1;fontColor=#FFFFFF;" value="Master.php&#xa;(AJAX Hub)" vertex="1"><mxGeometry x="510" y="390" width="150" height="70" as="geometry" /></mxCell>
+        <mxCell id="conn1" edge="1" parent="1" source="leads_mod" target="master_center" style="strokeColor=#999999;dashed=1;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="conn2" edge="1" parent="1" source="clients_mod" target="master_center" style="strokeColor=#999999;dashed=1;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="conn3" edge="1" parent="1" source="pi_mod" target="master_center" style="strokeColor=#999999;dashed=1;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="conn4" edge="1" parent="1" source="pod_mod" target="master_center" style="strokeColor=#999999;dashed=1;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="conn5" edge="1" parent="1" source="po_mod" target="master_center" style="strokeColor=#999999;dashed=1;"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="db_center" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFDD00;strokeColor=#FF9900;fontSize=12;fontColor=#000000;" value="MySQL Database" vertex="1"><mxGeometry x="525" y="560" width="120" height="70" as="geometry" /></mxCell>
+        <mxCell id="conn_db" edge="1" parent="1" source="master_center" target="db_center" style="strokeColor=#000000;"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="legend_bg" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#CCCCCC;fontSize=11;" value="" vertex="1"><mxGeometry x="40" y="680" width="1100" height="150" as="geometry" /></mxCell>
+        <mxCell id="legend_title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=1;fontColor=#000000;" value="WORKFLOW DETAILS" vertex="1"><mxGeometry x="50" y="690" width="250" height="20" as="geometry" /></mxCell>
+        <mxCell id="legend_flow" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#000000;align=left;whiteSpace=wrap;" value="FLOW: Lead created → lead converted to client via save_client → Proforma Invoice created via save_pi (confirmed order) → Supplier PO can be created immediately via save_po while PO Factory Details (save_po_details) run in parallel." vertex="1"><mxGeometry x="50" y="720" width="980" height="35" as="geometry" /></mxCell>
+        <mxCell id="legend_tables" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#000000;align=left;whiteSpace=wrap;" value="KEY TABLES: leads → lead_activities → clients → proforma_invoice_list → proforma_invoice_items → purchase_order_list → po_items" vertex="1"><mxGeometry x="50" y="765" width="760" height="25" as="geometry" /></mxCell>
+        <mxCell id="legend_note" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;fontColor=#666666;align=left;whiteSpace=wrap;" value="NOTE: Business logic treats PI as confirmed order signal. Procurement is allowed at PI stage; PO Factory Details are supporting operational data." vertex="1"><mxGeometry x="50" y="800" width="980" height="20" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

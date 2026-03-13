@@ -1,131 +1,140 @@
-<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.5.2 Chrome/142.0.7444.265 Electron/39.6.1 Safari/537.36" version="29.5.2">
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1">
   <diagram name="Module Architecture" id="module-arch">
-    <mxGraphModel dx="1106" dy="709" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+    <mxGraphModel dx="1090" dy="693" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=#666666;fillColor=#f5f5f5;fontSize=16;fontStyle=1;fontColor=#333333;" value="SB Panchal CMS: Current Active Module Architecture" vertex="1">
+          <mxGeometry height="30" width="520" x="40" y="20" as="geometry" />
+        </mxCell>
         <mxCell id="master" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF0000;strokeColor=#990000;fontSize=14;fontStyle=1;fontColor=#000000;" value="Master.php&#xa;(Central AJAX Controller)" vertex="1">
-          <mxGeometry height="80" width="180" x="500" y="350" as="geometry" />
+          <mxGeometry height="85" width="190" x="560" y="340" as="geometry" />
         </mxCell>
-        <mxCell id="db" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFDD00;strokeColor=#FF9900;fontSize=12;fontColor=#000000;" value="MySQL Database&#xa;(35+ Tables)" vertex="1">
-          <mxGeometry height="80" width="100" x="540" y="550" as="geometry" />
+        <mxCell id="db" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFDD00;strokeColor=#FF9900;fontSize=12;fontColor=#000000;" value="MySQL Database&#xa;(active + legacy tables)" vertex="1">
+          <mxGeometry height="85" width="120" x="595" y="560" as="geometry" />
         </mxCell>
-        <mxCell id="leads" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=12;fontColor=#000000;" value="Leads&#xa;(CRM)" vertex="1">
-          <mxGeometry height="60" width="120" x="40" y="40" as="geometry" />
+        <mxCell id="leads" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=12;fontColor=#000000;" value="CRM / Leads" vertex="1">
+          <mxGeometry height="60" width="130" x="40" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="proforma" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=12;fontColor=#000000;" value="Proforma Invoice&#xa;(Lead→Invoice)" vertex="1">
-          <mxGeometry height="60" width="120" x="40" y="120" as="geometry" />
+        <mxCell id="clients" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=12;fontColor=#000000;" value="Client List" vertex="1">
+          <mxGeometry height="60" width="130" x="40" y="190" as="geometry" />
         </mxCell>
-        <mxCell id="clients" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=12;fontColor=#000000;" value="Clients&#xa;(Customer Master)" vertex="1">
-          <mxGeometry height="60" width="120" x="40" y="200" as="geometry" />
+        <mxCell id="proforma" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E88E5;strokeColor=#0D47A1;fontSize=12;fontColor=#000000;" value="Proforma Invoice" vertex="1">
+          <mxGeometry height="60" width="130" x="40" y="280" as="geometry" />
         </mxCell>
-        <mxCell id="purchase_orders" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" value="Purchase Orders&#xa;(Supplier PO)" vertex="1">
-          <mxGeometry height="60" width="120" x="220" y="40" as="geometry" />
+        <mxCell id="po_details" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" value="PO Factory Details" vertex="1">
+          <mxGeometry height="60" width="140" x="240" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="stock" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" value="Stock&#xa;(In/Out)" vertex="1">
-          <mxGeometry height="60" width="120" x="220" y="120" as="geometry" />
+        <mxCell id="purchase_orders" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" value="Purchase Order" vertex="1">
+          <mxGeometry height="60" width="140" x="240" y="190" as="geometry" />
         </mxCell>
-        <mxCell id="po_details" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" value="PO Details&#xa;(Factory PO)" vertex="1">
-          <mxGeometry height="60" width="120" x="220" y="200" as="geometry" />
+        <mxCell id="stock" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" value="Stock In / Out" vertex="1">
+          <mxGeometry height="60" width="140" x="240" y="280" as="geometry" />
         </mxCell>
-        <mxCell id="back_order" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" value="Back Orders&#xa;(Supplier Backlog)" vertex="1">
-          <mxGeometry height="60" width="120" x="220" y="280" as="geometry" />
+        <mxCell id="suppliers" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" value="Supplier List" vertex="1">
+          <mxGeometry height="60" width="140" x="240" y="370" as="geometry" />
         </mxCell>
-        <mxCell id="suppliers" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00AA00;strokeColor=#006600;fontSize=12;fontColor=#000000;" value="Suppliers&#xa;(Vendor Master)" vertex="1">
-          <mxGeometry height="60" width="120" x="220" y="360" as="geometry" />
+        <mxCell id="items" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8B00FF;strokeColor=#5500AA;fontSize=12;fontColor=#000000;" value="Item List" vertex="1">
+          <mxGeometry height="60" width="130" x="930" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="items" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8B00FF;strokeColor=#5500AA;fontSize=12;fontColor=#000000;" value="Items&#xa;(Item Master)" vertex="1">
-          <mxGeometry height="60" width="120" x="880" y="40" as="geometry" />
+        <mxCell id="machines" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8B00FF;strokeColor=#5500AA;fontSize=12;fontColor=#000000;" value="Machine Items" vertex="1">
+          <mxGeometry height="60" width="130" x="930" y="190" as="geometry" />
         </mxCell>
-        <mxCell id="machines" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8B00FF;strokeColor=#5500AA;fontSize=12;fontColor=#000000;" value="Machine Items&#xa;(Spare Parts)" vertex="1">
-          <mxGeometry height="60" width="120" x="880" y="120" as="geometry" />
+        <mxCell id="projects" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;strokeColor=#CC7700;fontSize=12;fontColor=#000000;" value="Project Planner" vertex="1">
+          <mxGeometry height="60" width="130" x="930" y="280" as="geometry" />
         </mxCell>
-        <mxCell id="projects" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;strokeColor=#CC7700;fontSize=12;fontColor=#000000;" value="Project Planner&#xa;(Tracking)" vertex="1">
-          <mxGeometry height="60" width="120" x="880" y="220" as="geometry" />
-        </mxCell>
-        <mxCell id="tasks" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" value="Tasks&#xa;(Assignment)" vertex="1">
-          <mxGeometry height="60" width="120" x="880" y="300" as="geometry" />
+        <mxCell id="tasks" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" value="Tasks" vertex="1">
+          <mxGeometry height="60" width="130" x="930" y="370" as="geometry" />
         </mxCell>
         <mxCell id="utility" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" value="Utility Suppliers" vertex="1">
-          <mxGeometry height="60" width="120" x="880" y="380" as="geometry" />
+          <mxGeometry height="60" width="130" x="930" y="460" as="geometry" />
         </mxCell>
-        <mxCell id="users" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" value="Users&#xa;(System Users)" vertex="1">
-          <mxGeometry height="60" width="120" x="880" y="460" as="geometry" />
+        <mxCell id="users" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" value="User List" vertex="1">
+          <mxGeometry height="60" width="130" x="930" y="550" as="geometry" />
         </mxCell>
-        <mxCell id="users_c" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" value="Users(C)&#xa;(Client Users)" vertex="1">
-          <mxGeometry height="60" width="120" x="880" y="540" as="geometry" />
-        </mxCell>
-        <mxCell id="system_info" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" value="System Info&#xa;(Settings)" vertex="1">
-          <mxGeometry height="60" width="120" x="880" y="620" as="geometry" />
+        <mxCell id="system_info" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCCCCC;strokeColor=#666666;fontSize=12;fontColor=#000000;" value="Settings" vertex="1">
+          <mxGeometry height="60" width="130" x="930" y="640" as="geometry" />
         </mxCell>
         <mxCell id="edge1" edge="1" parent="1" source="leads" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge4" edge="1" parent="1" source="proforma" target="master">
+        <mxCell id="edge2" edge="1" parent="1" source="clients" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge5" edge="1" parent="1" source="clients" target="master">
+        <mxCell id="edge3" edge="1" parent="1" source="proforma" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge6" edge="1" parent="1" source="purchase_orders" target="master">
+        <mxCell id="edge4" edge="1" parent="1" source="po_details" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge7" edge="1" parent="1" source="stock" target="master">
+        <mxCell id="edge5" edge="1" parent="1" source="purchase_orders" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge8" edge="1" parent="1" source="po_details" target="master">
+        <mxCell id="edge6" edge="1" parent="1" source="stock" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge9" edge="1" parent="1" source="back_order" target="master">
+        <mxCell id="edge7" edge="1" parent="1" source="suppliers" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge10" edge="1" parent="1" source="suppliers" target="master">
+        <mxCell id="edge8" edge="1" parent="1" source="items" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge11" edge="1" parent="1" source="items" target="master">
+        <mxCell id="edge9" edge="1" parent="1" source="machines" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge12" edge="1" parent="1" source="machines" target="master">
+        <mxCell id="edge10" edge="1" parent="1" source="projects" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge13" edge="1" parent="1" source="projects" target="master">
+        <mxCell id="edge11" edge="1" parent="1" source="tasks" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge14" edge="1" parent="1" source="tasks" target="master">
+        <mxCell id="edge12" edge="1" parent="1" source="utility" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge15" edge="1" parent="1" source="utility" target="master">
+        <mxCell id="edge13" edge="1" parent="1" source="users" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge16" edge="1" parent="1" source="users" target="master">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="edge17" edge="1" parent="1" source="users_c" target="master">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="edge18" edge="1" parent="1" source="system_info" target="master">
+        <mxCell id="edge14" edge="1" parent="1" source="system_info" target="master">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="edge_db" edge="1" parent="1" source="master" target="db">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="flow3" edge="1" parent="1" source="proforma" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;" target="po_details" value="">
+        <mxCell id="flow1" edge="1" parent="1" source="leads" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;" target="clients" value="Convert to Client">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="flow4" edge="1" parent="1" source="purchase_orders" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;" target="stock" value="">
+        <mxCell id="flow2" edge="1" parent="1" source="clients" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;" target="proforma" value="Create PI">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="flow5" edge="1" parent="1" source="stock" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;" target="projects" value="">
+        <mxCell id="flow3" edge="1" parent="1" source="proforma" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;" target="purchase_orders" value="Start Procurement (PI Confirmed)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow4" edge="1" parent="1" source="proforma" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;" target="po_details" value="Capture Factory Details (Parallel)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow4b" edge="1" parent="1" source="po_details" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;" target="purchase_orders" value="Update/Enrich PO">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow5" edge="1" parent="1" source="purchase_orders" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;" target="stock" value="Receive Goods">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow6" edge="1" parent="1" source="stock" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;" target="projects" value="Allocate to Project">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow7" edge="1" parent="1" source="projects" style="dashed=1;strokeColor=#FFFFFF;strokeWidth=2;" target="tasks" value="Generate Tasks">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="legend_box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#333333;fontColor=#FFFFFF;fontStyle=1;fontSize=12;" value="LEGEND" vertex="1">
-          <mxGeometry height="30" width="300" x="40" y="680" as="geometry" />
+          <mxGeometry height="30" width="250" x="40" y="760" as="geometry" />
         </mxCell>
-        <mxCell id="legend1" parent="1" style="text;html=1;strokeColor=#666666;fillColor=#f5f5f5;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontColor=#333333;fontStyle=1;" value="BLUE: Sales &amp; CRM | GREEN: Procurement | PURPLE: Inventory | ORANGE: Projects | GRAY: Admin | RED: Master.php" vertex="1">
-          <mxGeometry height="30" width="500" x="40" y="720" as="geometry" />
+        <mxCell id="legend1" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontColor=#000000;fontStyle=1;" value="BLUE: CRM / Client flow | GREEN: Procurement / Stock | PURPLE: Inventory | ORANGE: Projects | GRAY: Admin" vertex="1">
+          <mxGeometry height="25" width="650" x="40" y="800" as="geometry" />
         </mxCell>
-        <mxCell id="legend2" parent="1" style="text;html=1;strokeColor=#666666;fillColor=#f5f5f5;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#333333;" value="Solid lines: AJAX calls to Master.php | Dashed lines: Data flow between modules" vertex="1">
-          <mxGeometry height="30" width="500" x="40" y="750" as="geometry" />
+        <mxCell id="legend2" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontColor=#000000;" value="Solid lines: module calls into Master.php | Dashed lines: active business flow shown in sidebar and code" vertex="1">
+          <mxGeometry height="25" width="650" x="40" y="825" as="geometry" />
+        </mxCell>
+        <mxCell id="legend3" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontColor=#666666;" value="Legacy code paths are intentionally omitted from this active architecture view." vertex="1">
+          <mxGeometry height="25" width="700" x="40" y="850" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
