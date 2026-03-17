@@ -2,6 +2,21 @@
 require_once('../config.php');
 
 date_default_timezone_set('Asia/Kolkata');
+
+if(!function_exists('ensure_authenticated_endpoint_access')){
+    function ensure_authenticated_endpoint_access(){
+        if(isset($_SESSION['userdata']) && is_array($_SESSION['userdata'])) return;
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        if($isAjax){
+            header('Content-Type: application/json');
+            echo json_encode(array('status' => 'error', 'message' => 'Session expired', 'redirect' => 'admin/login.php'));
+        }else{
+            echo "<script>location.href='".base_url."admin/login.php'</script>";
+        }
+        exit;
+    }
+}
+
 Class Master extends DBConnection {
     private $settings;
     public function __construct(){
@@ -4296,6 +4311,9 @@ function delete_utility_supplier(){
 
 $Master = new Master();
 $action = !isset($_GET['f']) ? 'none' : strtolower($_GET['f']);
+if($action !== 'none'){
+    ensure_authenticated_endpoint_access();
+}
 $sysset = new SystemSettings();
 switch ($action) {
 	case 'save_project':
