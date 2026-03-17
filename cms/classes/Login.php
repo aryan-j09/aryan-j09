@@ -34,6 +34,12 @@ class Login extends DBConnection {
 		if($this->is_legacy_md5($hash)) return true;
 		return password_needs_rehash($hash, $this->password_algo);
 	}
+	private function refresh_session_id(){
+		if(session_status() !== PHP_SESSION_ACTIVE){
+			session_start();
+		}
+		session_regenerate_id(true);
+	}
 	public function login(){
 		extract($_POST);
 		$username = $this->conn->real_escape_string($username);
@@ -47,6 +53,7 @@ class Login extends DBConnection {
 				$new_hash = $this->conn->real_escape_string($this->hash_password($password));
 				$this->conn->query("UPDATE users set password = '{$new_hash}' where id = '{$user['id']}'");
 			}
+			$this->refresh_session_id();
 			foreach($user as $k => $v){
 				if(!is_numeric($k) && $k != 'password'){
 					$this->settings->set_userdata($k,$v);
@@ -89,6 +96,7 @@ class Login extends DBConnection {
 				$new_hash = $this->conn->real_escape_string($this->hash_password($password));
 				$this->conn->query("UPDATE users set password = '{$new_hash}' where id = '{$user['id']}'");
 			}
+			$this->refresh_session_id();
 			foreach($user as $k => $v){
 				$this->settings->set_userdata($k,$v);
 			}
