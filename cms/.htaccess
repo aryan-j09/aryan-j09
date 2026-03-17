@@ -1,6 +1,13 @@
 php_value display_errors Off
 php_value mbstring.http_input auto
 php_value date.timezone Asia/Kolkata
+
+SetEnv CMS_DB_SERVER "localhost"
+SetEnv CMS_DB_USERNAME "sbpanchaldev"
+SetEnv CMS_DB_PASSWORD "SBpanchal@devak2"
+SetEnv CMS_DB_NAME "Db_SB_Panchal_2022"
+SetEnv CMS_BASE_URL "https://sbpanchal.com/cms/"
+
 <IfModule mod_rewrite.c>
 Header set Access-Control-Allow-Origin "*"
 RewriteEngine on
