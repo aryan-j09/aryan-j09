@@ -391,6 +391,7 @@ while($row = $item_query->fetch_assoc()) {
                 <option value="Net 60 days" <?php echo (isset($payment_terms) && $payment_terms == 'Net 60 days') ? 'selected' : ''; ?>>Net 60days</option>
                 <option value="Net 90 days" <?php echo (isset($payment_terms) && $payment_terms == 'Net 90 days') ? 'selected' : ''; ?>>Net 90days</option>
                 <option value="30% advance 70% against delivery" <?php echo (isset($payment_terms) && $payment_terms == '30% advance 70% against delivery') ? 'selected' : ''; ?>>30% advance 70% against delivery</option>
+                <option value="35% advance 65% against Proforma Invoice" <?php echo (isset($payment_terms) && $payment_terms == '35% advance 65% against Proforma Invoice') ? 'selected' : ''; ?>>35% advance 65% against Proforma Invoice</option>
                 <option value="40% advance 60% against delivery" <?php echo (isset($payment_terms) && $payment_terms == '40% advance 60% against delivery') ? 'selected' : ''; ?>>40% advance 60% against delivery</option>
                 <option value="50% advance 50% against delivery" <?php echo (isset($payment_terms) && $payment_terms == '50% advance 50% against delivery') ? 'selected' : ''; ?>>50% advance 50% against delivery</option>
                 <option value="40% Adv 50% Delivery & 10% Inst at factory" <?php echo (isset($payment_terms) && $payment_terms == '40% Adv 50% Delivery & 10% Inst at factory') ? 'selected' : ''; ?>>40% Advance 50% against Delivery & 10% against Installation at factory</option>
