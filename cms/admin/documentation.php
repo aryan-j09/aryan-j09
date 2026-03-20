@@ -545,8 +545,8 @@ DataTable / UI updated with feedback (success/error)
                     <p style="color: #718096;">
                         <i class="fas fa-image"></i><br>
                         View Workflow 1 in Draw.io:<br>
-                        <a href="https://draw.io" target="_blank" class="anchor-link">
-                            Open Workflow_1_Lead_to_Client_to_PI_to_PO.drawio in Draw.io
+                        <a href="#" onclick="openDiagram('Workflow_1_Lead_to_Client_to_PI_to_PO.drawio'); return false;" class="anchor-link">
+                            Open Workflow 1 Diagram
                         </a>
                     </p>
                 </div>
@@ -563,8 +563,8 @@ DataTable / UI updated with feedback (success/error)
                     <p style="color: #718096;">
                         <i class="fas fa-image"></i><br>
                         View Workflow 2 in Draw.io:<br>
-                        <a href="https://draw.io" target="_blank" class="anchor-link">
-                            Open Workflow_2_PO_to_Stock_to_Project.drawio in Draw.io
+                        <a href="#" onclick="openDiagram('Workflow_2_PO_to_Stock_to_Project.drawio'); return false;" class="anchor-link">
+                            Open Workflow 2 Diagram
                         </a>
                     </p>
                 </div>
@@ -581,8 +581,8 @@ DataTable / UI updated with feedback (success/error)
                     <p style="color: #718096;">
                         <i class="fas fa-image"></i><br>
                         View Workflow 3 in Draw.io:<br>
-                        <a href="https://draw.io" target="_blank" class="anchor-link">
-                            Open Workflow_3_Stock_Movement.drawio in Draw.io
+                        <a href="#" onclick="openDiagram('Workflow_3_Stock_Movement.drawio'); return false;" class="anchor-link">
+                            Open Workflow 3 Diagram
                         </a>
                     </p>
                 </div>
@@ -599,8 +599,8 @@ DataTable / UI updated with feedback (success/error)
                     <p style="color: #718096;">
                         <i class="fas fa-image"></i><br>
                         View Architecture in Draw.io:<br>
-                        <a href="https://draw.io" target="_blank" class="anchor-link">
-                            Open SB_Panchal_CMS_Architecture.drawio in Draw.io
+                        <a href="#" onclick="openDiagram('SB_Panchal_CMS_Architecture.drawio'); return false;" class="anchor-link">
+                            Open Architecture Diagram
                         </a>
                     </p>
                 </div>
@@ -608,8 +608,8 @@ DataTable / UI updated with feedback (success/error)
                 <div class="info-box">
                     <strong><i class="fas fa-lightbulb"></i> How to use these diagrams:</strong>
                     <br>All diagrams are stored in the codebase as Draw.io files. 
-                    You can edit them in-place using the Draw.io extension in VS Code 
-                    or view them at <a href="https://draw.io" target="_blank" class="anchor-link">draw.io</a>.
+                    Diagrams open in Draw.io's viewer where you can interact with them. 
+                    To edit, download the file and use the <a href="https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio" target="_blank" class="anchor-link">Draw.io extension in VS Code</a>.
                 </div>
             </div>
             
@@ -1443,6 +1443,13 @@ DataTable / UI updated with feedback (success/error)
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Build an absolute URL to a local proxy endpoint that serves diagram XML with CORS.
+        function openDiagram(filename) {
+            const proxyUrl = new URL('drawio_file.php?file=' + encodeURIComponent(filename), window.location.href).href;
+            const drawioUrl = 'https://app.diagrams.net/?lightbox=1&url=' + encodeURIComponent(proxyUrl);
+            window.open(drawioUrl, '_blank');
+        }
+        
         // Smooth scroll for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
