@@ -288,13 +288,15 @@ while ($step = $steps_qry->fetch_assoc()) {
                 <div class="card-tools no-print">
                     <?php
                     if (isset($_SESSION['userdata']) && $_SESSION['userdata']['type'] == '1'):
+                        $proforma_view_page = (($po['company'] ?? '') === 'S.B. Panchal') ? 'sbp_pi' : 'view_pi';
                         // Check if any document exists
                         $has_documents = !empty($po['po_file']) ||
                             !empty($po['bill_file']) ||
                             !empty($po['challan_file']) ||
                             !empty($po['eway_file']) ||
                             !empty($po['lr_file']) ||
-                            !empty($po['quotation_file']);
+                            !empty($po['quotation_file']) ||
+                            !empty($po['pi_id']);
 
                         if ($has_documents):
                     ?>
@@ -376,6 +378,18 @@ while ($step = $steps_qry->fetch_assoc()) {
                                                         <polyline points="14 2 14 8 20 8"></polyline>
                                                     </svg>
                                                     <span>Quotation</span>
+                                                </a>
+                                            </li>
+                                        <?php endif; ?>
+
+                                        <?php if (!empty($po['pi_id'])): ?>
+                                            <li>
+                                                <a href="<?= base_url ?>admin/?page=proforma_invoice/<?= $proforma_view_page ?>&id=<?= $po['pi_id'] ?>" target="_blank">
+                                                    <svg stroke-linejoin="round" stroke-linecap="round" stroke-width="2" stroke="currentColor" fill="none" viewBox="0 0 24 24" height="14" width="14">
+                                                        <path d="M14 2H6a2 0 0 0-2 2v16a2 0 0 0 2 2h12a2 0 0 0 2-2V8z"></path>
+                                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                                    </svg>
+                                                    <span>Proforma Invoice</span>
                                                 </a>
                                             </li>
                                         <?php endif; ?>
