@@ -1348,11 +1348,32 @@ Class Master extends DBConnection {
         // Calculate total received
         $total_received = $adv_received + $insp_received + $inst_received + $cred_received;
 
-        // Calculate shortfall (amount not paid from expected)
-        $total_shortfall = max(0, ($adv_expected - $adv_received)) + 
-                          max(0, ($insp_expected - $insp_received)) + 
-                          max(0, ($inst_expected - $inst_received)) + 
-                          max(0, ($cred_expected - $cred_received));
+        // Compute shortfall using cumulative allocation across terms.
+        // Excess paid in earlier terms is treated as covering later term expectations.
+        $cum_expected = 0;
+        $cum_received = 0;
+
+        $cum_expected += $adv_expected;
+        $cum_received += $adv_received;
+        $adv_effective = min($adv_expected, max(0, $cum_received - ($cum_expected - $adv_expected)));
+        $adv_shortfall = max(0, $adv_expected - $adv_effective);
+
+        $cum_expected += $insp_expected;
+        $cum_received += $insp_received;
+        $insp_effective = min($insp_expected, max(0, $cum_received - ($cum_expected - $insp_expected)));
+        $insp_shortfall = max(0, $insp_expected - $insp_effective);
+
+        $cum_expected += $inst_expected;
+        $cum_received += $inst_received;
+        $inst_effective = min($inst_expected, max(0, $cum_received - ($cum_expected - $inst_expected)));
+        $inst_shortfall = max(0, $inst_expected - $inst_effective);
+
+        $cum_expected += $cred_expected;
+        $cum_received += $cred_received;
+        $cred_effective = min($cred_expected, max(0, $cum_received - ($cum_expected - $cred_expected)));
+        $cred_shortfall = max(0, $cred_expected - $cred_effective);
+
+        $total_shortfall = $adv_shortfall + $insp_shortfall + $inst_shortfall + $cred_shortfall;
 
         // Calculate balance: if shortfall_is_tds is checked, shortfall is TDS not pending
         $balance_amount = $total_amount - $total_received;

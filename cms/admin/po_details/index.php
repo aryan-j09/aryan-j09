@@ -67,12 +67,6 @@ if (!empty($selected_company)) {
 if ($payment_pending_only) {
     $summary_conditions[] = "(po.status = 'completed' OR po.actual_delivery_date IS NOT NULL)";
     $summary_conditions[] = "IFNULL(po.balance_amount,0) > 0";
-    $summary_conditions[] = "(
-        IFNULL(pil.advance_payment_amount,0) > IFNULL(po.advance_received,0)
-        OR IFNULL(pil.inspection_payment_amount,0) > IFNULL(po.inspection_received,0)
-        OR IFNULL(pil.installation_payment_amount,0) > IFNULL(po.installation_received,0)
-        OR IFNULL(pil.credit_payment_amount,0) > IFNULL(po.credit_received,0)
-    )";
 }
 if ($overdue_delivery_only) {
     $summary_conditions[] = "po.status = 'pending'";
@@ -311,12 +305,6 @@ $summary_data = $summary_qry->fetch_assoc();
                     if ($payment_pending_only) {
                         $conditions[] = "(po.status = 'completed' OR po.actual_delivery_date IS NOT NULL)";
                         $conditions[] = "IFNULL(po.balance_amount,0) > 0";
-                        $conditions[] = "(
-                            IFNULL(pil.advance_payment_amount,0) > IFNULL(po.advance_received,0)
-                            OR IFNULL(pil.inspection_payment_amount,0) > IFNULL(po.inspection_received,0)
-                            OR IFNULL(pil.installation_payment_amount,0) > IFNULL(po.installation_received,0)
-                            OR IFNULL(pil.credit_payment_amount,0) > IFNULL(po.credit_received,0)
-                        )";
                     }
                     if ($overdue_delivery_only) {
                         $conditions[] = "po.status = 'pending'";

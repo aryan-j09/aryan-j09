@@ -508,96 +508,73 @@ while ($step = $steps_qry->fetch_assoc()) {
                                     ['type' => 'credit', 'label' => $po['credit_payment_days'] . ' Days Credit']
                                 ];
 
+                                $cumulative_expected = 0;
+                                $cumulative_received = 0;
+                                $calculated_shortfall = 0;
+
                                 foreach ($payments as $payment):
                                     $type = $payment['type'];
 
-                                    // Special handling for credit payment
                                     if ($type === 'credit') {
-                                        if (($po['credit_payment_amount'] ?? 0) > 0):
-                                            $expected = $po['credit_payment_amount'];
-                                            $received = $po['credit_received'] ?? 0;
-                                            $percentage = ($expected / $po['total_amount']) * 100;
+                                        $is_enabled = ($po['credit_payment_amount'] ?? 0) > 0;
+                                        $expected = (float)($po['credit_payment_amount'] ?? 0);
+                                        $raw_received = (float)($po['credit_received'] ?? 0);
+                                        $excess_display = (float)($po['credit_excess'] ?? 0);
+                                        $term_label = $payment['label'] . ' -';
+                                    } else {
+                                        $is_enabled = ($po["{$type}_payment"] ?? 0) > 0;
+                                        $expected = (float)($po["{$type}_payment_amount"] ?? 0);
+                                        $raw_received = (float)($po["{$type}_received"] ?? 0);
+                                        $excess_display = (float)($po["{$type}_excess"] ?? 0);
+                                        $term_label = $payment['label'] . ' (' . ($po["{$type}_payment"] ?? 0) . '%) -';
+                                    }
 
-                                            // Determine payment status and badge color
-                                            if ($received == 0) {
-                                                $status = 'Pending';
-                                                $badge = 'danger';
-                                            } elseif ($received >= $expected) {
-                                                $status = 'Received';
-                                                $badge = 'success';
+                                    if ($is_enabled):
+                                        $cumulative_expected += $expected;
+                                        $cumulative_received += $raw_received;
+
+                                        $effective_received = min($expected, max(0, $cumulative_received - ($cumulative_expected - $expected)));
+                                        $term_shortfall = max(0, $expected - $effective_received);
+                                        $calculated_shortfall += $term_shortfall;
+
+                                        if ($effective_received <= 0) {
+                                            $status = 'Pending';
+                                            $badge = 'danger';
+                                        } elseif ($effective_received >= $expected) {
+                                            $status = 'Received';
+                                            $badge = 'success';
+                                        } else {
+                                            if (($po['shortfall_is_tds'] ?? 0) == 1) {
+                                                $status = 'Deducted as TDS';
+                                                $badge = 'info';
                                             } else {
-                                                // Check if shortfall should be attributed to TDS
-                                                if ($po['shortfall_is_tds'] == 1) {
-                                                    $status = 'Deducted as TDS';
-                                                    $badge = 'info';
-                                                } else {
-                                                    $status = getCurrencySymbol($po['currency'] ?? 'INR') . ' ' . formatIndianMoney($received) . ' received';
-                                                    $badge = 'warning';
-                                                }
+                                                $status = getCurrencySymbol($po['currency'] ?? 'INR') . ' ' . formatIndianMoney($effective_received) . ' received';
+                                                $badge = 'warning';
                                             }
+                                        }
+
+                                        $bg_text = '';
+                                        if ($type === 'advance' && ($po['abg_required'] ?? 0)) {
+                                            $bg_text = '<span class="badge badge-info ml-1">Against ABG</span>';
+                                        } elseif ($type === 'installation' && ($po['pbg_required'] ?? 0)) {
+                                            $bg_text = '<span class="badge badge-info ml-1">Against PBG</span>';
+                                        }
                                 ?>
                                             <div class="d-flex align-items-center mb-2">
                                                 <div class="flex-grow-1" style="max-width: 80%">
-                                                    <?= $payment['label'] ?> -
-                                                    <span class="text-muted"><?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($expected) ?></span>
-                                                    <?php if (($po['credit_excess'] ?? 0) > 0): ?>
-                                                        <span class="badge badge-warning ml-1">
-                                                            <i class="fas fa-exclamation-triangle"></i> Excess: <?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($po['credit_excess']) ?>
-                                                        </span>
-                                                    <?php endif; ?>
-                                                </div>
-                                                <span class="badge badge-<?= $badge ?> ml-1"><?= $status ?></span>
-                                            </div>
-                                        <?php
-                                        endif;
-                                    } else {
-                                        // Existing payment types handling
-                                        if (($po["{$type}_payment"] ?? 0) > 0):
-                                            $expected = $po["{$type}_payment_amount"] ?? 0;
-                                            $received = $po["{$type}_received"] ?? 0;
-
-                                            // Determine payment status and badge color
-                                            if ($received == 0) {
-                                                $status = 'Pending';
-                                                $badge = 'danger';
-                                            } elseif ($received >= $expected) {
-                                                $status = 'Received';
-                                                $badge = 'success';
-                                            } else {
-                                                // Check if shortfall should be attributed to TDS
-                                                if ($po['shortfall_is_tds'] == 1) {
-                                                    $status = 'Deducted as TDS';
-                                                    $badge = 'info';
-                                                } else {
-                                                    $status = getCurrencySymbol($po['currency'] ?? 'INR') . ' ' . formatIndianMoney($received) . ' received';
-                                                    $badge = 'warning';
-                                                }
-                                            }
-
-                                            // Add bank guarantee indicators
-                                            $bg_text = '';
-                                            if ($type === 'advance' && ($po['abg_required'] ?? 0)) {
-                                                $bg_text = '<span class="badge badge-info ml-1">Against ABG</span>';
-                                            } elseif ($type === 'installation' && ($po['pbg_required'] ?? 0)) {
-                                                $bg_text = '<span class="badge badge-info ml-1">Against PBG</span>';
-                                            }
-                                        ?>
-                                            <div class="d-flex align-items-center mb-2">
-                                                <div class="flex-grow-1" style="max-width: 80%">
-                                                    <?= $payment['label'] ?> (<?= $po["{$type}_payment"] ?>%) -
+                                                    <?= $term_label ?>
                                                     <span class="text-muted"><?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($expected) ?></span>
                                                     <?= $bg_text ?>
-                                                    <?php if (($po["{$type}_excess"] ?? 0) > 0): ?>
+                                                    <?php if ($excess_display > 0): ?>
                                                         <span class="badge badge-warning ml-1">
-                                                            <i class="fas fa-exclamation-triangle"></i> Excess: <?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($po["{$type}_excess"]) ?>
+                                                            <i class="fas fa-exclamation-triangle"></i> Excess: <?= getCurrencySymbol($po['currency'] ?? 'INR') ?> <?= formatIndianMoney($excess_display) ?>
                                                         </span>
                                                     <?php endif; ?>
                                                 </div>
                                                 <span class="badge badge-<?= $badge ?> ml-1"><?= $status ?></span>
                                             </div>
                                 <?php
-                                        endif;
-                                    }
+                                    endif;
                                 endforeach;
                                 ?>
                             </dd>
@@ -607,7 +584,7 @@ while ($step = $steps_qry->fetch_assoc()) {
                             <dt class="border-bottom">Payment status:</dt>
                             <?php 
                             // Use pre-calculated balance_amount from database
-                            $tds_amount = ($po['shortfall_is_tds'] == 1 && ($po['total_shortfall'] ?? 0) > 0) ? $po['total_shortfall'] : 0;
+                            $tds_amount = (($po['shortfall_is_tds'] ?? 0) == 1 && ($calculated_shortfall ?? 0) > 0) ? $calculated_shortfall : 0;
                             $actual_balance = $po['balance_amount'] ?? 0;
                             ?>
                             <div class="d-flex justify-content-between align-items-center">
@@ -984,8 +961,18 @@ while ($step = $steps_qry->fetch_assoc()) {
                             <option value="dispatch">Material Dispatch</option>
                             <option value="delivery">Material Delivered</option>
 
+                            <?php
+                            $workflow_cumulative_expected = 0;
+                            $workflow_cumulative_received = 0;
+                            ?>
+
                             <?php if (($po['advance_payment'] ?? 0) > 0):
-                                $advance_pending = $po['advance_payment_amount'] - ($po['advance_received'] ?? 0);
+                                $advance_expected = (float)($po['advance_payment_amount'] ?? 0);
+                                $advance_raw = (float)($po['advance_received'] ?? 0);
+                                $workflow_cumulative_expected += $advance_expected;
+                                $workflow_cumulative_received += $advance_raw;
+                                $advance_effective = min($advance_expected, max(0, $workflow_cumulative_received - ($workflow_cumulative_expected - $advance_expected)));
+                                $advance_pending = max(0, $advance_expected - $advance_effective);
                                 if ($advance_pending > 0):
                             ?>
                                     <option value="advance_payment" data-amount="<?= $advance_pending ?>" data-type="advance">
@@ -996,7 +983,12 @@ while ($step = $steps_qry->fetch_assoc()) {
                             endif; ?>
 
                             <?php if (($po['inspection_payment'] ?? 0) > 0):
-                                $inspection_pending = $po['inspection_payment_amount'] - ($po['inspection_received'] ?? 0);
+                                $inspection_expected = (float)($po['inspection_payment_amount'] ?? 0);
+                                $inspection_raw = (float)($po['inspection_received'] ?? 0);
+                                $workflow_cumulative_expected += $inspection_expected;
+                                $workflow_cumulative_received += $inspection_raw;
+                                $inspection_effective = min($inspection_expected, max(0, $workflow_cumulative_received - ($workflow_cumulative_expected - $inspection_expected)));
+                                $inspection_pending = max(0, $inspection_expected - $inspection_effective);
                                 if ($inspection_pending > 0):
                             ?>
                                     <option value="inspection_payment" data-amount="<?= $inspection_pending ?>" data-type="inspection">
@@ -1008,7 +1000,12 @@ while ($step = $steps_qry->fetch_assoc()) {
                             endif; ?>
 
                             <?php if (($po['installation_payment'] ?? 0) > 0):
-                                $installation_pending = $po['installation_payment_amount'] - ($po['installation_received'] ?? 0);
+                                $installation_expected = (float)($po['installation_payment_amount'] ?? 0);
+                                $installation_raw = (float)($po['installation_received'] ?? 0);
+                                $workflow_cumulative_expected += $installation_expected;
+                                $workflow_cumulative_received += $installation_raw;
+                                $installation_effective = min($installation_expected, max(0, $workflow_cumulative_received - ($workflow_cumulative_expected - $installation_expected)));
+                                $installation_pending = max(0, $installation_expected - $installation_effective);
                                 if ($installation_pending > 0):
                             ?>
                                     <option value="installation_payment" data-amount="<?= $installation_pending ?>" data-type="installation">
@@ -1019,7 +1016,12 @@ while ($step = $steps_qry->fetch_assoc()) {
                             endif; ?>
 
                             <?php if (($po['credit_payment_amount'] ?? 0) > 0):
-                                $credit_pending = $po['credit_payment_amount'] - ($po['credit_received'] ?? 0);
+                                $credit_expected = (float)($po['credit_payment_amount'] ?? 0);
+                                $credit_raw = (float)($po['credit_received'] ?? 0);
+                                $workflow_cumulative_expected += $credit_expected;
+                                $workflow_cumulative_received += $credit_raw;
+                                $credit_effective = min($credit_expected, max(0, $workflow_cumulative_received - ($workflow_cumulative_expected - $credit_expected)));
+                                $credit_pending = max(0, $credit_expected - $credit_effective);
                                 if ($credit_pending > 0):
                             ?>
                                     <option value="credit_payment" data-amount="<?= $credit_pending ?>" data-type="credit">
@@ -1139,14 +1141,10 @@ while ($step = $steps_qry->fetch_assoc()) {
 
                 // For ABG/PBG payments, calculate remaining amount
                 if (stepName === 'abg_payment') {
-                    var totalAmount = <?= $po['advance_payment_amount'] ?? 0 ?>;
-                    var receivedAmount = <?= $po['advance_received'] ?? 0 ?>;
-                    amount = totalAmount - receivedAmount;
+                    amount = <?= isset($advance_pending) ? (float)$advance_pending : 0 ?>;
                     paymentType = 'advance';
                 } else if (stepName === 'pbg_payment') {
-                    var totalAmount = <?= $po['installation_payment_amount'] ?? 0 ?>;
-                    var receivedAmount = <?= $po['installation_received'] ?? 0 ?>;
-                    amount = totalAmount - receivedAmount;
+                    amount = <?= isset($installation_pending) ? (float)$installation_pending : 0 ?>;
                     paymentType = 'installation';
                 }
 

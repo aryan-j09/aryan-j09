@@ -260,6 +260,8 @@ $proforma_qry = $conn->query("
 </div>
 
 <script>
+    let currentPaymentCurrency = '<?= $po['currency'] ?? 'INR' ?>';
+
     $(document).ready(function() {
         // Initialize select2
         if (!('<?= $id ?>')) {
@@ -336,6 +338,7 @@ $proforma_qry = $conn->query("
         // If editing, populate all fields
         if ('<?= $id ?>') {
             const poData = <?= json_encode($po) ?>;
+            currentPaymentCurrency = poData.currency || currentPaymentCurrency;
 
             // Populate payment received fields
             if (poData.advance_payment > 0) {
@@ -373,6 +376,7 @@ $proforma_qry = $conn->query("
         $('#client_name').val(data.client_name);
         $('#po_date').val(data.po_date);
         $('[name="requirement"]').val(data.requirements);
+        currentPaymentCurrency = data.currency || currentPaymentCurrency;
 
         // Generate amount details HTML
         const amountHtml = generateAmountBreakdown(data);
@@ -474,7 +478,7 @@ $proforma_qry = $conn->query("
         <div class="input-group input-group-sm">
             <input type="number" name="credit_received" class="form-control payment-received" 
                 data-expected="${expected}" data-type="credit"
-                value="${existingValue}" step="0.01"
+                value="${existingValue}" step="0.01" min="0"
                 required>
             <div class="input-group-append">
                 <span class="input-group-text">/</span>
@@ -497,7 +501,7 @@ $proforma_qry = $conn->query("
         <div class="input-group input-group-sm">
             <input type="number" name="${type}_received" class="form-control payment-received" 
                 data-expected="${expected}" data-type="${type}"
-                value="${existingValue}" data-target="${type}_payment" step="0.01"
+                value="${existingValue}" data-target="${type}_payment" step="0.01" min="0"
                 required>
             <div class="input-group-append">
                 <span class="input-group-text">/</span>
@@ -516,30 +520,55 @@ $proforma_qry = $conn->query("
     }
 
     function initializePaymentHandlers() {
-        $('.payment-received').on('input', function() {
-            const value = parseFloat($(this).val()) || 0;
-            const expected = parseFloat($(this).data('expected'));
-            const type = $(this).data('type');
-            const percentage = ((value / expected) * 100).toFixed(2);
-            const excess = Math.max(0, value - expected);
-            const symbol = getCurrencySymbolJS('<?= $po['currency'] ?? 'INR' ?>');
+        $('.payment-received').off('input').on('input', function() {
+            recalculatePaymentAdjustments();
+        });
 
-            // Update percentage display
-            $(this).closest('.input-group')
-                .find('.payment-percentage')
-                .text(`(${percentage}%)`);
+        // Ensure correct state on initial render/edit load as well.
+        recalculatePaymentAdjustments();
+    }
 
-            // Update excess hidden field
-            const $container = $(this).closest('.mb-2');
-            $container.find('input[name="' + type + '_excess"]').val(excess.toFixed(2));
+    function recalculatePaymentAdjustments() {
+        const paymentOrder = ['advance', 'inspection', 'installation', 'credit'];
+        const symbol = getCurrencySymbolJS(currentPaymentCurrency);
+        let carryExcess = 0;
 
-            // Update excess display
+        paymentOrder.forEach((type) => {
+            const $input = $(`input.payment-received[data-type="${type}"]`);
+            if (!$input.length) return;
+
+            const baseExpected = parseFloat($input.data('expected')) || 0;
+            const adjustedExpected = baseExpected + carryExcess;
+            const receivedValue = parseFloat($input.val()) || 0;
+            const percentage = adjustedExpected > 0 ? ((receivedValue / adjustedExpected) * 100).toFixed(2) : '0.00';
+            const excess = Math.max(0, receivedValue - adjustedExpected);
+
+            // Update expected display for this term (reset automatically when carryExcess is 0).
+            const $inputGroup = $input.closest('.input-group');
+            const $expectedDisplay = $inputGroup.find('input[readonly]').first();
+            if ($expectedDisplay.length) {
+                if (carryExcess > 0) {
+                    $expectedDisplay.val(`${symbol}${formatNumber(baseExpected)} (adjusted to ${symbol}${formatNumber(adjustedExpected)})`);
+                } else {
+                    $expectedDisplay.val(`${symbol}${formatNumber(baseExpected)}`);
+                }
+            }
+
+            // Update percentage display using adjusted expected amount.
+            $inputGroup.find('.payment-percentage').text(`(${percentage}%)`);
+
+            // Update excess hidden field and warning.
+            const $container = $input.closest('.mb-2');
+            $container.find(`input[name="${type}_excess"]`).val(excess.toFixed(2));
             const $excessDisplay = $container.find('.excess-display');
             if (excess > 0) {
                 $excessDisplay.show().find('.excess-amount').text(formatNumber(excess));
             } else {
                 $excessDisplay.hide();
             }
+
+            // Carry this excess to the next term.
+            carryExcess = excess;
         });
     }
 
