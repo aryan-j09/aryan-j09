@@ -107,7 +107,7 @@ if ($po_query) {
         
         <div class="form-group" style="margin-top: 20px; text-align: right;">
             <button type="button" class="btn btn-sm btn-success" id="submit-btn"><i class="fas fa-check"></i> Submit</button>
-            <button type="button" class="btn btn-sm btn-secondary" id="close-btn" data-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="close-btn">Cancel</button>
         </div>
     </div>
 
@@ -154,7 +154,7 @@ if ($po_query) {
         </div>
         <div class="form-group" style="margin-top: 20px; text-align: right;">
             <button type="button" class="btn btn-sm btn-success" id="submit-manual-btn"><i class="fas fa-check"></i> Submit</button>
-            <button type="button" class="btn btn-sm btn-secondary" id="close-btn2" data-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="close-btn2">Cancel</button>
         </div>
     </div>
 </div>
@@ -609,6 +609,11 @@ $(document).ready(function() {
         setTimeout(function() {
             window.location.href = '<?php echo base_url ?>admin/?page=stock';
         }, 1500);
+    });
+
+    // Cancel buttons should navigate back to the stock dashboard.
+    $('#close-btn, #close-btn2').click(function() {
+        window.location.href = '<?php echo base_url ?>admin/?page=stock';
     });
 
     // Handle manual QR mode toggle
