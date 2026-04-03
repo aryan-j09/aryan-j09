@@ -127,8 +127,8 @@ $result = $conn->query($query);
                     <col style="width: 6%;">
                     <col style="width: 20%;">
                     <col style="width: 12%;">
-                    <col style="width: 8%;">
-                    <col style="width: 35%;">
+                    <col style="width: 13%;">
+                    <col style="width: 28%;">
                     <col style="width: 9%;">
                     <col style="width: 10%;">
                 </colgroup>

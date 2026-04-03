@@ -122,6 +122,16 @@ if(isset($_GET['id'])){
         margin-right: 10px;
         font-style: Arial;
     }
+    .box .control-label {
+        margin-bottom: 0;
+    }
+    .pi-date-box {
+        margin-right: 0;
+        white-space: nowrap;
+    }
+    .pi-date-box .control-label {
+        margin-bottom: 0;
+    }
     .header-container .date {
         text-align: right;
     }        
@@ -235,7 +245,10 @@ if(isset($_GET['id'])){
                 <h3><strong><u>Proforma Invoice</strong></u></h3>
             </div>
             <div class="text-right">
-                <label class="date control-label">Date: <?php echo date('d-m-Y'); ?></label>
+                <div class="box pi-date-box text-left">
+                    <label class="control-label text-info ml-2">PI No.: </label> <?php echo isset($invoice['work_order_number']) ? $invoice['work_order_number'] : 'N/A'; ?>
+                    <label class="control-label text-info date">Date: </label> <?php echo date('d-m-Y'); ?>                    
+                </div>
             </div>
         </div> 
         <div class="card-body">

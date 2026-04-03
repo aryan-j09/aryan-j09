@@ -2,6 +2,17 @@
 
 define('_base_url_', 'https://sbpanchal.com/cms/');
 
+function get_work_order_prefix($company){
+    $company = trim((string)$company);
+    if($company === 'Hugopharm'){
+        return 'HUGO/';
+    }
+    if($company === 'S.B. Panchal'){
+        return 'SBP/';
+    }
+    return 'WO';
+}
+
 $success_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -87,27 +98,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $credit_payment_amount = 0;
     }
 
-    // Generate work order number for new invoices
-    if (empty($id)) {
-        $query = "SELECT work_order_number FROM proforma_invoice_list 
-                  WHERE work_order_number LIKE 'WO%' 
-                  ORDER BY CAST(SUBSTRING(work_order_number, 3) AS UNSIGNED) DESC 
-                  LIMIT 1";
-        
-        $result = $conn->query($query);
-        $nextNumber = 1;
+    $prefix = get_work_order_prefix($company);
 
-        if ($result && $result->num_rows > 0) {
-            $lastNumber = $result->fetch_assoc()['work_order_number'];
-            $numericPart = intval(substr($lastNumber, 2));
-            $nextNumber = $numericPart + 1;
-        }
-        
-        $work_order_number = "WO" . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
-        error_log("Generated Work Order Number for new PI: " . $work_order_number); // Debugging line
-    } else {
-        $work_order_number = isset($_POST['work_order_number']) ? $_POST['work_order_number'] : null; // Keep existing for updates
+    // Generate a fresh work order number for the selected company on every save
+    $query = "SELECT work_order_number FROM proforma_invoice_list 
+              WHERE work_order_number LIKE '{$prefix}%' 
+              ORDER BY CAST(SUBSTRING(work_order_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC 
+              LIMIT 1";
+    
+    $result = $conn->query($query);
+    $nextNumber = 1;
+
+    if ($result && $result->num_rows > 0) {
+        $lastNumber = $result->fetch_assoc()['work_order_number'];
+        $numericPart = intval(substr($lastNumber, strlen($prefix)));
+        $nextNumber = $numericPart + 1;
     }
+    
+    $work_order_number = $prefix . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+    error_log("Generated Work Order Number for save: " . $work_order_number); // Debugging line
 
 
     // Update the form fields with calculated values
@@ -195,6 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         po_code = ?,
         po_date_created = ?,
         client_id = ?,
+        work_order_number = ?,
         total_amount = ?,
         packing_forwarding = ?,
         freight = ?,
@@ -224,10 +234,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         WHERE id = ?");
 
     $stmt->bind_param(
-        "ssidddddddddddddddddsddsssiisi", // 29 parameters: 2 strings, 1 int, 18 decimals, 1 string, 2 decimals, 3 strings, 3 ints
+        "ssissddddddddddddddddsddsssiisi", // 30 parameters: 3 strings, 1 int, 18 decimals, 1 string, 2 decimals, 3 strings, 3 ints
         $po_code,
         $po_date_created,
         $client_id,
+        $work_order_number,
         $total_amount,
         $packing_forwarding,
         $freight,
