@@ -67,9 +67,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                     <col width="20%">
                     <col width="9%">
                     <col width="8%">
+                    <!-- <col width="8%">
                     <col width="8%">
-                    <col width="8%">
-                    <col width="8%">
+                    <col width="8%"> -->
                     <col width="9%">
                     <col width="6%">
                 </colgroup>
@@ -81,9 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                         <th>Items</th>
                         <th>Internal Ref</th>
                         <th>Total Amt.</th>
-                        <th>Paid Amt.</th>
+                        <!-- <th>Paid Amt.</th>
                         <th>Payment Status</th>
-                        <th>Close Status</th>
+                        <th>Close Status</th> -->
                         <th>Date Created</th>                        
                         <th>Action</th>
                     </tr>
@@ -178,9 +178,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_id'])) {
                             <td><?php echo implode(', ', $item_names) ?></td>
                             <td><?php echo isset($row['internal_ref_no']) ? $row['internal_ref_no'] : ''; ?></td>
                             <td><?php echo number_format($row['grand_total'],2) ?></td>
-                            <td><?php echo number_format($paid_amount,2) ?></td>
+                            <!-- <td><?php echo number_format($paid_amount,2) ?></td>
                             <td><span class="badge <?php echo $payment_badge; ?>"><?php echo $payment_status; ?></span></td>
-                            <td><span class="badge <?php echo $close_badge; ?>"><?php echo $close_status; ?></span></td>
+                            <td><span class="badge <?php echo $close_badge; ?>"><?php echo $close_status; ?></span></td> -->
                             <td><?php echo date("d-M-Y",strtotime($row['created_at'])) ?></td>                            
                             <td align="center">
                                 <button type="button" class="btn btn-flat btn-default btn-sm dropdown-toggle dropdown-icon" data-toggle="dropdown">
