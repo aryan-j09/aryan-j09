@@ -55,6 +55,8 @@ function cms_module_catalog(){
         'home' => 'Dashboard',
         'purchase_order' => 'Purchase Order',
         'stock' => 'Stock In/Out',
+        'chemicals' => 'Chemicals',
+        'chemical_inventory' => 'Chemical Inventory',
         'proforma_invoice' => 'Proforma Invoice',
         'po_details' => 'PO Factory Details',
         'project_planner2' => 'Project Planner',
@@ -75,7 +77,7 @@ function cms_admin_only_modules(){
 }
 
 function cms_assignable_user_modules(){
-    return array('home', 'purchase_order', 'stock', 'proforma_invoice', 'po_details', 'project_planner2', 'leads', 'tasks', 'clients', 'maintenance', 'utility', 'machine_items', 'quote_items');
+    return array('home', 'purchase_order', 'stock', 'chemicals', 'chemical_inventory', 'proforma_invoice', 'po_details', 'project_planner2', 'leads', 'tasks', 'clients', 'maintenance', 'utility', 'machine_items', 'quote_items');
 }
 
 function cms_bootstrap_access_table($conn){

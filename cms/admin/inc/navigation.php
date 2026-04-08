@@ -84,6 +84,14 @@ $current_user = isset($_SESSION['userdata']) ? $_SESSION['userdata'] : array();
                   <p>Stock In/Out</p>
                 </a>
               </li>
+              <?php endif; ?>              
+              <?php if(cms_user_can_access_module($conn, $current_user, 'chemical_inventory')): ?>
+              <li class="nav-item">
+                <a href="<?php echo base_url ?>admin/?page=chemical_inventory" class="nav-link nav-chemical_inventory nav-chemical_inventory_incoming nav-chemical_inventory_outgoing">
+                  <i class="nav-icon fas fa-flask"></i>
+                  <p>Lab Inventory</p>
+                </a>
+              </li>
               <?php endif; ?>
               <!-- <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=stock_orders" class="nav-link nav-stock_orders">
@@ -175,6 +183,14 @@ $current_user = isset($_SESSION['userdata']) ? $_SESSION['userdata'] : array();
                     <p>Utility Suppliers</p>
                   </a>
                 </li>
+              <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'chemicals')): ?>
+              <li class="nav-item">
+                <a href="<?php echo base_url ?>admin/?page=chemicals" class="nav-link nav-chemicals">
+                  <i class="nav-icon fas fa-vials"></i>
+                  <p>Lab Items</p>
+                </a>
+              </li>
               <?php endif; ?>
               <?php if(cms_user_can_access_module($conn, $current_user, 'machine_items')): ?>
                 <li class="nav-item">

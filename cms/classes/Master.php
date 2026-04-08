@@ -72,12 +72,13 @@ Class Master extends DBConnection {
         }
         return json_encode($resp);
     }
+
     function save_project(){
 		extract($_POST);
 		$data = "";
 		foreach($_POST as $k => $v){
 			if(!in_array($k, array('id', 'supplier_po_ids', 'supplier_po_detail_id'))){
-                $v = $this->conn->real_escape_string($v);
+				$v = $this->conn->real_escape_string($v);
 				if(!empty($data)) $data .=",";
 				$data .= " `{$k}`='{$v}' ";
 			}
@@ -1766,6 +1767,78 @@ Class Master extends DBConnection {
             error_log("Complete project error: " . $e->getMessage());
         }
         
+        header('Content-Type: application/json');
+        echo json_encode($resp);
+        exit;
+    }
+
+    function undo_complete_project() {
+        $resp = ['status' => 'failed', 'msg' => ''];
+
+        try {
+            ensure_authenticated_endpoint_access();
+
+            $current_user_id = isset($_SESSION['userdata']['id']) ? intval($_SESSION['userdata']['id']) : 0;
+            if ($current_user_id !== 1) {
+                throw new Exception("Only user id 1 can undo finished projects");
+            }
+
+            $po_id = isset($_POST['po_id']) ? intval($_POST['po_id']) : 0;
+            if ($po_id <= 0) {
+                throw new Exception("Invalid PO id");
+            }
+
+            $select_stmt = $this->conn->prepare("SELECT bill_file, challan_file FROM purchase_orders WHERE id = ? LIMIT 1");
+            if (!$select_stmt) {
+                throw new Exception("Database prepare failed: " . $this->conn->error);
+            }
+            $select_stmt->bind_param("i", $po_id);
+            if (!$select_stmt->execute()) {
+                throw new Exception("Database fetch failed: " . $select_stmt->error);
+            }
+
+            $bill_file = null;
+            $challan_file = null;
+            $select_stmt->bind_result($bill_file, $challan_file);
+            if (!$select_stmt->fetch()) {
+                $select_stmt->close();
+                throw new Exception("PO record not found");
+            }
+            $select_stmt->close();
+
+            $stmt = $this->conn->prepare("UPDATE purchase_orders SET status = 'pending', actual_delivery_date = NULL, bill_file = NULL, challan_file = NULL WHERE id = ?");
+            if (!$stmt) {
+                throw new Exception("Database prepare failed: " . $this->conn->error);
+            }
+
+            $stmt->bind_param("i", $po_id);
+            if (!$stmt->execute()) {
+                throw new Exception("Database update failed: " . $stmt->error);
+            }
+
+            $upload_path = dirname(dirname(__FILE__)) . '/uploads/invoices/';
+            if (!empty($bill_file)) {
+                $bill_path = $upload_path . $bill_file;
+                if (is_file($bill_path)) {
+                    @unlink($bill_path);
+                }
+            }
+            if (!empty($challan_file)) {
+                $challan_path = $upload_path . $challan_file;
+                if (is_file($challan_path)) {
+                    @unlink($challan_path);
+                }
+            }
+
+            $resp['status'] = 'success';
+            $resp['msg'] = 'Project completion has been reverted successfully';
+            $this->settings->set_flashdata('success', "Project completion has been reverted successfully.");
+        } catch (Exception $e) {
+            $resp['status'] = 'failed';
+            $resp['msg'] = $e->getMessage();
+            error_log("Undo complete project error: " . $e->getMessage());
+        }
+
         header('Content-Type: application/json');
         echo json_encode($resp);
         exit;
@@ -4225,6 +4298,509 @@ function delete_utility_supplier(){
         return json_encode($resp);
     }
 
+    function save_chemical_master(){
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'Unable to save chemical'];
+
+        try {
+            $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+            $name = isset($_POST['name']) ? trim($_POST['name']) : '';
+            $brand = isset($_POST['brand']) ? trim($_POST['brand']) : '';
+            $remarks = isset($_POST['remarks']) ? trim($_POST['remarks']) : '';
+
+            if ($name === '') {
+                $resp['msg'] = 'Name is required';
+                return json_encode($resp);
+            }
+
+            $name_esc = $this->conn->real_escape_string($name);
+            $brand_esc = $this->conn->real_escape_string($brand);
+            $remarks_esc = $this->conn->real_escape_string($remarks);
+            $created_by = isset($_SESSION['userdata']['id']) ? intval($_SESSION['userdata']['id']) : 1;
+
+            $dup_sql = "SELECT id FROM chemical_master_list WHERE name = '{$name_esc}' AND IFNULL(brand,'') = '{$brand_esc}'" . ($id > 0 ? " AND id != {$id}" : "") . " LIMIT 1";
+            $dup = $this->conn->query($dup_sql);
+            if ($dup && $dup->num_rows > 0) {
+                $resp['msg'] = 'Chemical with same name and brand already exists';
+                return json_encode($resp);
+            }
+
+            if ($id > 0) {
+                $sql = "UPDATE chemical_master_list SET
+                        name = '{$name_esc}',
+                        brand = '{$brand_esc}',
+                        remarks = '{$remarks_esc}',
+                        updated_at = NOW()
+                        WHERE id = {$id}";
+            } else {
+                $sql = "INSERT INTO chemical_master_list
+                        (name, brand, remarks, created_by)
+                        VALUES
+                        ('{$name_esc}', '{$brand_esc}', '{$remarks_esc}', {$created_by})";
+            }
+
+            if (!$this->conn->query($sql)) {
+                $resp['msg'] = 'Database error: ' . $this->conn->error;
+                return json_encode($resp);
+            }
+
+            $chemical_id = $id > 0 ? $id : (int)$this->conn->insert_id;
+            $resp['status'] = 'success';
+            $resp['msg'] = $id > 0 ? 'Chemical updated' : 'Chemical saved';
+            $resp['chemical_id'] = $chemical_id;
+            $resp['chemical_name'] = $name;
+            $resp['chemical_brand'] = $brand;
+        } catch (Exception $e) {
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('save_chemical_master error: ' . $e->getMessage());
+        }
+
+        return json_encode($resp);
+    }
+
+    function save_chemical_incoming(){
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'Unable to save incoming record'];
+
+        try {
+            $chemical_id = isset($_POST['chemical_id']) ? intval($_POST['chemical_id']) : 0;
+            $batch_no = isset($_POST['batch_no']) ? trim($_POST['batch_no']) : '';
+            $unit = isset($_POST['unit']) ? trim($_POST['unit']) : '';
+            $supplier = isset($_POST['supplier']) ? trim($_POST['supplier']) : '';
+            $storage_location = isset($_POST['storage_location']) ? trim($_POST['storage_location']) : '';
+            $received_qty = isset($_POST['received_qty']) ? (float)$_POST['received_qty'] : 0;
+            $unit_cost = isset($_POST['unit_cost']) && $_POST['unit_cost'] !== '' ? (float)$_POST['unit_cost'] : 0;
+            $expiry_date = isset($_POST['expiry_date']) ? trim($_POST['expiry_date']) : '';
+            $received_date = isset($_POST['received_date']) && trim($_POST['received_date']) !== '' ? trim($_POST['received_date']) : date('Y-m-d');
+            $remarks = isset($_POST['remarks']) ? trim($_POST['remarks']) : '';
+            $created_by = isset($_SESSION['userdata']['id']) ? intval($_SESSION['userdata']['id']) : 1;
+
+            if ($chemical_id <= 0) {
+                $resp['msg'] = 'Chemical is required';
+                return json_encode($resp);
+            }
+            $valid_units = ['kg', 'g', 'L', 'ml', 'pcs'];
+            if (!in_array($unit, $valid_units, true)) {
+                $resp['msg'] = 'Unit is required';
+                return json_encode($resp);
+            }
+            if ($received_qty <= 0) {
+                $resp['msg'] = 'Received quantity must be greater than 0';
+                return json_encode($resp);
+            }
+            if ($storage_location === '') {
+                $resp['msg'] = 'Storage location is required';
+                return json_encode($resp);
+            }
+            if ($expiry_date !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $expiry_date)) {
+                $resp['msg'] = 'Invalid expiry date format';
+                return json_encode($resp);
+            }
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $received_date)) {
+                $resp['msg'] = 'Invalid received date format';
+                return json_encode($resp);
+            }
+
+            $chem_chk = $this->conn->query("SELECT id FROM chemical_master_list WHERE id = {$chemical_id} LIMIT 1");
+            if (!$chem_chk || $chem_chk->num_rows === 0) {
+                $resp['msg'] = 'Chemical not found';
+                return json_encode($resp);
+            }
+
+            $batch_table_chk = $this->conn->query("SHOW TABLES LIKE 'chemical_inventory_batches'");
+            if (!$batch_table_chk || $batch_table_chk->num_rows === 0) {
+                $resp['msg'] = 'Missing table: chemical_inventory_batches';
+                return json_encode($resp);
+            }
+
+            $chemical_id_i = intval($chemical_id);
+            $batch_esc = $this->conn->real_escape_string($batch_no);
+            $unit_esc = $this->conn->real_escape_string($unit);
+            $supplier_esc = $this->conn->real_escape_string($supplier);
+            $storage_esc = $this->conn->real_escape_string($storage_location);
+            $qty = (float)$received_qty;
+            $available = $qty;
+            $cost = (float)$unit_cost;
+            $expiry_sql = $expiry_date !== '' ? "'".$this->conn->real_escape_string($expiry_date)."'" : "NULL";
+            $received_date_esc = $this->conn->real_escape_string($received_date);
+            $remarks_esc = $this->conn->real_escape_string($remarks);
+
+            $batch_unit_col_exists = false;
+            $unit_col_chk = $this->conn->query("SHOW COLUMNS FROM chemical_inventory_batches LIKE 'unit'");
+            if ($unit_col_chk && $unit_col_chk->num_rows > 0) {
+                $batch_unit_col_exists = true;
+            }
+
+            $this->conn->begin_transaction();
+
+            if ($batch_unit_col_exists) {
+                $sql = "INSERT INTO chemical_inventory_batches
+                        (chemical_id, batch_no, unit, supplier, storage_location, received_qty, available_qty, unit_cost, expiry_date, received_date, remarks, created_by)
+                        VALUES
+                        ({$chemical_id_i}, '{$batch_esc}', '{$unit_esc}', '{$supplier_esc}', '{$storage_esc}', {$qty}, {$available}, {$cost}, {$expiry_sql}, '{$received_date_esc}', '{$remarks_esc}', {$created_by})";
+            } else {
+                $sql = "INSERT INTO chemical_inventory_batches
+                        (chemical_id, batch_no, supplier, storage_location, received_qty, available_qty, unit_cost, expiry_date, received_date, remarks, created_by)
+                        VALUES
+                        ({$chemical_id_i}, '{$batch_esc}', '{$supplier_esc}', '{$storage_esc}', {$qty}, {$available}, {$cost}, {$expiry_sql}, '{$received_date_esc}', '{$remarks_esc}', {$created_by})";
+            }
+
+            if (!$this->conn->query($sql)) {
+                $this->conn->rollback();
+                $resp['msg'] = 'Database error: ' . $this->conn->error;
+                return json_encode($resp);
+            }
+
+            $batch_id = $this->conn->insert_id;
+
+            $logs_table_chk = $this->conn->query("SHOW TABLES LIKE 'chemical_stock_logs'");
+            if ($logs_table_chk && $logs_table_chk->num_rows > 0) {
+                $log_ref = $batch_no !== '' ? $batch_no : ('BATCH#' . $batch_id);
+                $log_ref_esc = $this->conn->real_escape_string($log_ref);
+                $log_sql = "INSERT INTO chemical_stock_logs
+                            (chemical_id, batch_id, movement_type, quantity, reference_type, reference_no, movement_date, remarks, created_by)
+                            VALUES
+                            ({$chemical_id_i}, {$batch_id}, 'IN', {$qty}, 'INCOMING', '{$log_ref_esc}', '{$received_date_esc}', '{$remarks_esc}', {$created_by})";
+                if (!$this->conn->query($log_sql)) {
+                    $this->conn->rollback();
+                    $resp['msg'] = 'Stock log error: ' . $this->conn->error;
+                    return json_encode($resp);
+                }
+            }
+
+            $this->conn->commit();
+
+            $resp['status'] = 'success';
+            $resp['msg'] = 'Incoming stock saved';
+            $resp['batch_id'] = $batch_id;
+        } catch (Exception $e) {
+            if ($this->conn && $this->conn->errno) {
+                $this->conn->rollback();
+            }
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('save_chemical_incoming error: ' . $e->getMessage());
+        }
+
+        return json_encode($resp);
+    }
+
+    function delete_chemical_incoming(){
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'Unable to delete incoming record'];
+
+        try {
+            $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+            if ($id <= 0) {
+                $resp['msg'] = 'Invalid incoming record ID';
+                return json_encode($resp);
+            }
+
+            $batch_q = $this->conn->query("SELECT id, received_qty, available_qty FROM chemical_inventory_batches WHERE id = {$id} LIMIT 1");
+            if (!$batch_q || $batch_q->num_rows === 0) {
+                $resp['msg'] = 'Incoming record not found';
+                return json_encode($resp);
+            }
+
+            $batch = $batch_q->fetch_assoc();
+            $received = (float)$batch['received_qty'];
+            $available = (float)$batch['available_qty'];
+
+            if (abs($received - $available) > 0.0001) {
+                $resp['msg'] = 'Cannot delete: batch already consumed in outgoing';
+                return json_encode($resp);
+            }
+
+            $this->conn->begin_transaction();
+
+            $logs_table_chk = $this->conn->query("SHOW TABLES LIKE 'chemical_stock_logs'");
+            if ($logs_table_chk && $logs_table_chk->num_rows > 0) {
+                if (!$this->conn->query("DELETE FROM chemical_stock_logs WHERE batch_id = {$id}")) {
+                    $this->conn->rollback();
+                    $resp['msg'] = 'Failed to delete linked stock logs: ' . $this->conn->error;
+                    return json_encode($resp);
+                }
+            }
+
+            if (!$this->conn->query("DELETE FROM chemical_inventory_batches WHERE id = {$id}")) {
+                $this->conn->rollback();
+                $resp['msg'] = 'Failed to delete incoming batch: ' . $this->conn->error;
+                return json_encode($resp);
+            }
+
+            $this->conn->commit();
+            $resp['status'] = 'success';
+            $resp['msg'] = 'Incoming record deleted';
+        } catch (Exception $e) {
+            if ($this->conn) {
+                $this->conn->rollback();
+            }
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('delete_chemical_incoming error: ' . $e->getMessage());
+        }
+
+        return json_encode($resp);
+    }
+
+    function delete_chemical_outgoing(){
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'Unable to delete outgoing record'];
+
+        try {
+            $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+            if ($id <= 0) {
+                $resp['msg'] = 'Invalid outgoing record ID';
+                return json_encode($resp);
+            }
+
+            $log_q = $this->conn->query("SELECT id, batch_id, quantity, movement_type FROM chemical_stock_logs WHERE id = {$id} LIMIT 1");
+            if (!$log_q || $log_q->num_rows === 0) {
+                $resp['msg'] = 'Outgoing record not found';
+                return json_encode($resp);
+            }
+
+            $log = $log_q->fetch_assoc();
+            if (strtoupper((string)$log['movement_type']) !== 'OUT') {
+                $resp['msg'] = 'Only OUT records can be deleted from this action';
+                return json_encode($resp);
+            }
+
+            $batch_id = isset($log['batch_id']) ? intval($log['batch_id']) : 0;
+            $qty = (float)$log['quantity'];
+
+            $this->conn->begin_transaction();
+
+            if ($batch_id > 0) {
+                $batch_q = $this->conn->query("SELECT id FROM chemical_inventory_batches WHERE id = {$batch_id} LIMIT 1");
+                if (!$batch_q || $batch_q->num_rows === 0) {
+                    $this->conn->rollback();
+                    $resp['msg'] = 'Linked batch not found';
+                    return json_encode($resp);
+                }
+
+                if (!$this->conn->query("UPDATE chemical_inventory_batches SET available_qty = available_qty + {$qty}, updated_at = NOW() WHERE id = {$batch_id}")) {
+                    $this->conn->rollback();
+                    $resp['msg'] = 'Failed to restore batch quantity: ' . $this->conn->error;
+                    return json_encode($resp);
+                }
+            }
+
+            if (!$this->conn->query("DELETE FROM chemical_stock_logs WHERE id = {$id}")) {
+                $this->conn->rollback();
+                $resp['msg'] = 'Failed to delete outgoing log: ' . $this->conn->error;
+                return json_encode($resp);
+            }
+
+            $this->conn->commit();
+            $resp['status'] = 'success';
+            $resp['msg'] = 'Outgoing record deleted';
+        } catch (Exception $e) {
+            if ($this->conn) {
+                $this->conn->rollback();
+            }
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('delete_chemical_outgoing error: ' . $e->getMessage());
+        }
+
+        return json_encode($resp);
+    }
+
+    function save_chemical_outgoing(){
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'Unable to save outgoing'];
+
+        try {
+            $created_by = isset($_SESSION['userdata']['id']) ? intval($_SESSION['userdata']['id']) : 0;
+            $chemical_id = isset($_POST['chemical_id']) ? intval($_POST['chemical_id']) : 0;
+            $quantity = isset($_POST['quantity']) ? floatval($_POST['quantity']) : 0;
+            $utilized_at = isset($_POST['utilized_at']) ? trim($_POST['utilized_at']) : '';
+            $remarks = isset($_POST['remarks']) ? trim($_POST['remarks']) : '';
+
+            if ($chemical_id <= 0) {
+                $resp['msg'] = 'Chemical is required';
+                return json_encode($resp);
+            }
+            if ($quantity <= 0) {
+                $resp['msg'] = 'Quantity must be greater than 0';
+                return json_encode($resp);
+            }
+
+            $logs_table_chk = $this->conn->query("SHOW TABLES LIKE 'chemical_stock_logs'");
+            if (!$logs_table_chk || $logs_table_chk->num_rows === 0) {
+                $resp['msg'] = 'Missing table: chemical_stock_logs';
+                return json_encode($resp);
+            }
+
+            $batch_table_chk = $this->conn->query("SHOW TABLES LIKE 'chemical_inventory_batches'");
+            if (!$batch_table_chk || $batch_table_chk->num_rows === 0) {
+                $resp['msg'] = 'Missing table: chemical_inventory_batches';
+                return json_encode($resp);
+            }
+
+            $chem_q = $this->conn->query("SELECT id FROM chemical_master_list WHERE id = {$chemical_id} LIMIT 1");
+            if (!$chem_q || $chem_q->num_rows === 0) {
+                $resp['msg'] = 'Selected chemical not found';
+                return json_encode($resp);
+            }
+
+            if ($utilized_at === '') {
+                $utilized_at = date('Y-m-d H:i:s');
+            } else {
+                $parsed_time = strtotime($utilized_at);
+                if ($parsed_time === false) {
+                    $resp['msg'] = 'Invalid utilization date/time';
+                    return json_encode($resp);
+                }
+                $utilized_at = date('Y-m-d H:i:s', $parsed_time);
+            }
+
+            $movement_date = date('Y-m-d', strtotime($utilized_at));
+            $remarks_esc = $this->conn->real_escape_string($remarks);
+            $utilized_at_esc = $this->conn->real_escape_string($utilized_at);
+            $reference_no = 'UTIL-' . date('YmdHis');
+
+            $this->conn->begin_transaction();
+
+            $batches_q = $this->conn->query("SELECT id, available_qty
+                FROM chemical_inventory_batches
+                WHERE chemical_id = {$chemical_id} AND available_qty > 0
+                ORDER BY (expiry_date IS NULL), expiry_date ASC, id ASC
+                FOR UPDATE");
+
+            if (!$batches_q || $batches_q->num_rows === 0) {
+                $this->conn->rollback();
+                $resp['msg'] = 'No available stock for selected chemical';
+                return json_encode($resp);
+            }
+
+            $remaining = $quantity;
+            $log_count = 0;
+
+            while ($batch = $batches_q->fetch_assoc()) {
+                if ($remaining <= 0) {
+                    break;
+                }
+
+                $batch_id = (int)$batch['id'];
+                $available_qty = (float)$batch['available_qty'];
+                if ($available_qty <= 0) {
+                    continue;
+                }
+
+                $use_qty = min($remaining, $available_qty);
+
+                $upd_sql = "UPDATE chemical_inventory_batches
+                    SET available_qty = available_qty - {$use_qty}, updated_at = NOW()
+                    WHERE id = {$batch_id} AND available_qty >= {$use_qty}";
+
+                if (!$this->conn->query($upd_sql) || $this->conn->affected_rows <= 0) {
+                    $this->conn->rollback();
+                    $resp['msg'] = 'Failed to deduct stock. Please retry.';
+                    return json_encode($resp);
+                }
+
+                $log_sql = "INSERT INTO chemical_stock_logs
+                    (chemical_id, batch_id, movement_type, quantity, reference_type, reference_no, movement_date, remarks, created_by, created_at)
+                    VALUES
+                    ({$chemical_id}, {$batch_id}, 'OUT', {$use_qty}, 'UTILIZATION', '{$reference_no}', '{$movement_date}', '{$remarks_esc}', {$created_by}, '{$utilized_at_esc}')";
+
+                if (!$this->conn->query($log_sql)) {
+                    $this->conn->rollback();
+                    $resp['msg'] = 'Failed to save outgoing log: ' . $this->conn->error;
+                    return json_encode($resp);
+                }
+
+                $remaining -= $use_qty;
+                $log_count++;
+            }
+
+            if ($remaining > 0.0000001) {
+                $this->conn->rollback();
+                $resp['msg'] = 'Insufficient stock for requested quantity';
+                return json_encode($resp);
+            }
+
+            $this->conn->commit();
+
+            $resp['status'] = 'success';
+            $resp['msg'] = 'Utilization saved';
+            $resp['log_count'] = $log_count;
+            $resp['reference_no'] = $reference_no;
+        } catch (Exception $e) {
+            if ($this->conn) {
+                $this->conn->rollback();
+            }
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('save_chemical_outgoing error: ' . $e->getMessage());
+        }
+
+        return json_encode($resp);
+    }
+
+    function delete_chemical_master(){
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'Unable to delete chemical'];
+
+        try {
+            $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+            if ($id <= 0) {
+                $resp['msg'] = 'Invalid chemical ID';
+                return json_encode($resp);
+            }
+
+            // Prevent FK failures by checking linked inventory/history first.
+            $linked_batches = 0;
+            $linked_logs = 0;
+
+            $batch_table_chk = $this->conn->query("SHOW TABLES LIKE 'chemical_inventory_batches'");
+            if ($batch_table_chk && $batch_table_chk->num_rows > 0) {
+                $batch_cnt_q = $this->conn->query("SELECT COUNT(*) AS cnt FROM chemical_inventory_batches WHERE chemical_id = {$id}");
+                if ($batch_cnt_q) {
+                    $linked_batches = (int)$batch_cnt_q->fetch_assoc()['cnt'];
+                }
+            }
+
+            $logs_table_chk = $this->conn->query("SHOW TABLES LIKE 'chemical_stock_logs'");
+            if ($logs_table_chk && $logs_table_chk->num_rows > 0) {
+                $log_cnt_q = $this->conn->query("SELECT COUNT(*) AS cnt FROM chemical_stock_logs WHERE chemical_id = {$id}");
+                if ($log_cnt_q) {
+                    $linked_logs = (int)$log_cnt_q->fetch_assoc()['cnt'];
+                }
+            }
+
+            if ($linked_batches > 0 || $linked_logs > 0) {
+                $resp['msg'] = 'Cannot delete chemical because it is used in inventory/history. Delete related incoming/outgoing records first.';
+                return json_encode($resp);
+            }
+
+            $stmt = $this->conn->prepare("DELETE FROM chemical_master_list WHERE id = ?");
+            if (!$stmt) {
+                $resp['msg'] = 'Prepare failed: ' . $this->conn->error;
+                return json_encode($resp);
+            }
+
+            $stmt->bind_param('i', $id);
+            if (!$stmt->execute()) {
+                $resp['msg'] = 'Execute failed: ' . $stmt->error;
+                $stmt->close();
+                return json_encode($resp);
+            }
+
+            if ($stmt->affected_rows > 0) {
+                $resp['status'] = 'success';
+                $resp['msg'] = 'Chemical deleted';
+            } else {
+                $resp['msg'] = 'Chemical not found';
+            }
+
+            $stmt->close();
+        } catch (Exception $e) {
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('delete_chemical_master error: ' . $e->getMessage());
+        }
+
+        return json_encode($resp);
+    }
+
     function universal_search(){
         $resp = [
             'status' => 'success',
@@ -4436,6 +5012,9 @@ switch ($action) {
     case 'complete_project':
         echo $Master->complete_project();
     break;
+    case 'undo_complete_project':
+        echo $Master->undo_complete_project();
+    break;
     case 'verify_requirements':
         echo $Master->verify_requirements();
     break;
@@ -4552,6 +5131,24 @@ switch ($action) {
     break;
     case 'delete_receipt':
         echo $Master->delete_receipt();
+    break;
+    case 'save_chemical_master':
+        echo $Master->save_chemical_master();
+    break;
+    case 'delete_chemical_master':
+        echo $Master->delete_chemical_master();
+    break;
+    case 'save_chemical_incoming':
+        echo $Master->save_chemical_incoming();
+    break;
+    case 'delete_chemical_incoming':
+        echo $Master->delete_chemical_incoming();
+    break;
+    case 'delete_chemical_outgoing':
+        echo $Master->delete_chemical_outgoing();
+    break;
+    case 'save_chemical_outgoing':
+        echo $Master->save_chemical_outgoing();
     break;
     case 'universal_search':
         echo $Master->universal_search();
