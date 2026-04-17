@@ -1,24 +1,10 @@
 <?php
 /**
- * Chemical Inventory Dashboard
+ * Chemical Inventory - Chemicals List
  */
 
 if (!isset($conn)) {
     die('Database connection not available');
-}
-
-$open_incoming_modal = isset($_GET['open_modal']) && $_GET['open_modal'] === 'incoming';
-
-$batch_exists = false;
-$chk_batch = $conn->query("SHOW TABLES LIKE 'chemical_inventory_batches'");
-if ($chk_batch && $chk_batch->num_rows > 0) {
-    $batch_exists = true;
-}
-
-$logs_exists = false;
-$chk_logs = $conn->query("SHOW TABLES LIKE 'chemical_stock_logs'");
-if ($chk_logs && $chk_logs->num_rows > 0) {
-    $logs_exists = true;
 }
 
 if (!function_exists('ci_format_qty')) {
@@ -31,19 +17,33 @@ if (!function_exists('ci_format_qty')) {
     }
 }
 
-$total_batches = 0;
-$total_available = 0;
-$expired_count = 0;
-$expiring_30_count = 0;
-$incoming_rows = [];
-$outgoing_rows = [];
-$inventory_totals = [];
-$chemicals = [];
-$available_chemicals = [];
-$suppliers = [];
-$batch_has_unit = false;
+$open_incoming_modal = isset($_GET['open_modal']) && $_GET['open_modal'] === 'incoming';
+$open_outgoing_modal = isset($_GET['open_modal']) && $_GET['open_modal'] === 'outgoing';
 
-$chem_q = $conn->query("SELECT id, name, brand FROM chemical_master_list ORDER BY name ASC");
+$batch_exists = false;
+$logs_exists = false;
+$batch_has_unit = false;
+$chemicals = [];
+$suppliers = [];
+$available_chemicals = [];
+$chemical_stats = [];
+$rows = [];
+
+$chk_batch = $conn->query("SHOW TABLES LIKE 'chemical_inventory_batches'");
+if ($chk_batch && $chk_batch->num_rows > 0) {
+    $batch_exists = true;
+    $unit_chk = $conn->query("SHOW COLUMNS FROM chemical_inventory_batches LIKE 'unit'");
+    if ($unit_chk && $unit_chk->num_rows > 0) {
+        $batch_has_unit = true;
+    }
+}
+
+$chk_logs = $conn->query("SHOW TABLES LIKE 'chemical_stock_logs'");
+if ($chk_logs && $chk_logs->num_rows > 0) {
+    $logs_exists = true;
+}
+
+$chem_q = $conn->query("SELECT id, name, brand, remarks FROM chemical_master_list ORDER BY name ASC, id ASC");
 if ($chem_q) {
     while ($c = $chem_q->fetch_assoc()) {
         $chemicals[] = $c;
@@ -61,122 +61,25 @@ if ($sup_q && $sup_q->num_rows > 0) {
 }
 
 if ($batch_exists) {
-    $col_q = $conn->query("SHOW COLUMNS FROM chemical_inventory_batches LIKE 'unit'");
-    if ($col_q && $col_q->num_rows > 0) {
-        $batch_has_unit = true;
-    }
-}
-
-if ($batch_exists) {
-    $sum_q = $conn->query("SELECT COUNT(*) AS total_batches, COALESCE(SUM(available_qty),0) AS total_available FROM chemical_inventory_batches");
-    if ($sum_q) {
-        $sum = $sum_q->fetch_assoc();
-        $total_batches = (int)$sum['total_batches'];
-        $total_available = (float)$sum['total_available'];
-    }
-
-    $exp_q = $conn->query("SELECT
-        SUM(CASE WHEN expiry_date IS NOT NULL AND expiry_date < CURDATE() THEN 1 ELSE 0 END) AS expired_count,
-        SUM(CASE WHEN expiry_date IS NOT NULL AND expiry_date >= CURDATE() AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS expiring_30_count
-        FROM chemical_inventory_batches
-        WHERE available_qty > 0");
-    if ($exp_q) {
-        $exp = $exp_q->fetch_assoc();
-        $expired_count = (int)$exp['expired_count'];
-        $expiring_30_count = (int)$exp['expiring_30_count'];
-    }
-
-    $unit_select = $batch_has_unit ? "b.unit AS unit" : "c.unit AS unit";
-    $in_q = $conn->query("SELECT b.id, b.batch_no, b.supplier, b.storage_location, b.received_qty, b.available_qty,
-        b.expiry_date, b.received_date, b.remarks, c.name, c.brand, {$unit_select}
-        FROM chemical_inventory_batches b
-        INNER JOIN chemical_master_list c ON c.id = b.chemical_id
-        ORDER BY b.id DESC
-        LIMIT 100");
-    if ($in_q) {
-        while ($r = $in_q->fetch_assoc()) {
-            $incoming_rows[] = $r;
+    $stats_sql = "SELECT c.id AS chemical_id,
+        COUNT(b.id) AS batch_count,
+        COALESCE(SUM(b.received_qty),0) AS total_received,
+        COALESCE(SUM(b.available_qty),0) AS total_available,
+        SUM(CASE WHEN b.expiry_date IS NOT NULL AND b.expiry_date < CURDATE() THEN 1 ELSE 0 END) AS expired_batches,
+        SUM(CASE WHEN b.expiry_date IS NOT NULL AND b.expiry_date >= CURDATE() AND b.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS near_expiry_batches,
+        MAX(b.received_date) AS last_received_date
+        FROM chemical_master_list c
+        LEFT JOIN chemical_inventory_batches b ON b.chemical_id = c.id
+        GROUP BY c.id";
+    $stats_q = $conn->query($stats_sql);
+    if ($stats_q) {
+        while ($row = $stats_q->fetch_assoc()) {
+            $chemical_stats[(int)$row['chemical_id']] = $row;
         }
     }
 
-    if ($batch_has_unit) {
-        $tot_q = $conn->query("SELECT c.id AS chemical_id, c.name, c.brand,
-            COALESCE(SUM(CASE
-                WHEN LOWER(TRIM(b.unit)) = 'kg' THEN b.received_qty
-                WHEN LOWER(TRIM(b.unit)) = 'g' THEN b.received_qty / 1000
-                WHEN LOWER(TRIM(b.unit)) = 'l' THEN b.received_qty
-                WHEN LOWER(TRIM(b.unit)) = 'ml' THEN b.received_qty / 1000
-                ELSE b.received_qty
-            END),0) AS total_received,
-            COALESCE(SUM(CASE
-                WHEN LOWER(TRIM(b.unit)) = 'kg' THEN b.available_qty
-                WHEN LOWER(TRIM(b.unit)) = 'g' THEN b.available_qty / 1000
-                WHEN LOWER(TRIM(b.unit)) = 'l' THEN b.available_qty
-                WHEN LOWER(TRIM(b.unit)) = 'ml' THEN b.available_qty / 1000
-                ELSE b.available_qty
-            END),0) AS total_available,
-            COUNT(b.id) AS batch_count,
-            SUM(CASE WHEN b.expiry_date IS NOT NULL AND b.expiry_date < CURDATE() THEN 1 ELSE 0 END) AS expired_batches,
-            SUM(CASE WHEN b.expiry_date IS NOT NULL AND b.expiry_date >= CURDATE() AND b.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS near_expiry_batches,
-                        (SELECT bb.batch_no
-                         FROM chemical_inventory_batches bb
-                         WHERE bb.chemical_id = c.id
-                             AND bb.available_qty > 0
-                             AND bb.expiry_date IS NOT NULL
-                         ORDER BY bb.expiry_date ASC, bb.id ASC
-                         LIMIT 1) AS nearest_batch_no,
-                        (SELECT bb.expiry_date
-                         FROM chemical_inventory_batches bb
-                         WHERE bb.chemical_id = c.id
-                             AND bb.available_qty > 0
-                             AND bb.expiry_date IS NOT NULL
-                         ORDER BY bb.expiry_date ASC, bb.id ASC
-                         LIMIT 1) AS nearest_expiry,
-            CASE
-                WHEN SUM(CASE WHEN LOWER(TRIM(b.unit)) IN ('kg','g') THEN 1 ELSE 0 END) > 0 THEN 'kg'
-                WHEN SUM(CASE WHEN LOWER(TRIM(b.unit)) IN ('l','ml') THEN 1 ELSE 0 END) > 0 THEN 'L'
-                WHEN SUM(CASE WHEN LOWER(TRIM(b.unit)) = 'pcs' THEN 1 ELSE 0 END) > 0 THEN 'pcs'
-                ELSE COALESCE(MAX(NULLIF(TRIM(b.unit), '')), '')
-            END AS unit
-            FROM chemical_inventory_batches b
-            INNER JOIN chemical_master_list c ON c.id = b.chemical_id
-            GROUP BY c.id, c.name, c.brand
-            ORDER BY c.name ASC");
-    } else {
-        $tot_q = $conn->query("SELECT c.id AS chemical_id, c.name, c.brand,
-            COALESCE(SUM(b.received_qty),0) AS total_received,
-            COALESCE(SUM(b.available_qty),0) AS total_available,
-            COUNT(b.id) AS batch_count,
-            SUM(CASE WHEN b.expiry_date IS NOT NULL AND b.expiry_date < CURDATE() THEN 1 ELSE 0 END) AS expired_batches,
-            SUM(CASE WHEN b.expiry_date IS NOT NULL AND b.expiry_date >= CURDATE() AND b.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS near_expiry_batches,
-                        (SELECT bb.batch_no
-                         FROM chemical_inventory_batches bb
-                         WHERE bb.chemical_id = c.id
-                             AND bb.available_qty > 0
-                             AND bb.expiry_date IS NOT NULL
-                         ORDER BY bb.expiry_date ASC, bb.id ASC
-                         LIMIT 1) AS nearest_batch_no,
-                        (SELECT bb.expiry_date
-                         FROM chemical_inventory_batches bb
-                         WHERE bb.chemical_id = c.id
-                             AND bb.available_qty > 0
-                             AND bb.expiry_date IS NOT NULL
-                         ORDER BY bb.expiry_date ASC, bb.id ASC
-                         LIMIT 1) AS nearest_expiry,
-            COALESCE(c.unit, '') AS unit
-            FROM chemical_inventory_batches b
-            INNER JOIN chemical_master_list c ON c.id = b.chemical_id
-            GROUP BY c.id, c.name, c.brand, c.unit
-            ORDER BY c.name ASC");
-    }
-    if ($tot_q) {
-        while ($row = $tot_q->fetch_assoc()) {
-            $inventory_totals[] = $row;
-        }
-    }
-
-    if ($batch_has_unit) {
-        $chem_avail_q = $conn->query("SELECT c.id AS chemical_id, c.name, c.brand,
+    $chem_avail_sql = $batch_has_unit
+        ? "SELECT c.id AS chemical_id, c.name, c.brand,
             COALESCE(SUM(CASE
                 WHEN LOWER(TRIM(b.unit)) = 'kg' THEN b.available_qty
                 WHEN LOWER(TRIM(b.unit)) = 'g' THEN b.available_qty / 1000
@@ -194,19 +97,17 @@ if ($batch_exists) {
             INNER JOIN chemical_master_list c ON c.id = b.chemical_id
             WHERE b.available_qty > 0
             GROUP BY c.id, c.name, c.brand
-            ORDER BY c.name ASC
-            LIMIT 300");
-    } else {
-        $chem_avail_q = $conn->query("SELECT c.id AS chemical_id, c.name, c.brand,
+            ORDER BY c.name ASC"
+        : "SELECT c.id AS chemical_id, c.name, c.brand,
             SUM(b.available_qty) AS available_qty,
             COALESCE(c.unit, '') AS unit
             FROM chemical_inventory_batches b
             INNER JOIN chemical_master_list c ON c.id = b.chemical_id
             WHERE b.available_qty > 0
             GROUP BY c.id, c.name, c.brand, c.unit
-            ORDER BY c.name ASC
-            LIMIT 300");
-    }
+            ORDER BY c.name ASC";
+
+    $chem_avail_q = $conn->query($chem_avail_sql);
     if ($chem_avail_q) {
         while ($row = $chem_avail_q->fetch_assoc()) {
             $available_chemicals[] = $row;
@@ -214,246 +115,119 @@ if ($batch_exists) {
     }
 }
 
-if ($logs_exists) {
-    $out_unit_select = $batch_has_unit ? "b.unit AS unit" : "c.unit AS unit";
-    $out_q = $conn->query("SELECT l.id, l.batch_id, l.quantity, l.reference_type, l.reference_no, l.movement_date,
-        COALESCE(NULLIF(l.created_at, ''), CONCAT(l.movement_date, ' 00:00:00')) AS usage_at,
-        l.remarks,
-        c.name, c.brand, {$out_unit_select}, b.batch_no
-        FROM chemical_stock_logs l
-        INNER JOIN chemical_master_list c ON c.id = l.chemical_id
-        LEFT JOIN chemical_inventory_batches b ON b.id = l.batch_id
-        WHERE l.movement_type = 'OUT'
-        ORDER BY l.id DESC
-        LIMIT 100");
-    if ($out_q) {
-        while ($r = $out_q->fetch_assoc()) {
-            $outgoing_rows[] = $r;
-        }
-    }
+foreach ($chemicals as $chem) {
+    $stats = $chemical_stats[(int)$chem['id']] ?? [];
+    $rows[] = [
+        'id' => $chem['id'],
+        'name' => $chem['name'],
+        'brand' => $chem['brand'] ?? '',
+        'remarks' => $chem['remarks'] ?? '',
+        'batch_count' => (int)($stats['batch_count'] ?? 0),
+        'total_received' => (float)($stats['total_received'] ?? 0),
+        'total_available' => (float)($stats['total_available'] ?? 0),
+        'expired_batches' => (int)($stats['expired_batches'] ?? 0),
+        'near_expiry_batches' => (int)($stats['near_expiry_batches'] ?? 0),
+        'last_received_date' => $stats['last_received_date'] ?? ''
+    ];
 }
 ?>
 
-<div class="container-fluid">
-    <div class="card card-outline card-primary">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="card-title mb-0">Chemical Inventory</h3>
-            <div style="margin-left:auto; display:flex; gap:8px;">
-                <button type="button" id="open-incoming-modal" class="btn btn-sm btn-success" <?php echo !$batch_exists ? 'disabled' : ''; ?>>
-                    <i class="fas fa-arrow-down"></i> Incoming
-                </button>
-                <button type="button" id="open-outgoing-modal" class="btn btn-sm btn-danger" <?php echo (!$batch_exists || !$logs_exists) ? 'disabled' : ''; ?>>
-                    <i class="fas fa-arrow-up"></i> Outgoing
-                </button>
-            </div>
+<div class="card card-outline card-primary">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0">Chemical Inventory</h3>
+        <div class="card-tools" style="margin-left:auto; display:flex; gap:8px;">
+            <button type="button" id="open-incoming-modal" class="btn btn-sm btn-success" <?php echo !$batch_exists ? 'disabled' : ''; ?>>
+                <i class="fas fa-arrow-down"></i> Incoming
+            </button>
+            <button type="button" id="open-outgoing-modal" class="btn btn-sm btn-danger" <?php echo (!$batch_exists || !$logs_exists) ? 'disabled' : ''; ?>>
+                <i class="fas fa-arrow-up"></i> Outgoing
+            </button>
         </div>
-        <div class="card-body">
+    </div>
+    <div class="card-body">
+        <div class="container-fluid">
             <?php if(!$batch_exists): ?>
                 <div class="alert alert-warning">
-                    <strong>Missing table:</strong> <code>chemical_inventory_batches</code>. Please run schema SQL first.
+                    <strong>Missing table:</strong> <code>chemical_inventory_batches</code>. Please run the schema SQL first.
                 </div>
             <?php endif; ?>
             <?php if(!$logs_exists): ?>
                 <div class="alert alert-warning">
-                    <strong>Missing table:</strong> <code>chemical_stock_logs</code>. Outgoing records tab will be empty until this table exists.
+                    <strong>Missing table:</strong> <code>chemical_stock_logs</code>. Outgoing records will not be available until this table exists.
                 </div>
             <?php endif; ?>
 
             <div class="row mb-3">
-                <div class="col-md-3">
-                    <div class="info-box bg-info">
-                        <span class="info-box-icon"><i class="fas fa-layer-group"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text">Open Batches</span>
-                            <span class="info-box-number"><?php echo $total_batches; ?></span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="info-box bg-success">
-                        <span class="info-box-icon"><i class="fas fa-boxes"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text">Available Qty</span>
-                            <span class="info-box-number"><?php echo number_format($total_available, 0); ?></span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="info-box bg-danger">
-                        <span class="info-box-icon"><i class="fas fa-exclamation-triangle"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text">Expired</span>
-                            <span class="info-box-number"><?php echo $expired_count; ?></span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="info-box bg-warning">
-                        <span class="info-box-icon"><i class="fas fa-hourglass-half"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text">Expiring in 30d</span>
-                            <span class="info-box-number"><?php echo $expiring_30_count; ?></span>
-                        </div>
-                    </div>
+                <div class="col-md-4 ml-auto">
+                    <label class="mb-1">Search</label>
+                    <input type="text" id="chemical-search" class="form-control" placeholder="Search chemicals...">
                 </div>
             </div>
 
-            <ul class="nav nav-tabs" id="chemical-inventory-tabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <a class="nav-link active" id="total-inventory-tab" data-toggle="tab" href="#total-inventory" role="tab" aria-controls="total-inventory" aria-selected="true">
-                        <i class="fas fa-chart-pie text-primary"></i> Total Inventory
-                    </a>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <a class="nav-link" id="incoming-tab" data-toggle="tab" href="#incoming-records" role="tab" aria-controls="incoming-records" aria-selected="false">
-                        <i class="fas fa-arrow-down text-success"></i> Incoming Records
-                    </a>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <a class="nav-link" id="outgoing-tab" data-toggle="tab" href="#outgoing-records" role="tab" aria-controls="outgoing-records" aria-selected="false">
-                        <i class="fas fa-arrow-up text-danger"></i> Outgoing Records
-                    </a>
-                </li>                
-            </ul>
-
-            <div class="tab-content border border-top-0 p-3" id="chemical-inventory-tab-content">
-                <div class="tab-pane fade" id="incoming-records" role="tabpanel" aria-labelledby="incoming-tab">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered table-hover mb-0">
-                            <thead style="background-color: rgb(0, 31, 63); color: white;">
-                                <tr>
-                                    <th width="45">#</th>
-                                    <th>Chemical</th>
-                                    <th width="100">Batch</th>
-                                    <th width="200">Storage</th>
-                                    <th width="90" class="text-center">Received Qty</th>
-                                    <th width="110" class="text-center">Received Date</th>
-                                    <th width="100" class="text-center">Expiry</th>
-                                    <th width="70" class="text-center">Action</th>
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped" id="chemical-inventory-table">
+                    <colgroup>
+                        <col width="5%">
+                        <col width="26%">
+                        <col width="16%">
+                        <col width="13%">
+                        <col width="14%">
+                        <col width="26%">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th>Sr.</th>
+                            <th>Chemical</th>
+                            <th>Remarks</th>
+                            <th>Batches</th>
+                            <th>Available</th>
+                            <th>Last Received</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if(count($rows) === 0): ?>
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">No chemicals found</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php $i = 1; foreach($rows as $r):
+                                $expired_batches = (int)$r['expired_batches'];
+                                $near_expiry_batches = (int)$r['near_expiry_batches'];
+                                $badge_class = 'badge-secondary';
+                                $status_text = 'No stock';
+                                if ($r['batch_count'] > 0) {
+                                    if ($expired_batches > 0) {
+                                        $badge_class = 'badge-danger';
+                                        $status_text = 'Expired stock present';
+                                    } elseif ($near_expiry_batches > 0) {
+                                        $badge_class = 'badge-warning';
+                                        $status_text = 'Expiring soon';
+                                    } else {
+                                        $badge_class = 'badge-success';
+                                        $status_text = 'Stock healthy';
+                                    }
+                                }
+                            ?>
+                                <tr class="chemical-row" data-id="<?php echo (int)$r['id']; ?>" style="cursor:pointer;">
+                                    <td class="text-center"><?php echo $i++; ?>.</td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($r['name']); ?></strong>
+                                        <?php if(!empty($r['brand'])): ?>
+                                            <br><small class="text-muted"><?php echo htmlspecialchars($r['brand']); ?></small>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo htmlspecialchars(mb_strimwidth((string)$r['remarks'], 0, 60, '...')); ?></td>
+                                    <td class="text-center"><?php echo (int)$r['batch_count']; ?></td>
+                                    <td class="text-center"><?php echo htmlspecialchars(ci_format_qty($r['total_available'])); ?></td>
+                                    <td>
+                                        <?php echo !empty($r['last_received_date']) ? date('d-M-Y', strtotime($r['last_received_date'])) : '-'; ?>
+                                        <br><span class="badge <?php echo $badge_class; ?>"><?php echo $status_text; ?></span>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php if(count($incoming_rows) === 0): ?>
-                                    <tr>
-                                        <td colspan="8" class="text-center text-muted">No incoming records found</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php $i = 1; foreach($incoming_rows as $r): ?>
-                                        <tr>
-                                            <td class="text-center"><?php echo $i++; ?></td>
-                                            <td><?php echo htmlspecialchars($r['name'] . (!empty($r['brand']) ? ' - ' . $r['brand'] : '')); ?></td>
-                                            <td><?php echo htmlspecialchars($r['batch_no'] ?? ''); ?></td>
-                                            <td><?php echo htmlspecialchars($r['storage_location'] ?? ''); ?></td>
-                                            <td class="text-center"><?php echo htmlspecialchars(ci_format_qty($r['received_qty']) . ' ' . ($r['unit'] ?? '')); ?></td>
-                                            <td class="text-center"><?php echo htmlspecialchars($r['received_date'] ?? ''); ?></td>
-                                            <td class="text-center"><?php echo htmlspecialchars($r['expiry_date'] ?? ''); ?></td>
-                                            <td class="text-center">
-                                                <button type="button" class="btn btn-danger btn-sm delete-incoming" data-id="<?php echo (int)$r['id']; ?>" title="Delete Incoming">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="tab-pane fade" id="outgoing-records" role="tabpanel" aria-labelledby="outgoing-tab">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered table-hover mb-0">
-                            <thead style="background-color: rgb(0, 31, 63); color: white;">
-                                <tr>
-                                    <th width="45">#</th>
-                                    <th>Chemical</th>
-                                    <th width="90" class="text-center">Qty Out</th>
-                                    <th width="150" class="text-center">Usage Date/Time</th>
-                                    <th>Remarks</th>
-                                    <th width="70" class="text-center">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if(count($outgoing_rows) === 0): ?>
-                                    <tr>
-                                        <td colspan="6" class="text-center text-muted">No outgoing records found</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php $j = 1; foreach($outgoing_rows as $r): ?>
-                                        <tr>
-                                            <td class="text-center"><?php echo $j++; ?></td>
-                                            <td><?php echo htmlspecialchars($r['name'] . (!empty($r['brand']) ? ' - ' . $r['brand'] : '')); ?></td>
-                                            <td class="text-center"><?php echo htmlspecialchars(ci_format_qty($r['quantity']) . ' ' . ($r['unit'] ?? '')); ?></td>
-                                            <td class="text-center"><?php echo htmlspecialchars(!empty($r['usage_at']) ? date('d-m-Y H:i', strtotime($r['usage_at'])) : ''); ?></td>
-                                            <td><?php echo htmlspecialchars($r['remarks'] ?? ''); ?></td>
-                                            <td class="text-center">
-                                                <button type="button" class="btn btn-danger btn-sm delete-outgoing" data-id="<?php echo (int)$r['id']; ?>" title="Delete Outgoing">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="tab-pane fade show active" id="total-inventory" role="tabpanel" aria-labelledby="total-inventory-tab">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered table-hover mb-0">
-                            <thead style="background-color: rgb(0, 31, 63); color: white;">
-                                <tr>
-                                    <th width="45">#</th>
-                                    <th>Chemical</th>
-                                    <th width="110" class="text-center">Batches</th>
-                                    <th width="130" class="text-center">Total Received</th>
-                                    <th width="130" class="text-center">Total Available</th>
-                                    <th width="150" class="text-center">Expiry Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if(count($inventory_totals) === 0): ?>
-                                    <tr>
-                                        <td colspan="6" class="text-center text-muted">No inventory summary available</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php $k = 1; foreach($inventory_totals as $t): ?>
-                                        <tr>
-                                            <td class="text-center"><?php echo $k++; ?></td>
-                                            <td><?php echo htmlspecialchars($t['name'] . (!empty($t['brand']) ? ' - ' . $t['brand'] : '')); ?></td>
-                                            <td class="text-center"><?php echo (int)$t['batch_count']; ?></td>
-                                            <td class="text-center"><?php echo htmlspecialchars(ci_format_qty($t['total_received']) . ' ' . ($t['unit'] ?? '')); ?></td>
-                                            <td class="text-center"><?php echo htmlspecialchars(ci_format_qty($t['total_available']) . ' ' . ($t['unit'] ?? '')); ?></td>
-                                            <td class="text-center">
-                                                <?php
-                                                    $expired_batches = (int)($t['expired_batches'] ?? 0);
-                                                    $near_expiry_batches = (int)($t['near_expiry_batches'] ?? 0);
-                                                    $nearest_expiry = !empty($t['nearest_expiry']) ? date('d-m-Y', strtotime($t['nearest_expiry'])) : '';
-                                                    $nearest_batch_no = trim((string)($t['nearest_batch_no'] ?? ''));
-                                                    if ($nearest_batch_no !== '' || $nearest_expiry !== '') {
-                                                        $line = 'Batch ' . ($nearest_batch_no !== '' ? $nearest_batch_no : '-') . ' - ' . ($nearest_expiry !== '' ? $nearest_expiry : '-');
-                                                        $badge_class = 'badge-secondary';
-                                                        if ($expired_batches > 0) {
-                                                            $badge_class = 'badge-danger';
-                                                        } elseif ($near_expiry_batches > 0) {
-                                                            $badge_class = 'badge-warning';
-                                                        } else {
-                                                            $badge_class = 'badge-success';
-                                                        }
-                                                        echo '<span class="badge ' . $badge_class . '" style="font-size: 0.9rem; padding: 0.45rem 0.6rem;">' . htmlspecialchars($line) . '</span>';
-                                                    } else {
-                                                        echo '<span class="badge badge-secondary">No expiry set</span>';
-                                                    }
-                                                ?>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -605,16 +379,8 @@ if ($logs_exists) {
                         <select id="out_chemical_id" class="form-control" style="width:100%;" <?php echo (!$batch_exists || !$logs_exists) ? 'disabled' : ''; ?>>
                             <option value="">Select chemical</option>
                             <?php foreach($available_chemicals as $c): ?>
-                                <option
-                                    value="<?php echo (int)$c['chemical_id']; ?>"
-                                    data-available="<?php echo htmlspecialchars(ci_format_qty($c['available_qty'])); ?>"
-                                    data-unit="<?php echo htmlspecialchars($c['unit'] ?? ''); ?>"
-                                >
-                                    <?php echo htmlspecialchars(
-                                        $c['name'] .
-                                        (!empty($c['brand']) ? ' - ' . $c['brand'] : '') .
-                                        ' | Available: ' . ci_format_qty($c['available_qty']) . ' ' . ($c['unit'] ?? '')
-                                    ); ?>
+                                <option value="<?php echo (int)$c['chemical_id']; ?>" data-available="<?php echo htmlspecialchars(ci_format_qty($c['available_qty'])); ?>" data-unit="<?php echo htmlspecialchars($c['unit'] ?? ''); ?>">
+                                    <?php echo htmlspecialchars($c['name'] . (!empty($c['brand']) ? ' - ' . $c['brand'] : '') . ' | Available: ' . ci_format_qty($c['available_qty']) . ' ' . ($c['unit'] ?? '')); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -652,13 +418,22 @@ if ($logs_exists) {
 </div>
 
 <style>
-.select2-results__option .select2-add-new-option {
-    color: #007bff;
-    font-weight: 600;
-}
-.select2-results__option--highlighted .select2-add-new-option {
-    color: #ffffff !important;
-}
+    .chemical-row:hover {
+        background-color: rgba(0, 123, 255, 0.14) !important;
+    }
+
+    #chemical-inventory-table tbody tr.chemical-row td {
+        transition: background-color 0.15s ease-in-out;
+    }
+
+    .select2-results__option .select2-add-new-option {
+        color: #007bff;
+        font-weight: 600;
+    }
+
+    .select2-results__option--highlighted .select2-add-new-option {
+        color: #ffffff !important;
+    }
 </style>
 
 <script>
@@ -711,6 +486,14 @@ $(function(){
         sessionStorage.removeItem('success_message');
     }
 
+    $('#chemical-inventory-table').DataTable({
+        dom: 'rtip'
+    });
+
+    $('#chemical-search').on('keyup', function(){
+        $('#chemical-inventory-table').DataTable().search($(this).val()).draw();
+    });
+
     $('#open-incoming-modal').on('click', function(){
         $('#incoming-modal').modal('show');
     });
@@ -730,13 +513,6 @@ $(function(){
     }
 
     $('#in_received_qty, #in_unit_cost').on('input change', updateIncomingTotalCost);
-
-    function openNewChemicalModal(prefillName){
-        $('#new_chem_name').val(prefillName || '');
-        $('#new_chem_brand').val('');
-        $('#new_chem_remarks').val('');
-        $('#new-chemical-modal').modal('show');
-    }
 
     $('#incoming-modal').on('shown.bs.modal', function(){
         $('#in_supplier, #in_unit').select2({
@@ -785,7 +561,8 @@ $(function(){
                 e.preventDefault();
                 $('#in_chemical_id').val(null).trigger('change.select2');
                 $('#in_chemical_id').select2('close');
-                openNewChemicalModal(selected.term || addNewChemicalTerm);
+                $('#new_chem_name').val(selected.term || addNewChemicalTerm);
+                $('#new-chemical-modal').modal('show');
             }
         });
 
@@ -972,17 +749,43 @@ $(function(){
 
     <?php if($open_incoming_modal): ?>
     $('#incoming-modal').modal('show');
+    <?php elseif($open_outgoing_modal): ?>
+    $('#outgoing-modal').modal('show');
     <?php endif; ?>
 
-    $(document).on('click', '.delete-incoming', function(){
-        var id = $(this).data('id');
-        _conf('Delete this incoming record? This is allowed only when the batch is not consumed.', 'delete_incoming', [id]);
+    $(document).on('click', '.delete-incoming', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        var id = parseInt($(this).data('id'), 10) || 0;
+        if (!id) {
+            alert_toast('Invalid incoming record ID', 'error');
+            return;
+        }
+        if (!confirm('Delete this incoming record? This is allowed only when the batch is not consumed.')) {
+            return;
+        }
+        delete_incoming(id);
     });
 
-    $(document).on('click', '.delete-outgoing', function(){
-        var id = $(this).data('id');
-        _conf('Delete this outgoing record? This will restore quantity back to stock.', 'delete_outgoing', [id]);
+    $(document).on('click', '.delete-outgoing', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        var id = parseInt($(this).data('id'), 10) || 0;
+        if (!id) {
+            alert_toast('Invalid outgoing record ID', 'error');
+            return;
+        }
+        if (!confirm('Delete this outgoing record? This will restore quantity back to stock.')) {
+            return;
+        }
+        delete_outgoing(id);
     });
 
+    $(document).on('click', '.chemical-row', function(){
+        var id = $(this).data('id');
+        if (id) {
+            window.location.href = '<?php echo base_url ?>admin/?page=chemical_inventory/view_chemical&id=' + id;
+        }
+    });
 });
 </script>

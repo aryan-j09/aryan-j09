@@ -93,6 +93,14 @@ $current_user = isset($_SESSION['userdata']) ? $_SESSION['userdata'] : array();
                 </a>
               </li>
               <?php endif; ?>
+              <?php if(cms_user_can_access_module($conn, $current_user, 'lab_trial_reports')): ?>
+              <li class="nav-item">
+                <a href="<?php echo base_url ?>admin/?page=lab_trial_reports" class="nav-link nav-lab_trial_reports">
+                  <i class="nav-icon fas fa-vial"></i>
+                  <p>Lab Trial Reports</p>
+                </a>
+              </li>
+              <?php endif; ?>
               <!-- <li class="nav-item">
                 <a href="<?php echo base_url ?>admin/?page=stock_orders" class="nav-link nav-stock_orders">
                   <i class="nav-icon fas fa-shopping-cart"></i>
@@ -121,7 +129,7 @@ $current_user = isset($_SESSION['userdata']) ? $_SESSION['userdata'] : array();
                   <i class="nav-icon fas fa-sitemap"></i>
                   <p>Project Planner</p>
                 </a>
-              </li>
+              </li>              
               <?php endif; ?>
               <?php if(cms_user_can_access_module($conn, $current_user, 'leads')): ?>
               <li class="nav-item">

@@ -4904,6 +4904,234 @@ function delete_utility_supplier(){
 
         return json_encode($resp);
     }
+
+    /**
+     * Lab Trial Reports - Save Report
+     */
+    function save_lab_trial_report(){
+        header('Content-Type: application/json');
+
+        if(!isset($_SESSION['userdata']['id'])){
+            echo json_encode(['status'=>'error','msg'=>'Not authenticated']);
+            exit;
+        }
+
+        $report_id = intval($_POST['id'] ?? 0);
+        $name = isset($_POST['name']) ? trim($_POST['name']) : '';
+        $template_used = isset($_POST['template_used']) ? trim($_POST['template_used']) : 'blank';
+        $sections_json = isset($_POST['sections_json']) ? $_POST['sections_json'] : '';
+        $description = isset($_POST['description']) ? trim($_POST['description']) : '';
+        $batch_no = isset($_POST['batch_no']) ? trim($_POST['batch_no']) : '';
+        $trial_no = isset($_POST['trial_no']) ? trim($_POST['trial_no']) : '';
+        $batch_size = isset($_POST['batch_size']) ? trim($_POST['batch_size']) : '';
+        $company = isset($_POST['company']) ? trim($_POST['company']) : 'Hugopharm';
+        if($company !== 'S.B. Panchal'){
+            $company = 'Hugopharm';
+        }
+        $client_id = isset($_POST['client_id']) ? intval($_POST['client_id']) : 0;
+        $trial_date_range = isset($_POST['trial_date_range']) ? trim($_POST['trial_date_range']) : '';
+        $client_representative = isset($_POST['client_representative']) ? trim($_POST['client_representative']) : '';
+        $objective = isset($_POST['objective']) ? trim($_POST['objective']) : '';
+        $equipment = isset($_POST['equipment']) ? trim($_POST['equipment']) : '';
+
+        $sections = [
+            'purpose' => isset($_POST['purpose']) ? $_POST['purpose'] : '',
+            'input_characteristics' => isset($_POST['input_characteristics']) ? $_POST['input_characteristics'] : '',
+            'formula' => isset($_POST['formula']) ? $_POST['formula'] : '',
+            'observations' => isset($_POST['observations']) ? $_POST['observations'] : '',
+            'results_evaluation' => isset($_POST['results_evaluation']) ? $_POST['results_evaluation'] : '',
+            'future_action' => isset($_POST['future_action']) ? $_POST['future_action'] : ''
+        ];
+
+        if(!empty($sections_json)){
+            $decoded_sections = json_decode($sections_json, true);
+            if(!is_array($decoded_sections)){
+                echo json_encode(['status'=>'error','msg'=>'Invalid section content']);
+                exit;
+            }
+            $sections = [
+                'purpose' => $decoded_sections['purpose'] ?? '',
+                'input_characteristics' => $decoded_sections['input_characteristics'] ?? '',
+                'formula' => $decoded_sections['formula'] ?? '',
+                'observations' => $decoded_sections['observations'] ?? '',
+                'results_evaluation' => $decoded_sections['results_evaluation'] ?? '',
+                'future_action' => $decoded_sections['future_action'] ?? ''
+            ];
+        }
+
+        // Keep description as a lightweight legacy fallback only.
+        if(empty($description)){
+            $description = strip_tags($sections['purpose']);
+        }
+
+        if(empty($name)){
+            echo json_encode(['status'=>'error','msg'=>'Report name is required']);
+            exit;
+        }
+
+        // Ensure table exists
+        $checkTable = $this->conn->query("SHOW TABLES LIKE 'lab_trial_reports'");
+        if($checkTable && $checkTable->num_rows == 0){
+            $sql = "CREATE TABLE IF NOT EXISTS `lab_trial_reports` (
+                `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                `name` varchar(255) NOT NULL,
+                `company` varchar(100) NOT NULL DEFAULT 'Hugopharm',
+                `description` longtext,
+                `batch_no` varchar(255) DEFAULT NULL,
+                `trial_no` varchar(255) DEFAULT NULL,
+                `batch_size` varchar(255) DEFAULT NULL,
+                `client_id` int(11) DEFAULT NULL,
+                `trial_date_range` varchar(255) DEFAULT NULL,
+                `client_representative` varchar(255) DEFAULT NULL,
+                `objective` longtext,
+                `equipment` longtext,
+                `purpose` longtext,
+                `input_characteristics` longtext,
+                `formula` longtext,
+                `observations` longtext,
+                `results_evaluation` longtext,
+                `future_action` longtext,
+                `template_used` varchar(100) DEFAULT 'blank',
+                `created_by` int(11),
+                `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                KEY `created_by_idx` (`created_by`),
+                KEY `created_at_idx` (`created_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+            if(!$this->conn->query($sql)){
+                echo json_encode(['status'=>'error','msg'=>'Failed to create table: '.$this->conn->error]);
+                exit;
+            }
+        }
+
+        // Ensure company column exists for older deployments.
+        $checkCompanyColumn = $this->conn->query("SHOW COLUMNS FROM lab_trial_reports LIKE 'company'");
+        if($checkCompanyColumn && $checkCompanyColumn->num_rows == 0){
+            if(!$this->conn->query("ALTER TABLE `lab_trial_reports` ADD COLUMN `company` varchar(100) NOT NULL DEFAULT 'Hugopharm' AFTER `name`")){
+                echo json_encode(['status'=>'error','msg'=>'Failed to add company column: '.$this->conn->error]);
+                exit;
+            }
+        }
+
+        $created_by = intval($_SESSION['userdata']['id']);
+        $name_escaped = $this->conn->real_escape_string($name);
+        $template_used_escaped = $this->conn->real_escape_string($template_used);
+        $description_escaped = $this->conn->real_escape_string($description);
+        $batch_no_escaped = $this->conn->real_escape_string($batch_no);
+        $trial_no_escaped = $this->conn->real_escape_string($trial_no);
+        $batch_size_escaped = $this->conn->real_escape_string($batch_size);
+        $company_escaped = $this->conn->real_escape_string($company);
+        $client_id_sql = $client_id > 0 ? intval($client_id) : 'NULL';
+        $trial_date_range_escaped = $this->conn->real_escape_string($trial_date_range);
+        $client_representative_escaped = $this->conn->real_escape_string($client_representative);
+        $objective_escaped = $this->conn->real_escape_string($objective);
+        $equipment_escaped = $this->conn->real_escape_string($equipment);
+        $purpose_escaped = $this->conn->real_escape_string($sections['purpose']);
+        $input_characteristics_escaped = $this->conn->real_escape_string($sections['input_characteristics']);
+        $formula_escaped = $this->conn->real_escape_string($sections['formula']);
+        $observations_escaped = $this->conn->real_escape_string($sections['observations']);
+        $results_evaluation_escaped = $this->conn->real_escape_string($sections['results_evaluation']);
+        $future_action_escaped = $this->conn->real_escape_string($sections['future_action']);
+
+        if($report_id > 0){
+            // Update existing
+            $update = $this->conn->query("UPDATE lab_trial_reports
+                SET name = '$name_escaped',
+                    template_used = '$template_used_escaped',
+                    description = '$description_escaped',
+                    batch_no = '$batch_no_escaped',
+                    trial_no = '$trial_no_escaped',
+                    batch_size = '$batch_size_escaped',
+                    company = '$company_escaped',
+                    client_id = $client_id_sql,
+                    trial_date_range = '$trial_date_range_escaped',
+                    client_representative = '$client_representative_escaped',
+                    objective = '$objective_escaped',
+                    equipment = '$equipment_escaped',
+                    purpose = '$purpose_escaped',
+                    input_characteristics = '$input_characteristics_escaped',
+                    formula = '$formula_escaped',
+                    observations = '$observations_escaped',
+                    results_evaluation = '$results_evaluation_escaped',
+                    future_action = '$future_action_escaped',
+                    updated_at = NOW()
+                WHERE id = $report_id");
+            if($update){
+                echo json_encode(['status'=>'success','report_id'=>$report_id,'action'=>'updated','msg'=>'Report updated successfully']);
+            } else {
+                echo json_encode(['status'=>'error','msg'=>'Update failed: '.$this->conn->error]);
+            }
+        } else {
+            // Insert new
+            $insert = $this->conn->query("INSERT INTO lab_trial_reports (name, company, description, batch_no, trial_no, batch_size, client_id, trial_date_range, client_representative, objective, equipment, purpose, input_characteristics, formula, observations, results_evaluation, future_action, created_by, template_used)
+                VALUES ('$name_escaped', '$company_escaped', '$description_escaped', '$batch_no_escaped', '$trial_no_escaped', '$batch_size_escaped', $client_id_sql, '$trial_date_range_escaped', '$client_representative_escaped', '$objective_escaped', '$equipment_escaped', '$purpose_escaped', '$input_characteristics_escaped', '$formula_escaped', '$observations_escaped', '$results_evaluation_escaped', '$future_action_escaped', $created_by, '$template_used_escaped')");
+            if($insert){
+                $id = $this->conn->insert_id;
+                echo json_encode(['status'=>'success','report_id'=>$id,'action'=>'created','msg'=>'Report created successfully']);
+            } else {
+                echo json_encode(['status'=>'error','msg'=>'Insert failed: '.$this->conn->error]);
+            }
+        }
+        exit;
+    }
+
+    /**
+     * Lab Trial Reports - Get Report
+     */
+    function get_lab_trial_report(){
+        header('Content-Type: application/json');
+
+        $report_id = intval($_GET['id'] ?? 0);
+
+        if($report_id <= 0){
+            echo json_encode(['status'=>'error','msg'=>'Invalid report ID']);
+            exit;
+        }
+
+        $qry = $this->conn->query("SELECT * FROM lab_trial_reports WHERE id = $report_id LIMIT 1");
+
+        if(!$qry){
+            echo json_encode(['status'=>'error','msg'=>$this->conn->error]);
+            exit;
+        }
+
+        if($qry->num_rows <= 0){
+            echo json_encode(['status'=>'none','data'=>null]);
+            exit;
+        }
+
+        $row = $qry->fetch_assoc();
+        echo json_encode(['status'=>'success','data'=>$row]);
+        exit;
+    }
+
+    /**
+     * Lab Trial Reports - Delete Report
+     */
+    function delete_lab_trial_report(){
+        header('Content-Type: application/json');
+
+        if(!isset($_SESSION['userdata']['id'])){
+            echo json_encode(['status'=>'error','msg'=>'Not authenticated']);
+            exit;
+        }
+
+        $report_id = intval($_POST['id'] ?? 0);
+
+        if($report_id <= 0){
+            echo json_encode(['status'=>'error','msg'=>'Invalid report ID']);
+            exit;
+        }
+
+        $delete = $this->conn->query("DELETE FROM lab_trial_reports WHERE id = $report_id LIMIT 1");
+
+        if($delete){
+            echo json_encode(['status'=>'success','msg'=>'Report deleted successfully']);
+        } else {
+            echo json_encode(['status'=>'error','msg'=>'Delete failed: '.$this->conn->error]);
+        }
+        exit;
+    }
 }
 
 $Master = new Master();
@@ -5152,6 +5380,15 @@ switch ($action) {
     break;
     case 'universal_search':
         echo $Master->universal_search();
+    break;
+    case 'save_lab_trial_report':
+        echo $Master->save_lab_trial_report();
+    break;
+    case 'get_lab_trial_report':
+        echo $Master->get_lab_trial_report();
+    break;
+    case 'delete_lab_trial_report':
+        echo $Master->delete_lab_trial_report();
     break;
 	default:
 		// echo $sysset->index();
