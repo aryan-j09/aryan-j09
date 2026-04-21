@@ -41,12 +41,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $supplier_id = $_POST['supplier_id'];
     $remarks = $_POST['remarks'];
     $spec_sheet = isset($_POST['spec_sheet']) ? $_POST['spec_sheet'] : '';
-    $final_discounted_price = isset($_POST['final_discounted_price']) && $_POST['final_discounted_price'] !== '' ? $_POST['final_discounted_price'] : 0;
-    $tax = isset($_POST['tax']) ? $_POST['tax'] : 0;
-    $cgst = isset($_POST['cgst']) ? $_POST['cgst'] : 0;
-    $sgst = isset($_POST['sgst']) ? $_POST['sgst'] : 0;
-    $sub_total = $_POST['sub_total'];
-    $grand_total = $_POST['total_amount'];
+    $final_discounted_price = isset($_POST['final_discounted_price']) && $_POST['final_discounted_price'] !== '' ? (float)$_POST['final_discounted_price'] : 0;
+    $tax = isset($_POST['tax']) && $_POST['tax'] !== '' ? (float)$_POST['tax'] : 0;
+    $cgst = isset($_POST['cgst']) && $_POST['cgst'] !== '' ? (float)$_POST['cgst'] : 0;
+    $sgst = isset($_POST['sgst']) && $_POST['sgst'] !== '' ? (float)$_POST['sgst'] : 0;
+    $sub_total = isset($_POST['sub_total']) && $_POST['sub_total'] !== '' ? (float)$_POST['sub_total'] : 0;
+    $grand_total = isset($_POST['total_amount']) && $_POST['total_amount'] !== '' ? (float)$_POST['total_amount'] : 0;
 
     $company = $_POST['company'];
     $material_delivery = $_POST['material_delivery'];
@@ -56,9 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $freight = $_POST['freight'];
     $packing_forwarding = isset($_POST['packing_forwarding']) ? $_POST['packing_forwarding'] : '';
 
-    $tax_amount = ($sub_total * $tax) / 100;
-    $cgst_amount = ($sub_total * $cgst) / 100;
-    $sgst_amount = ($sub_total * $sgst) / 100;
+    $tax_amount = isset($_POST['tax_amount']) && $_POST['tax_amount'] !== '' ? (float)$_POST['tax_amount'] : (($sub_total * $tax) / 100);
+    $cgst_amount = isset($_POST['cgst_amount']) && $_POST['cgst_amount'] !== '' ? (float)$_POST['cgst_amount'] : (($sub_total * $cgst) / 100);
+    $sgst_amount = isset($_POST['sgst_amount']) && $_POST['sgst_amount'] !== '' ? (float)$_POST['sgst_amount'] : (($sub_total * $sgst) / 100);
 
     // Block save when PO code already exists (excluding current record on edit).
     if (!empty($id)) {
@@ -583,7 +583,7 @@ while($row = $item_query->fetch_assoc()) {
                                     <div class="col-6">
                                         <label>Amount:</label>
                                         <input type="text" id="tax_amount" class="form-control readonly-field" readonly>
-                                        <input type="hidden" name="tax_amount" id="hidden_tax_amount">
+                                        <input type="hidden" name="tax_amount" id="hidden_tax_amount" value="0.00">
                                     </div>
                                 </div>
                                 <div class="form-row">
@@ -594,7 +594,7 @@ while($row = $item_query->fetch_assoc()) {
                                     <div class="col-6">
                                         <label>Amount:</label>
                                         <input type="text" id="cgst_amount" class="form-control readonly-field" readonly>
-                                        <input type="hidden" name="cgst_amount" id="hidden_cgst_amount">
+                                        <input type="hidden" name="cgst_amount" id="hidden_cgst_amount" value="0.00">
                                     </div>
                                 </div>
                                 <div class="form-row">
@@ -605,7 +605,7 @@ while($row = $item_query->fetch_assoc()) {
                                     <div class="col-6">
                                         <label>Amount:</label>
                                         <input type="text" id="sgst_amount" class="form-control readonly-field" readonly>
-                                        <input type="hidden" name="sgst_amount" id="hidden_sgst_amount">
+                                        <input type="hidden" name="sgst_amount" id="hidden_sgst_amount" value="0.00">
                                     </div>
                                 </div>
                             </div>
@@ -837,10 +837,15 @@ $(document).ready(function() {
         $('#tax_amount').val(taxAmount);
         $('#cgst_amount').val(cgstAmount);
         $('#sgst_amount').val(sgstAmount);
+        $('#hidden_tax_amount').val(taxAmount);
+        $('#hidden_cgst_amount').val(cgstAmount);
+        $('#hidden_sgst_amount').val(sgstAmount);
 
         var grandTotal = subTotal + parseFloat(taxAmount) + parseFloat(cgstAmount) + parseFloat(sgstAmount);
         $('#total_amount').val(grandTotal.toFixed(2));
     }
+
+    calculateTotal();
 });
 
 </script>
