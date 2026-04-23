@@ -495,6 +495,7 @@ while($row = $item_query->fetch_assoc()) {
                                     <option value="nos" <?php echo ($item['unit'] == 'nos') ? 'selected' : ''; ?>>nos</option>
                                     <option value="packet" <?php echo ($item['unit'] == 'packet') ? 'selected' : ''; ?>>packet</option>
                                     <option value="box" <?php echo ($item['unit'] == 'box') ? 'selected' : ''; ?>>box</option>
+                                    <option value="kg" <?php echo ($item['unit'] == 'kg') ? 'selected' : ''; ?>>kg</option>
                                     <option value="mtr" <?php echo ($item['unit'] == 'mtr') ? 'selected' : ''; ?>>mtr</option>
                                     <option value="days" <?php echo ($item['unit'] == 'days') ? 'selected' : ''; ?>>days</option>
                                 </select>
@@ -531,6 +532,7 @@ while($row = $item_query->fetch_assoc()) {
                                 <option value="nos" selected>nos</option>
                                 <option value="packet">packet</option>
                                 <option value="box">box</option>
+                                <option value="kg">kg</option>
                                 <option value="mtr">mtr</option>
                                 <option value="days">days</option>
                             </select>
@@ -784,6 +786,7 @@ $(document).ready(function() {
                                 <option value="nos" selected>nos</option>
                                 <option value="packet">packet</option>
                                 <option value="box">box</option>
+                                <option value="kg">kg</option>
                             </select>
                         </td>
                         <td><input type="number" name="item_discount[]" class="form-control discount" value="0" required step="0.01"></td>
