@@ -403,6 +403,7 @@ while($row = $item_query->fetch_assoc()) {
         <div class="form-group">
             <label for="delivery_period">Delivery Period</label>
             <select name="delivery_period" id="delivery_period" class="form-control" required>
+                <option value="4 Weeks from date of receipt of material" <?php echo (isset($delivery_period) && $delivery_period == '4 Weeks from date of receipt of material') ? 'selected' : ''; ?>>4 Weeks from date of receipt of material</option>
                 <option value="2-4 Weeks" <?php echo (isset($delivery_period) && $delivery_period == '2-4 Weeks') ? 'selected' : ''; ?>>2-4 Weeks</option>
                 <option value="4-6 Weeks" <?php echo (isset($delivery_period) && $delivery_period == '4-6 Weeks') ? 'selected' : ''; ?>>4-6 Weeks</option>
                 <option value="6-8 Weeks" <?php echo (isset($delivery_period) && $delivery_period == '6-8 Weeks') ? 'selected' : ''; ?>>6-8 Weeks</option>
