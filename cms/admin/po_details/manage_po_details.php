@@ -1,4 +1,5 @@
 <?php
+global $conn;
 function getCurrencySymbol($currency)
 {
     switch (strtoupper($currency)) {

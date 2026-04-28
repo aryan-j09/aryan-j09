@@ -33,6 +33,11 @@ if ($qry->num_rows > 0) {
     }
 }
 
+$material_delivery_raw = isset($material_delivery) ? trim($material_delivery) : '';
+$material_delivery_code = strtoupper($material_delivery_raw);
+$is_standard_material_delivery = in_array($material_delivery_code, ['DOM', 'DDR', 'SELF'], true);
+$is_custom_material_delivery = ($material_delivery_raw !== '' && !$is_standard_material_delivery);
+
 // Determine company type from DB
 $company_type = 'SBP';
 if (isset($company)) {
@@ -522,11 +527,11 @@ while ($row = $item_query->fetch_assoc()) {
                         if ($company_type == 'HUGO') {
                             // For Hugo, billing is always Dombivli
                             // Material delivery matches when DOM is selected
-                            $billing_matches_material = ($material_delivery == 'DOM');
+                            $billing_matches_material = ($material_delivery_code == 'DOM');
                         } else {
                             // For SBP, billing is always Dadar
                             // Material delivery matches when DDR is selected
-                            $billing_matches_material = ($material_delivery == 'DDR');
+                            $billing_matches_material = ($material_delivery_code == 'DDR');
                         }
                         ?>
                         
@@ -578,7 +583,7 @@ while ($row = $item_query->fetch_assoc()) {
                                 <label class="control-label">Material delivery to:</label>
                                 <p>
                                     <?php
-                                    if ($material_delivery == 'DOM') {
+                                    if ($material_delivery_code == 'DOM') {
                                         if ($company_type == 'HUGO') {
                                             echo "<u>Hugopharm Technologies Pvt. Ltd.</u><br>
                                                  Plot No. TS 20, MIDC Phase 2,<br>
@@ -593,7 +598,7 @@ while ($row = $item_query->fetch_assoc()) {
                                                  Besides Sekhsaria Chemicals/ Arch Pharma<br>
                                                  Dombivli (E) - 421 203";
                                         }
-                                    } else if ($material_delivery == 'DDR') {
+                                    } else if ($material_delivery_code == 'DDR') {
                                         if ($company_type == 'HUGO') {
                                             echo "<u>Hugopharm Technologies Pvt. Ltd.</u><br>
                                                  8, Jogani Industrial Estate,<br>
@@ -605,8 +610,12 @@ while ($row = $item_query->fetch_assoc()) {
                                                  541 Senapati Bapat Marg,<br>
                                                  Dadar (W), Mumbai 400 028";
                                         }
-                                    } else if ($material_delivery == 'SELF') {
+                                    } else if ($material_delivery_code == 'SELF') {
                                         echo "Self Pickup";
+                                    } else if ($is_custom_material_delivery) {
+                                        echo nl2br(htmlspecialchars($material_delivery_raw, ENT_QUOTES, 'UTF-8'));
+                                    } else {
+                                        echo "-";
                                     }
                                     ?>
                                 </p>

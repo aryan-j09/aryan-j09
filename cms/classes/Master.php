@@ -4929,6 +4929,7 @@ function delete_utility_supplier(){
             $company = 'Hugopharm';
         }
         $client_id = isset($_POST['client_id']) ? intval($_POST['client_id']) : 0;
+        $linked_trial_id = isset($_POST['linked_trial_id']) ? intval($_POST['linked_trial_id']) : 0;
         $trial_date_range = isset($_POST['trial_date_range']) ? trim($_POST['trial_date_range']) : '';
         $client_representative = isset($_POST['client_representative']) ? trim($_POST['client_representative']) : '';
         $objective = isset($_POST['objective']) ? trim($_POST['objective']) : '';
@@ -4981,6 +4982,7 @@ function delete_utility_supplier(){
                 `trial_no` varchar(255) DEFAULT NULL,
                 `batch_size` varchar(255) DEFAULT NULL,
                 `client_id` int(11) DEFAULT NULL,
+                `linked_trial_id` int(11) DEFAULT NULL,
                 `trial_date_range` varchar(255) DEFAULT NULL,
                 `client_representative` varchar(255) DEFAULT NULL,
                 `objective` longtext,
@@ -5022,6 +5024,7 @@ function delete_utility_supplier(){
         $batch_size_escaped = $this->conn->real_escape_string($batch_size);
         $company_escaped = $this->conn->real_escape_string($company);
         $client_id_sql = $client_id > 0 ? intval($client_id) : 'NULL';
+        $linked_trial_id_sql = ($linked_trial_id > 0 && $linked_trial_id !== $report_id) ? intval($linked_trial_id) : 'NULL';
         $trial_date_range_escaped = $this->conn->real_escape_string($trial_date_range);
         $client_representative_escaped = $this->conn->real_escape_string($client_representative);
         $objective_escaped = $this->conn->real_escape_string($objective);
@@ -5032,6 +5035,8 @@ function delete_utility_supplier(){
         $observations_escaped = $this->conn->real_escape_string($sections['observations']);
         $results_evaluation_escaped = $this->conn->real_escape_string($sections['results_evaluation']);
         $future_action_escaped = $this->conn->real_escape_string($sections['future_action']);
+        $local_now = date('Y-m-d H:i:s');
+        $local_now_escaped = $this->conn->real_escape_string($local_now);
 
         if($report_id > 0){
             // Update existing
@@ -5044,6 +5049,7 @@ function delete_utility_supplier(){
                     batch_size = '$batch_size_escaped',
                     company = '$company_escaped',
                     client_id = $client_id_sql,
+                    linked_trial_id = $linked_trial_id_sql,
                     trial_date_range = '$trial_date_range_escaped',
                     client_representative = '$client_representative_escaped',
                     objective = '$objective_escaped',
@@ -5054,7 +5060,7 @@ function delete_utility_supplier(){
                     observations = '$observations_escaped',
                     results_evaluation = '$results_evaluation_escaped',
                     future_action = '$future_action_escaped',
-                    updated_at = NOW()
+                    updated_at = '$local_now_escaped'
                 WHERE id = $report_id");
             if($update){
                 echo json_encode(['status'=>'success','report_id'=>$report_id,'action'=>'updated','msg'=>'Report updated successfully']);
@@ -5063,8 +5069,8 @@ function delete_utility_supplier(){
             }
         } else {
             // Insert new
-            $insert = $this->conn->query("INSERT INTO lab_trial_reports (name, company, description, batch_no, trial_no, batch_size, client_id, trial_date_range, client_representative, objective, equipment, purpose, input_characteristics, formula, observations, results_evaluation, future_action, created_by, template_used)
-                VALUES ('$name_escaped', '$company_escaped', '$description_escaped', '$batch_no_escaped', '$trial_no_escaped', '$batch_size_escaped', $client_id_sql, '$trial_date_range_escaped', '$client_representative_escaped', '$objective_escaped', '$equipment_escaped', '$purpose_escaped', '$input_characteristics_escaped', '$formula_escaped', '$observations_escaped', '$results_evaluation_escaped', '$future_action_escaped', $created_by, '$template_used_escaped')");
+            $insert = $this->conn->query("INSERT INTO lab_trial_reports (name, company, description, batch_no, trial_no, batch_size, client_id, linked_trial_id, trial_date_range, client_representative, objective, equipment, purpose, input_characteristics, formula, observations, results_evaluation, future_action, created_by, template_used, created_at, updated_at)
+                VALUES ('$name_escaped', '$company_escaped', '$description_escaped', '$batch_no_escaped', '$trial_no_escaped', '$batch_size_escaped', $client_id_sql, $linked_trial_id_sql, '$trial_date_range_escaped', '$client_representative_escaped', '$objective_escaped', '$equipment_escaped', '$purpose_escaped', '$input_characteristics_escaped', '$formula_escaped', '$observations_escaped', '$results_evaluation_escaped', '$future_action_escaped', $created_by, '$template_used_escaped', '$local_now_escaped', '$local_now_escaped')");
             if($insert){
                 $id = $this->conn->insert_id;
                 echo json_encode(['status'=>'success','report_id'=>$id,'action'=>'created','msg'=>'Report created successfully']);

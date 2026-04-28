@@ -14,9 +14,9 @@ $chk = $conn->query("SHOW TABLES LIKE 'lab_trial_reports'");
 if ($chk && $chk->num_rows > 0) {
     $table_exists = true;
 
-    $qry = $conn->query("SELECT ltr.*, COALESCE(u.username, '-') AS created_by_name
+    $qry = $conn->query("SELECT ltr.*, COALESCE(c.company_name, '-') AS client_name
         FROM lab_trial_reports ltr
-        LEFT JOIN users u ON u.id = ltr.created_by
+        LEFT JOIN clients c ON c.id = ltr.client_id
         ORDER BY ltr.created_at DESC");
     if ($qry) {
         while ($row = $qry->fetch_assoc()) {
@@ -45,8 +45,8 @@ if ($chk && $chk->num_rows > 0) {
                 <colgroup>
                     <col width="5%">
                     <col width="20%">
-                    <col width="14%">
-                    <col width="25%">
+                    <col width="13%">
+                    <col width="30%">
                     <col width="12%">
                     <col width="14%">
                     <col width="10%">
@@ -55,10 +55,10 @@ if ($chk && $chk->num_rows > 0) {
                     <tr>
                         <th>Sr.</th>
                         <th>Report Name</th>
-                        <th>Template</th>
-                        <th>Description</th>
-                        <th>Created By</th>
-                        <th>Created At</th>
+                        <th>Batch/Trial No</th>
+                        <th>Objective</th>
+                        <th>Client Name</th>
+                        <th>Trial Date</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -67,27 +67,32 @@ if ($chk && $chk->num_rows > 0) {
                         <?php $i = 1; foreach ($rows as $row): ?>
                             <?php
                                 $row_name = $row['name'] ?? ($row['product_name'] ?? '');
-                                $row_desc = trim(strip_tags($row['purpose'] ?? ''));
-                                if ($row_desc === '') {
-                                    $legacy_desc = trim($row['description'] ?? '');
-                                    $legacy_desc_decoded = json_decode($legacy_desc, true);
-                                    if (is_array($legacy_desc_decoded)) {
-                                        $row_desc = trim(strip_tags($legacy_desc_decoded['purpose'] ?? ''));
-                                    } else {
-                                        $row_desc = trim(strip_tags($legacy_desc));
+                                $row_batch_trial = 'Batch ' . trim($row['batch_no'] ?? '-') . '/Trial ' . trim($row['trial_no'] ?? '-');
+                                $row_objective = trim(strip_tags($row['objective'] ?? ''));
+                                if ($row_objective === '') {
+                                    $row_objective = trim(strip_tags($row['description'] ?? ''));
+                                    $legacy_objective_decoded = json_decode($row_objective, true);
+                                    if (is_array($legacy_objective_decoded)) {
+                                        $row_objective = trim(strip_tags($legacy_objective_decoded['objective'] ?? ''));
                                     }
                                 }
-                                if (strlen($row_desc) > 120) {
-                                    $row_desc = substr($row_desc, 0, 120) . '...';
+                                if (strlen($row_objective) > 120) {
+                                    $row_objective = substr($row_objective, 0, 120) . '...';
+                                }
+                                $row_trial_start_date = '-';
+                                $row_trial_range = trim($row['trial_date_range'] ?? '');
+                                if ($row_trial_range !== '') {
+                                    $trial_range_parts = explode(' to ', $row_trial_range);
+                                    $row_trial_start_date = trim($trial_range_parts[0] ?? $row_trial_range);
                                 }
                             ?>
                             <tr>
                                 <td class="text-center"><?php echo $i++; ?>.</td>
                                 <td><?php echo htmlspecialchars($row_name); ?></td>
-                                <td><?php echo htmlspecialchars($row['template_used'] ?? 'blank'); ?></td>
-                                <td><?php echo htmlspecialchars($row_desc); ?></td>
-                                <td><?php echo htmlspecialchars($row['created_by_name'] ?? '-'); ?></td>
-                                <td><?php echo !empty($row['created_at']) ? date('d-M-Y h:i A', strtotime($row['created_at'])) : '-'; ?></td>
+                                <td><?php echo htmlspecialchars($row_batch_trial); ?></td>
+                                <td><?php echo htmlspecialchars($row_objective); ?></td>
+                                <td><?php echo htmlspecialchars($row['client_name'] ?? '-'); ?></td>
+                                <td><?php echo htmlspecialchars($row_trial_start_date); ?></td>
                                 <td align="center">
                                     <button type="button" class="btn btn-flat btn-default btn-sm dropdown-toggle dropdown-icon" data-toggle="dropdown">
                                         Action
@@ -100,6 +105,10 @@ if ($chk && $chk->num_rows > 0) {
                                         <div class="dropdown-divider"></div>
                                         <a class="dropdown-item" href="<?php echo base_url . 'admin/?page=lab_trial_reports/manage_trial&id=' . $row['id']; ?>">
                                             <span class="fa fa-edit text-primary"></span> Edit
+                                        </a>
+                                        <div class="dropdown-divider"></div>
+                                        <a class="dropdown-item" href="<?php echo base_url . 'admin/?page=lab_trial_reports/manage_trial&repeat_from=' . $row['id']; ?>">
+                                            <span class="fa fa-copy text-success"></span> Repeat Trial
                                         </a>
                                         <div class="dropdown-divider"></div>
                                         <a class="dropdown-item delete_data" href="javascript:void(0)" data-id="<?php echo $row['id']; ?>">

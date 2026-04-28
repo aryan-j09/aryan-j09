@@ -1,4 +1,5 @@
-<?php 
+<?php
+global $conn;
 
 // Set timezone to India Standard Time
 date_default_timezone_set('Asia/Kolkata');
@@ -49,7 +50,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $grand_total = isset($_POST['total_amount']) && $_POST['total_amount'] !== '' ? (float)$_POST['total_amount'] : 0;
 
     $company = $_POST['company'];
-    $material_delivery = $_POST['material_delivery'];
+    $material_delivery = isset($_POST['material_delivery']) ? trim($_POST['material_delivery']) : '';
+    $material_delivery_other = isset($_POST['material_delivery_other']) ? trim($_POST['material_delivery_other']) : '';
+    if ($material_delivery === 'OTHER') {
+        if ($material_delivery_other === '') {
+            $duplicate_po_message = 'Please enter custom material delivery address.';
+        } else {
+            $material_delivery = $material_delivery_other;
+        }
+    }
     $payment_terms = $_POST['payment_terms'];
     $delivery_period = $_POST['delivery_period'];
     $authorized_signatory = $_POST['authorized_signatory'];
@@ -295,6 +304,13 @@ $item_query = $conn->query("SELECT * FROM item_list ORDER BY id DESC");
 while($row = $item_query->fetch_assoc()) {
     $item_arr[$row['supplier_id']][] = $row;
 }
+
+$material_delivery_option = isset($material_delivery) ? $material_delivery : '';
+$material_delivery_other = isset($material_delivery_other) ? $material_delivery_other : '';
+if (!empty($material_delivery_option) && !in_array($material_delivery_option, ['DOM', 'DDR', 'SELF', 'OTHER'], true)) {
+    $material_delivery_other = $material_delivery_option;
+    $material_delivery_option = 'OTHER';
+}
 ?>
 
 <style>
@@ -375,10 +391,15 @@ while($row = $item_query->fetch_assoc()) {
             <label for="material_delivery">Material Delivery Location</label>
             <select name="material_delivery" id="material_delivery" class="form-control" required>
                 <option value="">Select location</option>
-                <option value="DOM" <?php echo (isset($material_delivery) && $material_delivery == 'DOM') ? 'selected' : ''; ?>>Dombivli</option>
-                <option value="DDR" <?php echo (isset($material_delivery) && $material_delivery == 'DDR') ? 'selected' : ''; ?>>Dadar</option>
-                <option value="SELF" <?php echo (isset($material_delivery) && $material_delivery == 'SELF') ? 'selected' : ''; ?>>Self Pickup</option>
+                <option value="DOM" <?php echo (isset($material_delivery_option) && $material_delivery_option == 'DOM') ? 'selected' : ''; ?>>Dombivli</option>
+                <option value="DDR" <?php echo (isset($material_delivery_option) && $material_delivery_option == 'DDR') ? 'selected' : ''; ?>>Dadar</option>
+                <option value="SELF" <?php echo (isset($material_delivery_option) && $material_delivery_option == 'SELF') ? 'selected' : ''; ?>>Self Pickup</option>
+                <option value="OTHER" <?php echo (isset($material_delivery_option) && $material_delivery_option == 'OTHER') ? 'selected' : ''; ?>>Others</option>
             </select>
+            <div id="material_delivery_other_wrap" class="mt-2" style="display:none;">
+                <label for="material_delivery_other">Custom Address</label>
+                <textarea name="material_delivery_other" id="material_delivery_other" class="form-control" rows="3" placeholder="Enter custom delivery address"><?php echo isset($material_delivery_other) ? htmlspecialchars($material_delivery_other, ENT_QUOTES, 'UTF-8') : ''; ?></textarea>
+            </div>
         </div>
     </div>
     <div class="col-md-3">
@@ -640,6 +661,15 @@ var items = <?php echo json_encode($item_arr); ?>;
 $(document).ready(function() {
     var poCodeExists = false;
 
+    function toggleMaterialDeliveryOtherField() {
+        var isOther = $('#material_delivery').val() === 'OTHER';
+        $('#material_delivery_other_wrap').toggle(isOther);
+        $('#material_delivery_other').prop('required', isOther);
+        if (!isOther) {
+            $('#material_delivery_other').val('');
+        }
+    }
+
     function togglePoCodeError(show) {
         poCodeExists = !!show;
         if (poCodeExists) {
@@ -708,6 +738,11 @@ $(document).ready(function() {
     $('#po_code').on('blur change', function() {
         checkPoCodeExists();
     });
+
+    $('#material_delivery').on('change', function() {
+        toggleMaterialDeliveryOtherField();
+    });
+    toggleMaterialDeliveryOtherField();
 
     $('#manage-po').on('submit', function(e) {
         e.preventDefault();

@@ -1,4 +1,5 @@
 <?php
+global $conn;
 /**
  * Lab Trial Reports - View
  */
@@ -42,9 +43,36 @@ if ($client_value === '' && !empty($report['client'])) {
     $client_value = $report['client'];
 }
 $trial_date_range_value = $report['trial_date_range'] ?? '';
+$trial_date_display_value = $trial_date_range_value;
+if (!empty($trial_date_range_value)) {
+    $trial_date_parts = explode(' to ', $trial_date_range_value);
+    if (count($trial_date_parts) >= 2) {
+        $trial_start_date = trim($trial_date_parts[0]);
+        $trial_end_date = trim($trial_date_parts[1]);
+        if ($trial_start_date !== '' && $trial_start_date === $trial_end_date) {
+            $trial_date_display_value = $trial_start_date;
+        }
+    }
+}
 $client_representative_value = $report['client_representative'] ?? '';
 $objective_value = $report['objective'] ?? '';
 $equipment_value = $report['equipment'] ?? '';
+$linked_trial_value = '';
+$linked_trial_view_url = '';
+if (!empty($report['linked_trial_id'])) {
+    $linked_trial_id = intval($report['linked_trial_id']);
+    if ($linked_trial_id > 0 && $linked_trial_id !== $report_id) {
+        $lq = $conn->query("SELECT id, name, batch_no, trial_no FROM lab_trial_reports WHERE id = {$linked_trial_id} LIMIT 1");
+        if ($lq && $lq->num_rows > 0) {
+            $lr = $lq->fetch_assoc();
+            $linked_trial_view_url = base_url . 'admin/?page=lab_trial_reports/view_trial&id=' . intval($lr['id']);
+            $linked_trial_value = '#'.intval($lr['id'])
+                .' | Batch: '.(!empty($lr['batch_no']) ? $lr['batch_no'] : '-')
+                .' | Trial: '.(!empty($lr['trial_no']) ? $lr['trial_no'] : '-')
+                .' | '.(!empty($lr['name']) ? $lr['name'] : 'Untitled');
+        }
+    }
+}
 $sections = [
     'purpose' => '',
     'input_characteristics' => '',
@@ -337,6 +365,11 @@ if (!empty($report['description'])) {
 <?php endif; ?>
 
 <div class="no-print mb-3 d-flex justify-content-end">
+    <?php if (!empty($linked_trial_view_url)): ?>
+        <a href="<?php echo htmlspecialchars($linked_trial_view_url); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-warning mr-2">
+            <i class="fas fa-link"></i> Open Linked Trial
+        </a>
+    <?php endif; ?>
     <a href="<?php echo base_url ?>admin/?page=lab_trial_reports/manage_trial&id=<?php echo $report_id; ?>" class="btn btn-sm btn-primary mr-2"><i class="fas fa-edit"></i> Edit</a>
     <a href="<?php echo base_url ?>admin/?page=lab_trial_reports" class="btn btn-sm btn-secondary mr-2">Back</a>
     <button type="button" onclick="window.print()" class="btn btn-sm btn-info"><i class="fas fa-print"></i> Print</button>
@@ -369,7 +402,7 @@ if (!empty($report['description'])) {
                 </tr>
                 <tr>
                     <th>Date of Trial</th>
-                    <td colspan="3"><?php echo htmlspecialchars($trial_date_range_value); ?></td>
+                    <td colspan="3"><?php echo htmlspecialchars($trial_date_display_value); ?></td>
                 </tr>
                 <tr>
                     <th>Clients Representative</th>
@@ -382,7 +415,7 @@ if (!empty($report['description'])) {
                 <tr>
                     <th>Equipment</th>
                     <td colspan="3"><?php echo nl2br(htmlspecialchars($equipment_value)); ?></td>
-                </tr>                
+                </tr>
             </table>
         </div>
 
