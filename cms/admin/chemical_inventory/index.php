@@ -43,6 +43,19 @@ if ($chk_logs && $chk_logs->num_rows > 0) {
     $logs_exists = true;
 }
 
+$projects_exists = false;
+$project_options = [];
+$chk_projects = $conn->query("SHOW TABLES LIKE 'projects'");
+if ($chk_projects && $chk_projects->num_rows > 0) {
+    $projects_exists = true;
+    $projects_q = $conn->query("SELECT id, name FROM projects ORDER BY name ASC");
+    if ($projects_q) {
+        while ($p = $projects_q->fetch_assoc()) {
+            $project_options[] = $p;
+        }
+    }
+}
+
 $chem_q = $conn->query("SELECT id, name, brand, remarks FROM chemical_master_list ORDER BY name ASC, id ASC");
 if ($chem_q) {
     while ($c = $chem_q->fetch_assoc()) {
@@ -137,10 +150,10 @@ foreach ($chemicals as $chem) {
         <h3 class="card-title mb-0">Chemical Inventory</h3>
         <div class="card-tools" style="margin-left:auto; display:flex; gap:8px;">
             <button type="button" id="open-incoming-modal" class="btn btn-sm btn-success" <?php echo !$batch_exists ? 'disabled' : ''; ?>>
-                <i class="fas fa-arrow-down"></i> Incoming
+                <i class="fas fa-arrow-down"></i> Receive
             </button>
             <button type="button" id="open-outgoing-modal" class="btn btn-sm btn-danger" <?php echo (!$batch_exists || !$logs_exists) ? 'disabled' : ''; ?>>
-                <i class="fas fa-arrow-up"></i> Outgoing
+                <i class="fas fa-arrow-up"></i> Utilize
             </button>
         </div>
     </div>
@@ -374,7 +387,7 @@ foreach ($chemicals as $chem) {
             </div>
             <div class="modal-body">
                 <div class="row">
-                    <div class="col-md-12">
+                    <div class="col-md-6">
                         <label>Chemical <span class="text-danger">*</span></label>
                         <select id="out_chemical_id" class="form-control" style="width:100%;" <?php echo (!$batch_exists || !$logs_exists) ? 'disabled' : ''; ?>>
                             <option value="">Select chemical</option>
@@ -382,6 +395,15 @@ foreach ($chemicals as $chem) {
                                 <option value="<?php echo (int)$c['chemical_id']; ?>" data-available="<?php echo htmlspecialchars(ci_format_qty($c['available_qty'])); ?>" data-unit="<?php echo htmlspecialchars($c['unit'] ?? ''); ?>">
                                     <?php echo htmlspecialchars($c['name'] . (!empty($c['brand']) ? ' - ' . $c['brand'] : '') . ' | Available: ' . ci_format_qty($c['available_qty']) . ' ' . ($c['unit'] ?? '')); ?>
                                 </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label>Project <span class="text-danger">*</span></label>
+                        <select id="out_project_id" class="form-control" style="width:100%;" <?php echo (!$batch_exists || !$logs_exists || !$projects_exists) ? 'disabled' : ''; ?>>
+                            <option value="">Select or type project name</option>
+                            <?php foreach($project_options as $proj): ?>
+                                <option value="<?php echo (int)$proj['id']; ?>"><?php echo htmlspecialchars($proj['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -577,6 +599,35 @@ $(function(){
             });
         }
 
+        if (!$('#out_project_id').hasClass('select2-hidden-accessible')) {
+            $('#out_project_id').select2({
+                dropdownParent: $('#outgoing-modal'),
+                width: '100%',
+                tags: true,
+                tokenSeparators: [','],
+                createTag: function(params) {
+                    var term = $.trim(params.term);
+                    if (term === '') return null;
+                    return {
+                        id: '__new__' + Date.now(),
+                        text: term,
+                        newProject: true
+                    };
+                },
+                templateResult: function(data) {
+                    if (!data.id) return data.text;
+                    if (data.newProject) {
+                        return '<strong>' + String(data.text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#039;') + '</strong> <small style="color:#999;">(new)</small>';
+                    }
+                    return data.text;
+                },
+                templateSelection: function(data){
+                    return data && data.text ? data.text : '';
+                },
+                escapeMarkup: function(markup){ return markup; }
+            });
+        }
+
         if (!$('#out_utilized_at').val()) {
             var now = new Date();
             var local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0,16);
@@ -646,6 +697,21 @@ $(function(){
         });
     });
 
+    function showChemicalQRPrintDialog(shortCode, chemicalName, barcodeCode) {
+        var params = new URLSearchParams({
+            short_code: shortCode || '',
+            chemical: chemicalName,
+            barcode: barcodeCode,
+            count: 1
+        });
+
+        window.open(
+            '<?php echo base_url ?>admin/chemical_inventory/print_qr.php?' + params.toString(),
+            'QRPrint',
+            'height=600,width=800,left=50,top=50'
+        );
+    }
+
     $('#save_incoming').on('click', function(){
         var payload = {
             chemical_id: $('#in_chemical_id').val(),
@@ -691,8 +757,20 @@ $(function(){
             dataType: 'json',
             success: function(resp){
                 if (resp.status === 'success') {
+                    var shortCode = resp.short_code || '';
+                    var chemName = $('#in_chemical_id option:selected').text() || 'Chemical';
+                    var barcodeCode = 'BATCH-' + resp.batch_id;
+                    
+                    if (shortCode) {
+                        if (confirm('Print barcode label for this batch?')) {
+                            showChemicalQRPrintDialog(shortCode, chemName, barcodeCode);
+                        }
+                    }
+                    
                     sessionStorage.setItem('success_message', 'Incoming saved successfully.');
-                    window.location.href = '<?php echo base_url ?>admin/?page=chemical_inventory';
+                    setTimeout(function(){
+                        window.location.href = '<?php echo base_url ?>admin/?page=chemical_inventory';
+                    }, 500);
                 } else {
                     alert_toast(resp.msg || 'Save failed', 'error');
                     btn.prop('disabled', false).html('<i class="fas fa-save"></i> Save Incoming');
@@ -706,16 +784,31 @@ $(function(){
     });
 
     $('#save_outgoing').on('click', function(){
+        var projectId = $('#out_project_id').val();
+        var newProjectName = '';
+        if (projectId && projectId.indexOf('__new__') === 0) {
+            newProjectName = $('#out_project_id').find('option:selected').text().replace(/\s*\(new\)\s*$/, '').trim();
+        }
+
         var qtyVal = parseFloat($('#out_quantity').val());
         var payload = {
             chemical_id: $('#out_chemical_id').val(),
+            project_id: projectId,
             quantity: isNaN(qtyVal) ? '' : qtyVal,
             utilized_at: $('#out_utilized_at').val(),
             remarks: $('#out_remarks').val().trim()
         };
 
+        if (newProjectName) {
+            payload.new_project_name = newProjectName;
+        }
+
         if (!payload.chemical_id) {
             alert_toast('Chemical is required', 'warning');
+            return;
+        }
+        if (!payload.project_id) {
+            alert_toast('Project is required', 'warning');
             return;
         }
         if (!payload.quantity || Number(payload.quantity) <= 0) {

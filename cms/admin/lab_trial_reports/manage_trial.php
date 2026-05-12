@@ -39,9 +39,18 @@ if ($linked_qry) {
     }
 }
 
+$project_options = [];
+$projects_qry = $conn->query("SELECT id, name FROM projects ORDER BY name ASC");
+if ($projects_qry) {
+    while ($p = $projects_qry->fetch_assoc()) {
+        $project_options[] = $p;
+    }
+}
+
 $report_name_value = $report['name'] ?? ($report['product_name'] ?? '');
 $batch_no_value = $is_repeat_mode ? '' : ($report['batch_no'] ?? '');
 $trial_no_value = $is_repeat_mode ? '' : ($report['trial_no'] ?? '');
+$project_id_value = $is_repeat_mode ? 0 : intval($report['project_id'] ?? 0);
 $batch_size_value = $report['batch_size'] ?? '';
 $company_value = $report['company'] ?? 'Hugopharm';
 $client_id_value = isset($report['client_id']) ? intval($report['client_id']) : 0;
@@ -156,8 +165,15 @@ if ($report) {
 
                             <div class="row mb-3">
                                 <div class="col-md-4">
-                                    <label>Batch No</label>
-                                    <input type="text" id="batch_no" class="form-control" value="<?php echo htmlspecialchars($batch_no_value); ?>" placeholder="Enter batch no">
+                                    <label>Project <span class="text-danger">*</span></label>
+                                    <select id="project_id" class="form-control select2" style="width:100%;">
+                                        <option value="">Select or type project name</option>
+                                        <?php foreach ($project_options as $proj): ?>
+                                            <option value="<?php echo intval($proj['id']); ?>" <?php echo ($project_id_value === intval($proj['id'])) ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($proj['name']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
                                 </div>
                                 <div class="col-md-4">
                                     <label>Trial No</label>
@@ -353,9 +369,13 @@ if ($report) {
         return $('#' + id).val() || '';
     }
 
+    function htmlEscape(text) {
+        return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
     function buildSaveData(){
         var name = $('#report_name').val().trim();
-        var batchNo = $('#batch_no').val().trim();
+        var projectId = $('#project_id').val();
         var trialNo = $('#trial_no').val().trim();
         var batchSize = $('#batch_size').val().trim();
         var company = $('#trial_company').val();
@@ -373,8 +393,14 @@ if ($report) {
             results_evaluation: getEditorContent('results_evaluation'),
             future_action: getEditorContent('future_action')
         };
+        
+        var newProjectName = '';
+        if (projectId && projectId.indexOf('__new__') === 0) {
+            var selectedOption = $('#project_id').find('option:selected');
+            newProjectName = selectedOption.text().replace(/\s*\(new\)\s*$/, '').trim();
+        }
 
-        return {
+        var data = {
             id: reportId,
             name: name,
             sections_json: JSON.stringify(payload),
@@ -384,7 +410,7 @@ if ($report) {
             observations: payload.observations,
             results_evaluation: payload.results_evaluation,
             future_action: payload.future_action,
-            batch_no: batchNo,
+            project_id: projectId,
             trial_no: trialNo,
             batch_size: batchSize,
             company: company,
@@ -395,6 +421,12 @@ if ($report) {
             objective: objective,
             equipment: equipment
         };
+        
+        if (newProjectName) {
+            data.new_project_name = newProjectName;
+        }
+        
+        return data;
     }
 
     function canSaveData(data, isAuto){
@@ -404,9 +436,9 @@ if ($report) {
             }
             return false;
         }
-        if(isRepeatMode && (!data.batch_no || !data.trial_no)){
+        if(isRepeatMode && (!data.project_id || !data.trial_no)){
             if(!isAuto){
-                Swal.fire({icon:'warning', title:'Required', text:'Please enter new Batch No and Trial No'});
+                Swal.fire({icon:'warning', title:'Required', text:'Please select a project and enter new Trial No'});
             }
             return false;
         }
@@ -492,6 +524,31 @@ if ($report) {
 
     $(function(){
         if ($.fn.select2) {
+            $('#project_id').select2({
+                width: '100%',
+                tags: true,
+                tokenSeparators: [','],
+                createTag: function(params) {
+                    var term = $.trim(params.term);
+                    if (term === '') return null;
+                    return {
+                        id: '__new__' + Date.now(),
+                        text: term,
+                        newProject: true
+                    };
+                },
+                templateResult: function(data) {
+                    if (!data.id) return data.text;
+                    if (data.newProject) {
+                        return '<strong>' + htmlEscape(data.text) + '</strong> <small style="color:#999;">(new)</small>';
+                    }
+                    return data.text;
+                },
+                templateSelection: function(data){
+                    return data && data.text ? data.text : '';
+                },
+                escapeMarkup: function(markup){ return markup; }
+            });
             $('#trial_company').select2({ width: '100%' });
             $('#client_id').select2({ width: '100%' });
             $('#linked_trial_id').select2({ width: '100%' });
@@ -530,7 +587,7 @@ if ($report) {
             saveReport(false);
         });
 
-        $('#report_name, #batch_no, #trial_no, #batch_size, #trial_date_range, #client_representative, #objective, #equipment').on('input change', markDirty);
+        $('#report_name, #project_id, #trial_no, #batch_size, #trial_date_range, #client_representative, #objective, #equipment').on('input change', markDirty);
         $('#trial_company, #client_id, #linked_trial_id').on('change', markDirty);
         $('textarea.trial-editor').on('input change', markDirty);
 

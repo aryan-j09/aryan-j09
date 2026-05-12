@@ -1,4 +1,7 @@
-<?php require_once('../config.php'); ?>
+<?php
+require_once('../config.php');
+$conn = $GLOBALS['conn'] ?? (isset($conn) ? $conn : null);
+?>
  <!DOCTYPE html>
 <html lang="en" class="" style="height: auto;">
 <?php require_once('inc/header.php') ?>
@@ -14,7 +17,7 @@
      <?php
       $page = isset($_GET['page']) ? trim($_GET['page']) : 'home';
       if($page === '') $page = 'home';
-      if(!cms_user_can_access_page($conn, $_SESSION['userdata'], $page)){
+      if(!$conn || !cms_user_can_access_page($conn, $_SESSION['userdata'], $page)){
         http_response_code(403);
         ?>
         <div class="container-fluid">

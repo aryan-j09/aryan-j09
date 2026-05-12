@@ -1,6 +1,23 @@
 <?php 
 
+/**
+ * Proforma Invoice Management
+ * Requires $conn to be available from parent include
+ * @var mysqli $conn Database connection
+ */
+
 define('_base_url_', 'https://sbpanchal.com/cms/');
+
+// Ensure database connection is available
+if (!isset($conn)) {
+    // If not already included, try to include it
+    $auth_file = $_SERVER['DOCUMENT_ROOT'] . '/cms/inc/sess_auth.php';
+    if (file_exists($auth_file)) {
+        require_once $auth_file;
+    } else {
+        die('Database connection not available');
+    }
+}
 
 function get_work_order_prefix($company){
     $company = trim((string)$company);
@@ -14,6 +31,10 @@ function get_work_order_prefix($company){
 }
 
 $success_message = '';
+
+// Declare global database connection for IDE/analyzer
+/** @var mysqli $conn */
+global $conn;
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     error_log("POST Data: " . print_r($_POST, true));    
@@ -47,24 +68,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $installation_payment = isset($_POST['installation_payment']) ? $_POST['installation_payment'] : 0;
     $inspection_payment_type = isset($_POST['inspection_payment_type']) ? $_POST['inspection_payment_type'] : 'inspection';
 
-    // If advance is 100%, store the entire amount (including taxes, packing/forwarding and freight)
-    // in advance_payment_amount and zero other payment amounts so server stores correctly.
-    if (floatval($advance_payment) === 100.0) {
-        $advance_payment_amount = !empty($_POST['total_amount']) ? $_POST['total_amount'] : $advance_payment_amount;
-        $inspection_payment_amount = 0;
-        $installation_payment_amount = 0;
-        $credit_payment_amount = 0;
-    } elseif (floatval($inspection_payment) === 100.0) {
-        $advance_payment_amount = 0;
-        $inspection_payment_amount = !empty($_POST['total_amount']) ? $_POST['total_amount'] : $inspection_payment_amount;
-        $installation_payment_amount = 0;
-        $credit_payment_amount = 0;
-    } elseif (floatval($installation_payment) === 100.0) {
-        $advance_payment_amount = 0;
-        $inspection_payment_amount = 0;
-        $installation_payment_amount = !empty($_POST['total_amount']) ? $_POST['total_amount'] : $installation_payment_amount;
-        $credit_payment_amount = 0;
-    }
+    // Initialize payment amounts (will be set from POST or calculated)
+    $advance_payment_amount = 0;
+    $inspection_payment_amount = 0;
+    $installation_payment_amount = 0;
+    $credit_payment_amount = 0;
+
     $company = $_POST['company'];
     $freight = isset($_POST['freight']) ? $_POST['freight'] : 0;
     $credit_payment_days = isset($_POST['credit_payment_days']) ? $_POST['credit_payment_days'] : 0;
@@ -95,6 +104,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $advance_payment_amount = !empty($_POST['total_amount']) ? $_POST['total_amount'] : $advance_payment_amount;
         $inspection_payment_amount = 0;
         $installation_payment_amount = 0;
+        $credit_payment_amount = 0;
+    } elseif (floatval($inspection_payment) === 100.0) {
+        $advance_payment_amount = 0;
+        $inspection_payment_amount = !empty($_POST['total_amount']) ? $_POST['total_amount'] : $inspection_payment_amount;
+        $installation_payment_amount = 0;
+        $credit_payment_amount = 0;
+    } elseif (floatval($installation_payment) === 100.0) {
+        $advance_payment_amount = 0;
+        $inspection_payment_amount = 0;
+        $installation_payment_amount = !empty($_POST['total_amount']) ? $_POST['total_amount'] : $installation_payment_amount;
         $credit_payment_amount = 0;
     }
 

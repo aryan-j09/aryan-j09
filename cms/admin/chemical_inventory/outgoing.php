@@ -27,6 +27,21 @@ if ($batch_exists) {
     }
 }
 
+$projects_exists = false;
+$project_options = [];
+$chk_projects = $conn->query("SHOW TABLES LIKE 'projects'");
+if ($chk_projects && $chk_projects->num_rows > 0) {
+    $projects_exists = true;
+    $projects_q = $conn->query("SELECT id, name FROM projects ORDER BY name ASC");
+    if ($projects_q) {
+        while ($p = $projects_q->fetch_assoc()) {
+            $project_options[] = $p;
+        }
+    }
+}
+
+// no debug counter
+
 $available_chemicals = [];
 if ($batch_exists) {
     if ($batch_has_unit) {
@@ -60,9 +75,16 @@ if ($batch_exists) {
 
 $recent_outgoing = [];
 if ($logs_exists) {
+    $log_has_project_name = false;
+    $log_project_col = $conn->query("SHOW COLUMNS FROM chemical_stock_logs LIKE 'project_name'");
+    if ($log_project_col && $log_project_col->num_rows > 0) {
+        $log_has_project_name = true;
+    }
+
     $out_unit_select = $batch_has_unit ? "b.unit AS unit" : "c.unit AS unit";
+    $out_project_select = $log_has_project_name ? "l.project_name AS project_name" : "'' AS project_name";
     $r_q = $conn->query("SELECT l.id, l.quantity, l.reference_no,
-        l.created_at, l.remarks, c.name, c.brand, {$out_unit_select}
+        l.created_at, l.remarks, c.name, c.brand, {$out_project_select}, {$out_unit_select}
         FROM chemical_stock_logs l
         INNER JOIN chemical_master_list c ON c.id = l.chemical_id
         LEFT JOIN chemical_inventory_batches b ON b.id = l.batch_id
@@ -108,6 +130,7 @@ if ($logs_exists) {
                         <tr>
                             <th width="45">#</th>
                             <th>Chemical</th>
+                            <th>Project</th>
                             <th width="100" class="text-center">Qty Used</th>
                             <th width="140">Reference</th>
                             <th width="130">Used At</th>
@@ -118,13 +141,14 @@ if ($logs_exists) {
                     <tbody>
                         <?php if(count($recent_outgoing) === 0): ?>
                             <tr>
-                                <td colspan="7" class="text-center text-muted">No utilization records found</td>
+                                <td colspan="8" class="text-center text-muted">No utilization records found</td>
                             </tr>
                         <?php else: ?>
                             <?php $i = 1; foreach($recent_outgoing as $r): ?>
                                 <tr>
                                     <td class="text-center"><?php echo $i++; ?></td>
                                     <td><?php echo htmlspecialchars($r['name'] . (!empty($r['brand']) ? ' - ' . $r['brand'] : '')); ?></td>
+                                    <td><?php echo htmlspecialchars($r['project_name'] ?? ''); ?></td>
                                     <td class="text-center"><?php echo htmlspecialchars($r['quantity'] . ' ' . ($r['unit'] ?? '')); ?></td>
                                     <td><?php echo htmlspecialchars($r['reference_no'] ?? ''); ?></td>
                                     <td><?php echo htmlspecialchars(!empty($r['created_at']) ? date('d-m-Y H:i', strtotime($r['created_at'])) : ''); ?></td>
@@ -175,6 +199,20 @@ if ($logs_exists) {
                         </select>
                     </div>
                 </div>
+
+                <div class="row mt-2">
+                    <div class="col-md-12">
+                        <label>Project <span class="text-danger">*</span></label>
+                        <!-- project helper removed -->
+                        <select id="out_project_id" class="form-control" style="width:100%;" <?php echo (!$batch_exists || !$logs_exists) ? 'disabled' : ''; ?>>
+                            <option value="">Select or type project name</option>
+                            <?php foreach($project_options as $proj): ?>
+                                <option value="<?php echo (int)$proj['id']; ?>"><?php echo htmlspecialchars($proj['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                
 
                 <div class="row mt-2">
                     <div class="col-md-4">
@@ -240,6 +278,35 @@ $(function(){
             });
         }
 
+        if (!$('#out_project_id').hasClass('select2-hidden-accessible')) {
+            $('#out_project_id').select2({
+                dropdownParent: $('#outgoing-modal'),
+                width: '100%',
+                tags: true,
+                tokenSeparators: [','],
+                createTag: function(params) {
+                    var term = $.trim(params.term);
+                    if (term === '') return null;
+                    return {
+                        id: '__new__' + Date.now(),
+                        text: term,
+                        newProject: true
+                    };
+                },
+                templateResult: function(data) {
+                    if (!data.id) return data.text;
+                    if (data.newProject) {
+                        return '<strong>' + String(data.text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#039;') + '</strong> <small style="color:#999;">(new)</small>';
+                    }
+                    return data.text;
+                },
+                templateSelection: function(data){
+                    return data && data.text ? data.text : '';
+                },
+                escapeMarkup: function(markup){ return markup; }
+            });
+        }
+
         if (!$('#out_utilized_at').val()) {
             var now = new Date();
             var local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0,16);
@@ -259,15 +326,30 @@ $(function(){
     });
 
     $('#save_outgoing').on('click', function(){
+        var projectId = $('#out_project_id').val();
+        var newProjectName = '';
+        if (projectId && projectId.indexOf('__new__') === 0) {
+            newProjectName = $('#out_project_id').find('option:selected').text().replace(/\s*\(new\)\s*$/, '').trim();
+        }
+
         var payload = {
             chemical_id: $('#out_chemical_id').val(),
+            project_id: projectId,
             quantity: $('#out_quantity').val(),
             utilized_at: $('#out_utilized_at').val(),
             remarks: $('#out_remarks').val().trim()
         };
 
+        if (newProjectName) {
+            payload.new_project_name = newProjectName;
+        }
+
         if (!payload.chemical_id) {
             alert_toast('Chemical is required', 'warning');
+            return;
+        }
+        if (!payload.project_id) {
+            alert_toast('Project is required', 'warning');
             return;
         }
         if (!payload.quantity || Number(payload.quantity) <= 0) {

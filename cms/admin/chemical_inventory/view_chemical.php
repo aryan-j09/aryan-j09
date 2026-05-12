@@ -54,6 +54,7 @@ $batch_count = 0;
 $total_received = 0;
 $total_available = 0;
 $total_outgoing = 0;
+$summary_unit = '';
 
 if ($batch_exists) {
     $stats_sql = $batch_has_unit
@@ -86,6 +87,30 @@ if ($batch_exists) {
         $batch_count = (int)($stats['batch_count'] ?? 0);
         $total_received = (float)($stats['total_received'] ?? 0);
         $total_available = (float)($stats['total_available'] ?? 0);
+    }
+
+    if ($batch_has_unit) {
+        $unit_q = $conn->query("SELECT
+            SUM(CASE WHEN LOWER(TRIM(unit)) IN ('kg', 'g') THEN 1 ELSE 0 END) AS mass_units,
+            SUM(CASE WHEN LOWER(TRIM(unit)) IN ('l', 'ml') THEN 1 ELSE 0 END) AS volume_units,
+            SUM(CASE WHEN LOWER(TRIM(unit)) = 'pcs' THEN 1 ELSE 0 END) AS pcs_units,
+            COALESCE(MAX(NULLIF(TRIM(unit), '')), '') AS raw_unit
+            FROM chemical_inventory_batches
+            WHERE chemical_id = {$chemical_id}");
+        if ($unit_q) {
+            $unit_row = $unit_q->fetch_assoc();
+            if ((int)($unit_row['mass_units'] ?? 0) > 0) {
+                $summary_unit = 'kg';
+            } elseif ((int)($unit_row['volume_units'] ?? 0) > 0) {
+                $summary_unit = 'L';
+            } elseif ((int)($unit_row['pcs_units'] ?? 0) > 0) {
+                $summary_unit = 'pcs';
+            } else {
+                $summary_unit = trim((string)($unit_row['raw_unit'] ?? ''));
+            }
+        }
+    } else {
+        $summary_unit = trim((string)($chemical['unit'] ?? ''));
     }
 
     $incoming_sql = $batch_has_unit
@@ -137,6 +162,8 @@ if ($logs_exists) {
 
 <div class="no-print mb-3">
     <a href="<?php echo base_url ?>admin/?page=chemical_inventory" class="btn btn-sm btn-secondary">Back</a>
+    <a href="<?php echo base_url ?>admin/?page=chemical_inventory&open_modal=incoming" class="btn btn-sm btn-success"><i class="fas fa-arrow-down"></i> Receive</a>
+    <a href="<?php echo base_url ?>admin/?page=chemical_inventory&open_modal=outgoing" class="btn btn-sm btn-danger"><i class="fas fa-arrow-up"></i> Utilize</a>
     <button type="button" onclick="window.print()" class="btn btn-sm btn-info"><i class="fas fa-print"></i> Print</button>
 </div>
 
@@ -165,7 +192,7 @@ if ($logs_exists) {
                     <span class="info-box-icon"><i class="fas fa-boxes"></i></span>
                     <div class="info-box-content">
                         <span class="info-box-text">Received</span>
-                        <span class="info-box-number"><?php echo htmlspecialchars(ci_format_qty($total_received)); ?></span>
+                        <span class="info-box-number"><?php echo htmlspecialchars(ci_format_qty($total_received) . (!empty($summary_unit) ? ' ' . $summary_unit : '')); ?></span>
                     </div>
                 </div>
             </div>
@@ -173,8 +200,8 @@ if ($logs_exists) {
                 <div class="info-box bg-warning">
                     <span class="info-box-icon"><i class="fas fa-hand-holding"></i></span>
                     <div class="info-box-content">
-                        <span class="info-box-text">Outgoing</span>
-                        <span class="info-box-number"><?php echo htmlspecialchars(ci_format_qty($total_outgoing)); ?></span>
+                        <span class="info-box-text">Utilized</span>
+                        <span class="info-box-number"><?php echo htmlspecialchars(ci_format_qty($total_outgoing) . (!empty($summary_unit) ? ' ' . $summary_unit : '')); ?></span>
                     </div>
                 </div>
             </div>
@@ -183,7 +210,7 @@ if ($logs_exists) {
                     <span class="info-box-icon"><i class="fas fa-warehouse"></i></span>
                     <div class="info-box-content">
                         <span class="info-box-text">Available</span>
-                        <span class="info-box-number"><?php echo htmlspecialchars(ci_format_qty($total_available)); ?></span>
+                        <span class="info-box-number"><?php echo htmlspecialchars(ci_format_qty($total_available) . (!empty($summary_unit) ? ' ' . $summary_unit : '')); ?></span>
                     </div>
                 </div>
             </div>
@@ -226,6 +253,9 @@ if ($logs_exists) {
                                 <td class="text-center"><?php echo !empty($row['expiry_date']) ? date('d-M-Y', strtotime($row['expiry_date'])) : '-'; ?></td>
                                 <td><?php echo htmlspecialchars($row['remarks'] ?? ''); ?></td>
                                 <td class="text-center">
+                                    <?php if(!empty($row['short_code'])): ?>
+                                        <button type="button" class="btn btn-primary btn-sm print-barcode" data-short-code="<?php echo htmlspecialchars($row['short_code']); ?>" data-batch-id="<?php echo (int)$row['id']; ?>" data-chemical-name="<?php echo htmlspecialchars($chemical['name']); ?>" title="Print barcode"><i class="fas fa-barcode"></i></button>
+                                    <?php endif; ?>
                                     <button type="button" class="btn btn-danger btn-sm delete-incoming" data-id="<?php echo (int)$row['id']; ?>" onclick="event.preventDefault();event.stopPropagation();confirm_delete_incoming(<?php echo (int)$row['id']; ?>);"><i class="fas fa-trash"></i></button>
                                 </td>
                             </tr>
@@ -235,7 +265,7 @@ if ($logs_exists) {
             </table>
         </div>
 
-        <h5 class="mb-2">Outgoing Records</h5>
+        <h5 class="mb-2">Utilized Records</h5>
         <div class="table-responsive">
             <table class="table table-bordered table-striped" id="outgoing-records-table">
                 <thead>
@@ -358,6 +388,29 @@ $(function(){
         e.preventDefault();
         e.stopPropagation();
         confirm_delete_outgoing($(this).data('id'));
+    });
+
+    $(document).on('click', '.print-barcode', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        var shortCode = $(this).data('short-code');
+        var batchId = $(this).data('batch-id');
+        var chemicalName = $(this).data('chemical-name');
+        if (!shortCode || !batchId) {
+            alert_toast('Missing barcode information', 'error');
+            return;
+        }
+        var params = new URLSearchParams({
+            short_code: shortCode,
+            chemical: chemicalName,
+            barcode: 'BATCH-' + batchId,
+            count: 1
+        });
+        window.open(
+            '<?php echo base_url ?>admin/chemical_inventory/print_qr.php?' + params.toString(),
+            'QRPrint',
+            'height=600,width=800,left=50,top=50'
+        );
     });
 });
 </script>

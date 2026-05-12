@@ -4425,24 +4425,58 @@ function delete_utility_supplier(){
             $received_date_esc = $this->conn->real_escape_string($received_date);
             $remarks_esc = $this->conn->real_escape_string($remarks);
 
+            // Check if unit column exists
             $batch_unit_col_exists = false;
             $unit_col_chk = $this->conn->query("SHOW COLUMNS FROM chemical_inventory_batches LIKE 'unit'");
             if ($unit_col_chk && $unit_col_chk->num_rows > 0) {
                 $batch_unit_col_exists = true;
             }
 
+            // Check if short_code column exists, if not add it
+            $short_code_col_exists = false;
+            $short_code_chk = $this->conn->query("SHOW COLUMNS FROM chemical_inventory_batches LIKE 'short_code'");
+            if ($short_code_chk && $short_code_chk->num_rows > 0) {
+                $short_code_col_exists = true;
+            } else {
+                @$this->conn->query("ALTER TABLE chemical_inventory_batches ADD COLUMN short_code VARCHAR(20) UNIQUE NULL DEFAULT NULL");
+                $short_code_col_exists = true;
+            }
+
+            // Generate unique short_code
+            $short_code = null;
+            if ($short_code_col_exists) {
+                do {
+                    $short_code = str_pad(mt_rand(100000, 999999), 6, '0', STR_PAD_LEFT);
+                    $check = $this->conn->query("SELECT id FROM chemical_inventory_batches WHERE short_code = '$short_code'");
+                } while ($check && $check->num_rows > 0);
+            }
+
             $this->conn->begin_transaction();
 
             if ($batch_unit_col_exists) {
-                $sql = "INSERT INTO chemical_inventory_batches
-                        (chemical_id, batch_no, unit, supplier, storage_location, received_qty, available_qty, unit_cost, expiry_date, received_date, remarks, created_by)
-                        VALUES
-                        ({$chemical_id_i}, '{$batch_esc}', '{$unit_esc}', '{$supplier_esc}', '{$storage_esc}', {$qty}, {$available}, {$cost}, {$expiry_sql}, '{$received_date_esc}', '{$remarks_esc}', {$created_by})";
+                if ($short_code_col_exists && $short_code) {
+                    $sql = "INSERT INTO chemical_inventory_batches
+                            (chemical_id, batch_no, unit, supplier, storage_location, received_qty, available_qty, unit_cost, expiry_date, received_date, remarks, created_by, short_code)
+                            VALUES
+                            ({$chemical_id_i}, '{$batch_esc}', '{$unit_esc}', '{$supplier_esc}', '{$storage_esc}', {$qty}, {$available}, {$cost}, {$expiry_sql}, '{$received_date_esc}', '{$remarks_esc}', {$created_by}, '{$short_code}')";
+                } else {
+                    $sql = "INSERT INTO chemical_inventory_batches
+                            (chemical_id, batch_no, unit, supplier, storage_location, received_qty, available_qty, unit_cost, expiry_date, received_date, remarks, created_by)
+                            VALUES
+                            ({$chemical_id_i}, '{$batch_esc}', '{$unit_esc}', '{$supplier_esc}', '{$storage_esc}', {$qty}, {$available}, {$cost}, {$expiry_sql}, '{$received_date_esc}', '{$remarks_esc}', {$created_by})";
+                }
             } else {
-                $sql = "INSERT INTO chemical_inventory_batches
-                        (chemical_id, batch_no, supplier, storage_location, received_qty, available_qty, unit_cost, expiry_date, received_date, remarks, created_by)
-                        VALUES
-                        ({$chemical_id_i}, '{$batch_esc}', '{$supplier_esc}', '{$storage_esc}', {$qty}, {$available}, {$cost}, {$expiry_sql}, '{$received_date_esc}', '{$remarks_esc}', {$created_by})";
+                if ($short_code_col_exists && $short_code) {
+                    $sql = "INSERT INTO chemical_inventory_batches
+                            (chemical_id, batch_no, supplier, storage_location, received_qty, available_qty, unit_cost, expiry_date, received_date, remarks, created_by, short_code)
+                            VALUES
+                            ({$chemical_id_i}, '{$batch_esc}', '{$supplier_esc}', '{$storage_esc}', {$qty}, {$available}, {$cost}, {$expiry_sql}, '{$received_date_esc}', '{$remarks_esc}', {$created_by}, '{$short_code}')";
+                } else {
+                    $sql = "INSERT INTO chemical_inventory_batches
+                            (chemical_id, batch_no, supplier, storage_location, received_qty, available_qty, unit_cost, expiry_date, received_date, remarks, created_by)
+                            VALUES
+                            ({$chemical_id_i}, '{$batch_esc}', '{$supplier_esc}', '{$storage_esc}', {$qty}, {$available}, {$cost}, {$expiry_sql}, '{$received_date_esc}', '{$remarks_esc}', {$created_by})";
+                }
             }
 
             if (!$this->conn->query($sql)) {
@@ -4473,6 +4507,7 @@ function delete_utility_supplier(){
             $resp['status'] = 'success';
             $resp['msg'] = 'Incoming stock saved';
             $resp['batch_id'] = $batch_id;
+            $resp['short_code'] = $short_code;
         } catch (Exception $e) {
             if ($this->conn && $this->conn->errno) {
                 $this->conn->rollback();
@@ -4611,6 +4646,8 @@ function delete_utility_supplier(){
         try {
             $created_by = isset($_SESSION['userdata']['id']) ? intval($_SESSION['userdata']['id']) : 0;
             $chemical_id = isset($_POST['chemical_id']) ? intval($_POST['chemical_id']) : 0;
+            $project_id = isset($_POST['project_id']) ? trim($_POST['project_id']) : '';
+            $new_project_name = isset($_POST['new_project_name']) ? trim($_POST['new_project_name']) : '';
             $quantity = isset($_POST['quantity']) ? floatval($_POST['quantity']) : 0;
             $utilized_at = isset($_POST['utilized_at']) ? trim($_POST['utilized_at']) : '';
             $remarks = isset($_POST['remarks']) ? trim($_POST['remarks']) : '';
@@ -4619,9 +4656,58 @@ function delete_utility_supplier(){
                 $resp['msg'] = 'Chemical is required';
                 return json_encode($resp);
             }
+            if ($project_id === '') {
+                $resp['msg'] = 'Project is required';
+                return json_encode($resp);
+            }
             if ($quantity <= 0) {
                 $resp['msg'] = 'Quantity must be greater than 0';
                 return json_encode($resp);
+            }
+
+            $projects_table_chk = $this->conn->query("SHOW TABLES LIKE 'projects'");
+            if (!$projects_table_chk || $projects_table_chk->num_rows === 0) {
+                $resp['msg'] = 'Missing table: projects';
+                return json_encode($resp);
+            }
+
+            $project_name = '';
+            if (strpos($project_id, '__new__') === 0) {
+                if ($new_project_name === '') {
+                    $resp['msg'] = 'Project name is required';
+                    return json_encode($resp);
+                }
+
+                $new_project_name_esc = $this->conn->real_escape_string($new_project_name);
+                $project_lookup = $this->conn->query("SELECT id, name FROM projects WHERE name = '{$new_project_name_esc}' LIMIT 1");
+                if ($project_lookup && $project_lookup->num_rows > 0) {
+                    $project_row = $project_lookup->fetch_assoc();
+                    $project_id = (string)intval($project_row['id']);
+                    $project_name = $project_row['name'];
+                } else {
+                    $project_insert = $this->conn->query("INSERT INTO projects (name, created_by) VALUES ('{$new_project_name_esc}', {$created_by})");
+                    if (!$project_insert) {
+                        $resp['msg'] = 'Failed to create project: ' . $this->conn->error;
+                        return json_encode($resp);
+                    }
+                    $project_id = (string)$this->conn->insert_id;
+                    $project_name = $new_project_name;
+                }
+            } else {
+                $project_id = intval($project_id);
+                if ($project_id <= 0) {
+                    $resp['msg'] = 'Invalid project selection';
+                    return json_encode($resp);
+                }
+
+                $project_lookup = $this->conn->query("SELECT id, name FROM projects WHERE id = {$project_id} LIMIT 1");
+                if (!$project_lookup || $project_lookup->num_rows === 0) {
+                    $resp['msg'] = 'Selected project not found';
+                    return json_encode($resp);
+                }
+                $project_row = $project_lookup->fetch_assoc();
+                $project_id = (string)intval($project_row['id']);
+                $project_name = $project_row['name'];
             }
 
             $logs_table_chk = $this->conn->query("SHOW TABLES LIKE 'chemical_stock_logs'");
@@ -4629,6 +4715,9 @@ function delete_utility_supplier(){
                 $resp['msg'] = 'Missing table: chemical_stock_logs';
                 return json_encode($resp);
             }
+
+            $log_project_col = $this->conn->query("SHOW COLUMNS FROM chemical_stock_logs LIKE 'project_name'");
+            $has_project_name_col = $log_project_col && $log_project_col->num_rows > 0;
 
             $batch_table_chk = $this->conn->query("SHOW TABLES LIKE 'chemical_inventory_batches'");
             if (!$batch_table_chk || $batch_table_chk->num_rows === 0) {
@@ -4656,6 +4745,7 @@ function delete_utility_supplier(){
             $movement_date = date('Y-m-d', strtotime($utilized_at));
             $remarks_esc = $this->conn->real_escape_string($remarks);
             $utilized_at_esc = $this->conn->real_escape_string($utilized_at);
+            $project_name_esc = $this->conn->real_escape_string($project_name);
             $reference_no = 'UTIL-' . date('YmdHis');
 
             $this->conn->begin_transaction();
@@ -4698,10 +4788,18 @@ function delete_utility_supplier(){
                     return json_encode($resp);
                 }
 
-                $log_sql = "INSERT INTO chemical_stock_logs
-                    (chemical_id, batch_id, movement_type, quantity, reference_type, reference_no, movement_date, remarks, created_by, created_at)
-                    VALUES
-                    ({$chemical_id}, {$batch_id}, 'OUT', {$use_qty}, 'UTILIZATION', '{$reference_no}', '{$movement_date}', '{$remarks_esc}', {$created_by}, '{$utilized_at_esc}')";
+                $log_columns = "chemical_id, batch_id, movement_type, quantity, reference_type, reference_no";
+                $log_values = "{$chemical_id}, {$batch_id}, 'OUT', {$use_qty}, 'UTILIZATION', '{$reference_no}'";
+
+                if ($has_project_name_col) {
+                    $log_columns .= ", project_name";
+                    $log_values .= ", '{$project_name_esc}'";
+                }
+
+                $log_columns .= ", movement_date, remarks, created_by, created_at";
+                $log_values .= ", '{$movement_date}', '{$remarks_esc}', {$created_by}, '{$utilized_at_esc}'";
+
+                $log_sql = "INSERT INTO chemical_stock_logs ({$log_columns}) VALUES ({$log_values})";
 
                 if (!$this->conn->query($log_sql)) {
                     $this->conn->rollback();
@@ -4921,7 +5019,7 @@ function delete_utility_supplier(){
         $template_used = isset($_POST['template_used']) ? trim($_POST['template_used']) : 'blank';
         $sections_json = isset($_POST['sections_json']) ? $_POST['sections_json'] : '';
         $description = isset($_POST['description']) ? trim($_POST['description']) : '';
-        $batch_no = isset($_POST['batch_no']) ? trim($_POST['batch_no']) : '';
+        $project_id = isset($_POST['project_id']) ? trim($_POST['project_id']) : '';
         $trial_no = isset($_POST['trial_no']) ? trim($_POST['trial_no']) : '';
         $batch_size = isset($_POST['batch_size']) ? trim($_POST['batch_size']) : '';
         $company = isset($_POST['company']) ? trim($_POST['company']) : 'Hugopharm';
@@ -5019,7 +5117,6 @@ function delete_utility_supplier(){
         $name_escaped = $this->conn->real_escape_string($name);
         $template_used_escaped = $this->conn->real_escape_string($template_used);
         $description_escaped = $this->conn->real_escape_string($description);
-        $batch_no_escaped = $this->conn->real_escape_string($batch_no);
         $trial_no_escaped = $this->conn->real_escape_string($trial_no);
         $batch_size_escaped = $this->conn->real_escape_string($batch_size);
         $company_escaped = $this->conn->real_escape_string($company);
@@ -5038,12 +5135,59 @@ function delete_utility_supplier(){
         $local_now = date('Y-m-d H:i:s');
         $local_now_escaped = $this->conn->real_escape_string($local_now);
 
+        // Handle project_id: auto-create if new project
+        $final_project_id = NULL;
+        $batch_no = '';
+        
+        if ($project_id !== '') {
+            if (strpos($project_id, '__new__') === 0) {
+                // Extract project name from POST (sent as separate field when creating new)
+                $new_project_name = isset($_POST['new_project_name']) ? trim($_POST['new_project_name']) : '';
+                if ($new_project_name === '') {
+                    echo json_encode(['status'=>'error','msg'=>'Project name is required']);
+                    exit;
+                }
+                
+                $new_project_name_esc = $this->conn->real_escape_string($new_project_name);
+                
+                // Check if project already exists
+                $check_proj = $this->conn->query("SELECT id FROM projects WHERE name = '{$new_project_name_esc}' LIMIT 1");
+                if ($check_proj && $check_proj->num_rows > 0) {
+                    $proj_row = $check_proj->fetch_assoc();
+                    $final_project_id = intval($proj_row['id']);
+                } else {
+                    // Create new project
+                    $insert_proj = $this->conn->query("INSERT INTO projects (name, created_by) VALUES ('{$new_project_name_esc}', {$created_by})");
+                    if (!$insert_proj) {
+                        echo json_encode(['status'=>'error','msg'=>'Failed to create project: '.$this->conn->error]);
+                        exit;
+                    }
+                    $final_project_id = $this->conn->insert_id;
+                }
+                $batch_no = $new_project_name; // Mirror to batch_no for compatibility
+            } else {
+                // Existing project
+                $final_project_id = intval($project_id);
+                
+                // Get project name for batch_no mirror
+                $proj_name_q = $this->conn->query("SELECT name FROM projects WHERE id = {$final_project_id} LIMIT 1");
+                if ($proj_name_q && $proj_name_q->num_rows > 0) {
+                    $proj_name_row = $proj_name_q->fetch_assoc();
+                    $batch_no = $proj_name_row['name'];
+                }
+            }
+        }
+        
+        $project_id_sql = $final_project_id > 0 ? intval($final_project_id) : 'NULL';
+        $batch_no_escaped = $this->conn->real_escape_string($batch_no);
+
         if($report_id > 0){
             // Update existing
             $update = $this->conn->query("UPDATE lab_trial_reports
                 SET name = '$name_escaped',
                     template_used = '$template_used_escaped',
                     description = '$description_escaped',
+                    project_id = $project_id_sql,
                     batch_no = '$batch_no_escaped',
                     trial_no = '$trial_no_escaped',
                     batch_size = '$batch_size_escaped',
@@ -5069,8 +5213,8 @@ function delete_utility_supplier(){
             }
         } else {
             // Insert new
-            $insert = $this->conn->query("INSERT INTO lab_trial_reports (name, company, description, batch_no, trial_no, batch_size, client_id, linked_trial_id, trial_date_range, client_representative, objective, equipment, purpose, input_characteristics, formula, observations, results_evaluation, future_action, created_by, template_used, created_at, updated_at)
-                VALUES ('$name_escaped', '$company_escaped', '$description_escaped', '$batch_no_escaped', '$trial_no_escaped', '$batch_size_escaped', $client_id_sql, $linked_trial_id_sql, '$trial_date_range_escaped', '$client_representative_escaped', '$objective_escaped', '$equipment_escaped', '$purpose_escaped', '$input_characteristics_escaped', '$formula_escaped', '$observations_escaped', '$results_evaluation_escaped', '$future_action_escaped', $created_by, '$template_used_escaped', '$local_now_escaped', '$local_now_escaped')");
+            $insert = $this->conn->query("INSERT INTO lab_trial_reports (name, company, description, project_id, batch_no, trial_no, batch_size, client_id, linked_trial_id, trial_date_range, client_representative, objective, equipment, purpose, input_characteristics, formula, observations, results_evaluation, future_action, created_by, template_used, created_at, updated_at)
+                VALUES ('$name_escaped', '$company_escaped', '$description_escaped', $project_id_sql, '$batch_no_escaped', '$trial_no_escaped', '$batch_size_escaped', $client_id_sql, $linked_trial_id_sql, '$trial_date_range_escaped', '$client_representative_escaped', '$objective_escaped', '$equipment_escaped', '$purpose_escaped', '$input_characteristics_escaped', '$formula_escaped', '$observations_escaped', '$results_evaluation_escaped', '$future_action_escaped', $created_by, '$template_used_escaped', '$local_now_escaped', '$local_now_escaped')");
             if($insert){
                 $id = $this->conn->insert_id;
                 echo json_encode(['status'=>'success','report_id'=>$id,'action'=>'created','msg'=>'Report created successfully']);
