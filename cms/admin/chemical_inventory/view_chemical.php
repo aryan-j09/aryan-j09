@@ -33,6 +33,7 @@ if (!$chemical) {
 $batch_exists = false;
 $logs_exists = false;
 $batch_has_unit = false;
+$batch_has_short_code = false;
 
 $chk_batch = $conn->query("SHOW TABLES LIKE 'chemical_inventory_batches'");
 if ($chk_batch && $chk_batch->num_rows > 0) {
@@ -40,6 +41,10 @@ if ($chk_batch && $chk_batch->num_rows > 0) {
     $unit_chk = $conn->query("SHOW COLUMNS FROM chemical_inventory_batches LIKE 'unit'");
     if ($unit_chk && $unit_chk->num_rows > 0) {
         $batch_has_unit = true;
+    }
+    $short_code_chk = $conn->query("SHOW COLUMNS FROM chemical_inventory_batches LIKE 'short_code'");
+    if ($short_code_chk && $short_code_chk->num_rows > 0) {
+        $batch_has_short_code = true;
     }
 }
 
@@ -136,14 +141,18 @@ if ($batch_exists) {
 }
 
 if ($logs_exists) {
+    $out_short_code_select = $batch_has_short_code
+        ? "COALESCE(b.short_code, '') AS short_code"
+        : "'' AS short_code";
+
     $outgoing_sql = $batch_has_unit
-        ? "SELECT l.*, c.name, c.brand, b.batch_no, b.unit AS unit
+        ? "SELECT l.*, c.name, c.brand, b.batch_no, b.unit AS unit, {$out_short_code_select}
             FROM chemical_stock_logs l
             INNER JOIN chemical_master_list c ON c.id = l.chemical_id
             LEFT JOIN chemical_inventory_batches b ON b.id = l.batch_id
             WHERE l.chemical_id = {$chemical_id} AND UPPER(l.movement_type) = 'OUT'
             ORDER BY l.created_at DESC, l.id DESC"
-        : "SELECT l.*, c.name, c.brand, b.batch_no, COALESCE(b.unit, c.unit, '') AS unit
+        : "SELECT l.*, c.name, c.brand, b.batch_no, COALESCE(b.unit, c.unit, '') AS unit, {$out_short_code_select}
             FROM chemical_stock_logs l
             INNER JOIN chemical_master_list c ON c.id = l.chemical_id
             LEFT JOIN chemical_inventory_batches b ON b.id = l.batch_id
@@ -253,9 +262,7 @@ if ($logs_exists) {
                                 <td class="text-center"><?php echo !empty($row['expiry_date']) ? date('d-M-Y', strtotime($row['expiry_date'])) : '-'; ?></td>
                                 <td><?php echo htmlspecialchars($row['remarks'] ?? ''); ?></td>
                                 <td class="text-center">
-                                    <?php if(!empty($row['short_code'])): ?>
-                                        <button type="button" class="btn btn-primary btn-sm print-barcode" data-short-code="<?php echo htmlspecialchars($row['short_code']); ?>" data-batch-id="<?php echo (int)$row['id']; ?>" data-chemical-name="<?php echo htmlspecialchars($chemical['name']); ?>" title="Print barcode"><i class="fas fa-barcode"></i></button>
-                                    <?php endif; ?>
+                                    <button type="button" class="btn btn-primary btn-sm print-barcode" data-short-code="<?php echo htmlspecialchars($row['short_code'] ?? ''); ?>" data-batch-id="<?php echo (int)$row['id']; ?>" data-chemical-name="<?php echo htmlspecialchars($chemical['name']); ?>" title="Print barcode"><i class="fas fa-barcode"></i> Print</button>
                                     <button type="button" class="btn btn-danger btn-sm delete-incoming" data-id="<?php echo (int)$row['id']; ?>" onclick="event.preventDefault();event.stopPropagation();confirm_delete_incoming(<?php echo (int)$row['id']; ?>);"><i class="fas fa-trash"></i></button>
                                 </td>
                             </tr>
@@ -292,6 +299,7 @@ if ($logs_exists) {
                                 <td><?php echo htmlspecialchars($row['reference_no'] ?? ''); ?></td>
                                 <td><?php echo htmlspecialchars($row['remarks'] ?? ''); ?></td>
                                 <td class="text-center">
+                                    <button type="button" class="btn btn-primary btn-sm print-barcode" data-short-code="<?php echo htmlspecialchars($row['short_code'] ?? ''); ?>" data-batch-id="<?php echo (int)($row['batch_id'] ?? 0); ?>" data-chemical-name="<?php echo htmlspecialchars($chemical['name']); ?>" title="Print barcode"><i class="fas fa-barcode"></i> Print</button>
                                     <button type="button" class="btn btn-danger btn-sm delete-outgoing" data-id="<?php echo (int)$row['id']; ?>" onclick="event.preventDefault();event.stopPropagation();confirm_delete_outgoing(<?php echo (int)$row['id']; ?>);"><i class="fas fa-trash"></i></button>
                                 </td>
                             </tr>
@@ -396,10 +404,44 @@ $(function(){
         var shortCode = $(this).data('short-code');
         var batchId = $(this).data('batch-id');
         var chemicalName = $(this).data('chemical-name');
-        if (!shortCode || !batchId) {
-            alert_toast('Missing barcode information', 'error');
+        var btn = $(this);
+
+        if (!batchId) {
+            alert_toast('No linked batch found for this utilization record', 'warning');
             return;
         }
+        
+        // If no short_code, generate one first
+        if (!shortCode) {
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+            $.ajax({
+                url: '<?php echo base_url ?>classes/Master.php?f=generate_batch_short_code',
+                type: 'POST',
+                data: { batch_id: batchId },
+                dataType: 'json',
+                success: function(resp){
+                    if (resp.status === 'success' && resp.short_code) {
+                        shortCode = resp.short_code;
+                        btn.data('short-code', shortCode);
+                        btn.prop('disabled', false).html('<i class="fas fa-barcode"></i> Print');
+                        // Now open print dialog
+                        openBarcodeWindow(shortCode, chemicalName, batchId);
+                    } else {
+                        alert_toast('Failed to generate barcode code', 'error');
+                        btn.prop('disabled', false).html('<i class="fas fa-barcode"></i> Print');
+                    }
+                },
+                error: function(){
+                    alert_toast('Error generating barcode', 'error');
+                    btn.prop('disabled', false).html('<i class="fas fa-barcode"></i> Print');
+                }
+            });
+        } else {
+            openBarcodeWindow(shortCode, chemicalName, batchId);
+        }
+    });
+    
+    function openBarcodeWindow(shortCode, chemicalName, batchId) {
         var params = new URLSearchParams({
             short_code: shortCode,
             chemical: chemicalName,
@@ -411,6 +453,6 @@ $(function(){
             'QRPrint',
             'height=600,width=800,left=50,top=50'
         );
-    });
+    }
 });
 </script>

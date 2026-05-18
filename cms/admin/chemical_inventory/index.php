@@ -259,6 +259,12 @@ foreach ($chemicals as $chem) {
                 <div class="row">
                     <div class="col-md-12">
                         <label>Chemical <span class="text-danger">*</span></label>
+                        <div class="input-group mb-1">
+                            <input type="text" id="in_scan_barcode" class="form-control" placeholder="Scan batch barcode to select chemical" aria-label="Scan barcode">
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" id="in_scan_clear">Clear</button>
+                            </div>
+                        </div>
                         <select id="in_chemical_id" class="form-control" style="width:100%;">
                             <option value="">Select chemical</option>
                             <?php foreach($chemicals as $chem): ?>
@@ -389,6 +395,13 @@ foreach ($chemicals as $chem) {
                 <div class="row">
                     <div class="col-md-6">
                         <label>Chemical <span class="text-danger">*</span></label>
+                        <div class="input-group mb-1">
+                            <input type="text" id="out_scan_barcode" class="form-control" placeholder="Scan batch barcode to select chemical" aria-label="Scan barcode">
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" id="out_scan_clear">Clear</button>
+                            </div>
+                        </div>
+                        <input type="hidden" id="out_scanned_batch_id" value="">
                         <select id="out_chemical_id" class="form-control" style="width:100%;" <?php echo (!$batch_exists || !$logs_exists) ? 'disabled' : ''; ?>>
                             <option value="">Select chemical</option>
                             <?php foreach($available_chemicals as $c): ?>
@@ -880,5 +893,73 @@ $(function(){
             window.location.href = '<?php echo base_url ?>admin/?page=chemical_inventory/view_chemical&id=' + id;
         }
     });
+
+    function lookupBatchByShortCode(code, cb) {
+        if (!code) {
+            cb && cb({status:'error', msg:'Empty code'});
+            return;
+        }
+        $.ajax({
+            url: '<?php echo base_url ?>classes/Master.php?f=get_batch_by_short_code',
+            type: 'POST',
+            data: {short_code: code},
+            dataType: 'json',
+            success: function(resp){ cb && cb(resp); },
+            error: function(){ cb && cb({status:'error', msg:'Request failed'}); }
+        });
+    }
+
+    // Incoming scan handler
+    $(document).on('keydown', '#in_scan_barcode', function(e){
+        if (e.key === 'Enter') {
+            var code = $(this).val().trim();
+            if (!code) return;
+            lookupBatchByShortCode(code, function(resp){
+                if (resp.status === 'success') {
+                    var data = resp.data || {};
+                    if (data.chemical_id) {
+                        if ($('#in_chemical_id option[value="' + data.chemical_id + '"]').length === 0) {
+                            $('#in_chemical_id').append(new Option(data.chemical_name || 'Chemical', data.chemical_id, false, false));
+                        }
+                        $('#in_chemical_id').val(String(data.chemical_id)).trigger('change');
+                    }
+                    if (data.batch_no) $('#in_batch_no').val(data.batch_no);
+                    if (data.unit) $('#in_unit').val(data.unit).trigger('change');
+                    alert_toast('Batch found: ' + (data.chemical_name || ''), 'success');
+                } else {
+                    alert_toast(resp.msg || 'Batch not found', 'warning');
+                }
+            });
+        }
+    });
+    $(document).on('click', '#in_scan_clear', function(){ $('#in_scan_barcode').val(''); });
+
+    // Outgoing scan handler
+    $(document).on('keydown', '#out_scan_barcode', function(e){
+        if (e.key === 'Enter') {
+            var code = $(this).val().trim();
+            if (!code) return;
+            lookupBatchByShortCode(code, function(resp){
+                if (resp.status === 'success') {
+                    var data = resp.data || {};
+                    if (data.chemical_id) {
+                        if ($('#out_chemical_id option[value="' + data.chemical_id + '"]').length === 0) {
+                            // create a simple label
+                            var label = (data.chemical_name || 'Chemical') + (data.unit ? ' | Available: ' + data.available_qty + ' ' + data.unit : '');
+                            $('#out_chemical_id').append(new Option(label, data.chemical_id, false, false));
+                        }
+                        $('#out_chemical_id').val(String(data.chemical_id)).trigger('change');
+                    }
+                    $('#out_available_info').val((data.available_qty || '-') + ' ' + (data.unit || ''));
+                    if (data.batch_id) $('#out_scanned_batch_id').val(data.batch_id);
+                    alert_toast('Batch selected: ' + (data.batch_no || ''), 'success');
+                    $('#out_quantity').focus();
+                } else {
+                    alert_toast(resp.msg || 'Batch not found', 'warning');
+                }
+            });
+        }
+    });
+    $(document).on('click', '#out_scan_clear', function(){ $('#out_scan_barcode').val(''); $('#out_scanned_batch_id').val(''); });
 });
 </script>

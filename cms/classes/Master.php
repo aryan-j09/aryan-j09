@@ -4639,6 +4639,90 @@ function delete_utility_supplier(){
         return json_encode($resp);
     }
 
+    function generate_batch_short_code(){
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'Unable to generate short code'];
+
+        try {
+            $batch_id = isset($_POST['batch_id']) ? intval($_POST['batch_id']) : 0;
+            
+            if ($batch_id <= 0) {
+                $resp['msg'] = 'Invalid batch ID';
+                return json_encode($resp);
+            }
+
+            // Check if batch exists
+            $batch_chk = $this->conn->query("SELECT id, short_code FROM chemical_inventory_batches WHERE id = {$batch_id} LIMIT 1");
+            if (!$batch_chk || $batch_chk->num_rows === 0) {
+                $resp['msg'] = 'Batch not found';
+                return json_encode($resp);
+            }
+
+            $batch_row = $batch_chk->fetch_assoc();
+            
+            // If already has short_code, return it
+            if (!empty($batch_row['short_code'])) {
+                $resp['status'] = 'success';
+                $resp['short_code'] = $batch_row['short_code'];
+                return json_encode($resp);
+            }
+
+            // Generate unique short_code
+            $short_code = null;
+            do {
+                $short_code = str_pad(mt_rand(100000, 999999), 6, '0', STR_PAD_LEFT);
+                $check = $this->conn->query("SELECT id FROM chemical_inventory_batches WHERE short_code = '$short_code'");
+            } while ($check && $check->num_rows > 0);
+
+            // Update batch with short_code
+            if (!$this->conn->query("UPDATE chemical_inventory_batches SET short_code = '$short_code' WHERE id = {$batch_id}")) {
+                $resp['msg'] = 'Database error: ' . $this->conn->error;
+                return json_encode($resp);
+            }
+
+            $resp['status'] = 'success';
+            $resp['short_code'] = $short_code;
+            $resp['msg'] = 'Barcode code generated successfully';
+        } catch (Exception $e) {
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('generate_batch_short_code error: ' . $e->getMessage());
+        }
+
+        return json_encode($resp);
+    }
+
+    function get_batch_by_short_code(){
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'Batch not found'];
+        try{
+            $short_code = isset($_REQUEST['short_code']) ? $this->conn->real_escape_string(trim($_REQUEST['short_code'])) : '';
+            if ($short_code === '') {
+                $resp['msg'] = 'Short code required';
+                return json_encode($resp);
+            }
+            $q = $this->conn->query("SELECT b.id as batch_id, b.chemical_id, b.batch_no, b.available_qty, COALESCE(b.unit, c.unit, '') AS unit, c.name as chemical_name
+                FROM chemical_inventory_batches b
+                LEFT JOIN chemical_master_list c ON c.id = b.chemical_id
+                WHERE b.short_code = '{$short_code}' LIMIT 1");
+            if ($q && $q->num_rows > 0) {
+                $row = $q->fetch_assoc();
+                $resp['status'] = 'success';
+                $resp['batch_id'] = (int)$row['batch_id'];
+                $resp['chemical_id'] = (int)$row['chemical_id'];
+                $resp['batch_no'] = $row['batch_no'];
+                $resp['available_qty'] = (float)$row['available_qty'];
+                $resp['unit'] = $row['unit'];
+                $resp['chemical_name'] = $row['chemical_name'];
+                $resp['short_code'] = $short_code;
+                return json_encode($resp);
+            }
+        }catch(Exception $e){
+            $resp['msg'] = 'Exception: ' . $e->getMessage();
+            error_log('get_batch_by_short_code error: '.$e->getMessage());
+        }
+        return json_encode($resp);
+    }
+
     function save_chemical_outgoing(){
         header('Content-Type: application/json');
         $resp = ['status' => 'failed', 'msg' => 'Unable to save outgoing'];
@@ -5524,6 +5608,9 @@ switch ($action) {
     break;
     case 'delete_chemical_outgoing':
         echo $Master->delete_chemical_outgoing();
+    break;
+    case 'generate_batch_short_code':
+        echo $Master->generate_batch_short_code();
     break;
     case 'save_chemical_outgoing':
         echo $Master->save_chemical_outgoing();

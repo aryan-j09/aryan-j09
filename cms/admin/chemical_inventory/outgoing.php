@@ -83,8 +83,16 @@ if ($logs_exists) {
 
     $out_unit_select = $batch_has_unit ? "b.unit AS unit" : "c.unit AS unit";
     $out_project_select = $log_has_project_name ? "l.project_name AS project_name" : "'' AS project_name";
-    $r_q = $conn->query("SELECT l.id, l.quantity, l.reference_no,
-        l.created_at, l.remarks, c.name, c.brand, {$out_project_select}, {$out_unit_select}
+    $batch_has_short_code = false;
+    $short_code_col = $conn->query("SHOW COLUMNS FROM chemical_inventory_batches LIKE 'short_code'");
+    if ($short_code_col && $short_code_col->num_rows > 0) {
+        $batch_has_short_code = true;
+    }
+
+    $out_short_code_select = $batch_has_short_code ? "COALESCE(b.short_code, '') AS short_code" : "'' AS short_code";
+
+    $r_q = $conn->query("SELECT l.id, l.batch_id, l.quantity, l.reference_no,
+        l.created_at, l.remarks, c.name, c.brand, {$out_project_select}, {$out_unit_select}, {$out_short_code_select}
         FROM chemical_stock_logs l
         INNER JOIN chemical_master_list c ON c.id = l.chemical_id
         LEFT JOIN chemical_inventory_batches b ON b.id = l.batch_id
@@ -135,7 +143,7 @@ if ($logs_exists) {
                             <th width="140">Reference</th>
                             <th width="130">Used At</th>
                             <th>Remarks</th>
-                            <th width="70" class="text-center">Action</th>
+                            <th width="140" class="text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -154,6 +162,9 @@ if ($logs_exists) {
                                     <td><?php echo htmlspecialchars(!empty($r['created_at']) ? date('d-m-Y H:i', strtotime($r['created_at'])) : ''); ?></td>
                                     <td><?php echo htmlspecialchars($r['remarks'] ?? ''); ?></td>
                                     <td class="text-center">
+                                        <button type="button" class="btn btn-primary btn-sm print-barcode" data-short-code="<?php echo htmlspecialchars($r['short_code'] ?? ''); ?>" data-batch-id="<?php echo (int)($r['batch_id'] ?? 0); ?>" data-chemical-name="<?php echo htmlspecialchars($r['name']); ?>" title="Print Barcode">
+                                            <i class="fas fa-barcode"></i>
+                                        </button>
                                         <button type="button" class="btn btn-danger btn-sm delete-outgoing" data-id="<?php echo (int)$r['id']; ?>" title="Delete Outgoing">
                                             <i class="fas fa-trash"></i>
                                         </button>
@@ -265,6 +276,20 @@ function delete_outgoing(id){
     });
 }
 
+function openBarcodeWindow(shortCode, chemicalName, batchId) {
+    var params = new URLSearchParams({
+        short_code: shortCode,
+        chemical: chemicalName,
+        barcode: 'BATCH-' + batchId,
+        count: 1
+    });
+    window.open(
+        '<?php echo base_url ?>admin/chemical_inventory/print_qr.php?' + params.toString(),
+        'QRPrint',
+        'height=600,width=800,left=50,top=50'
+    );
+}
+
 $(function(){
     $('#open-outgoing-modal').on('click', function(){
         $('#outgoing-modal').modal('show');
@@ -323,6 +348,48 @@ $(function(){
         } else {
             $('#out_available_info').val(available + ' ' + unit);
         }
+    });
+
+    $(document).on('click', '.print-barcode', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+
+        var btn = $(this);
+        var shortCode = btn.data('short-code');
+        var batchId = btn.data('batch-id');
+        var chemicalName = btn.data('chemical-name');
+
+        if (!batchId) {
+            alert_toast('No linked batch found for this utilization record', 'warning');
+            return;
+        }
+
+        if (!shortCode) {
+            btn.prop('disabled', true);
+            $.ajax({
+                url: '<?php echo base_url ?>classes/Master.php?f=generate_batch_short_code',
+                type: 'POST',
+                data: { batch_id: batchId },
+                dataType: 'json',
+                success: function(resp){
+                    btn.prop('disabled', false);
+                    if (resp.status === 'success' && resp.short_code) {
+                        shortCode = resp.short_code;
+                        btn.data('short-code', shortCode);
+                        openBarcodeWindow(shortCode, chemicalName, batchId);
+                    } else {
+                        alert_toast(resp.msg || 'Failed to generate barcode code', 'error');
+                    }
+                },
+                error: function(){
+                    btn.prop('disabled', false);
+                    alert_toast('Error generating barcode', 'error');
+                }
+            });
+            return;
+        }
+
+        openBarcodeWindow(shortCode, chemicalName, batchId);
     });
 
     $('#save_outgoing').on('click', function(){
