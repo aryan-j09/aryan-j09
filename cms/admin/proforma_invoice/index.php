@@ -67,8 +67,12 @@ $result = $conn->query($query);
     }
 
     .sbpanchal-row {
-        background-color: rgba(255, 153, 0, 0.1) !important;
-        /* Light orange */
+        background-color: rgba(255, 0, 0, 0.12) !important;
+        /* True red highlight */
+    }
+    .raipur-row {
+        background-color: rgba(153, 102, 255, 0.08) !important;
+        /* Light purple */
     }
 </style>
 
@@ -89,6 +93,7 @@ $result = $conn->query($query);
                                     <option value="">All Companies</option>
                                     <option value="Hugopharm" <?php echo $selected_company == 'Hugopharm' ? 'selected' : ''; ?>>Hugopharm</option>
                                     <option value="S.B. Panchal" <?php echo $selected_company == 'S.B. Panchal' ? 'selected' : ''; ?>>S.B. Panchal</option>
+                                    <option value="Hugo Raipur" <?php echo $selected_company == 'Hugo Raipur' ? 'selected' : ''; ?>>Hugo Raipur</option>
                                 </select>
                             </div>
                         </div>
@@ -148,7 +153,7 @@ $result = $conn->query($query);
                     $i = 1;
                     while ($row = $result->fetch_assoc()):
                     ?>
-                        <tr class="<?php echo $row['company'] === 'Hugopharm' ? 'hugopharm-row' : 'sbpanchal-row'; ?>">
+                        <tr class="<?php echo ($row['company'] === 'Hugopharm') ? 'hugopharm-row' : (($row['company'] === 'Hugo Raipur') ? 'raipur-row' : 'sbpanchal-row'); ?>">
                             <td class="text-center"><?php echo $i++; ?>.</td>
                             <td><?php echo $row['client'] ?></td>
                             <td><?php echo $row['po_code'] ?></td>
@@ -162,12 +167,14 @@ $result = $conn->query($query);
                                 </button>
                                 <div class="dropdown-menu" role="menu">
                                     <?php if ($row['company'] == 'S.B. Panchal'): ?>
-                                        <a class="dropdown-item" href="<?php echo base_url . 'admin?page=proforma_invoice/sbp_pi&id=' . $row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
+                                        <a class="dropdown-item" href="<?php echo base_url ?>admin/?page=proforma_invoice/sbp_pi&id=<?php echo $row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
+                                    <?php elseif ($row['company'] == 'Hugo Raipur'): ?>
+                                        <a class="dropdown-item" href="<?php echo base_url ?>admin/?page=proforma_invoice/raipur_pi&id=<?php echo $row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
                                     <?php else: ?>
-                                        <a class="dropdown-item" href="<?php echo base_url . 'admin?page=proforma_invoice/view_pi&id=' . $row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
+                                        <a class="dropdown-item" href="<?php echo base_url ?>admin/?page=proforma_invoice/view_pi&id=<?php echo $row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-eye text-dark"></span> View</a>
                                     <?php endif; ?>
                                     <div class="dropdown-divider"></div>
-                                    <a class="dropdown-item" href="<?php echo base_url . 'admin?page=proforma_invoice/manage_pi&id=' . $row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-edit text-primary"></span> Edit</a>
+                                    <a class="dropdown-item" href="<?php echo base_url ?>admin/?page=proforma_invoice/manage_pi&id=<?php echo $row['id'] ?>" data-id="<?php echo $row['id'] ?>"><span class="fa fa-edit text-primary"></span> Edit</a>
                                     <a class="dropdown-item delete_data" href="javascript:void(0)" data-id="<?php echo $row['id'] ?>"><span class="fa fa-trash text-danger"></span> Delete</a>
                                 </div>
                             </td>
@@ -221,11 +228,7 @@ $result = $conn->query($query);
             "ordering": true,
             "pageLength": 10,
             "rowCallback": function(row, data, index) {
-                if ($(row).find('td:eq(6)').find('.dropdown-menu a:first').attr('href').includes('sbp_pi')) {
-                    $(row).addClass('sbpanchal-row');
-                } else {
-                    $(row).addClass('hugopharm-row');
-                }
+                // server sets row class already; ensure it remains
             }
         });
     })

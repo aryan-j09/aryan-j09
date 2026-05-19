@@ -308,6 +308,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $redirect_url = _base_url_ . 'admin/?page=proforma_invoice/view_pi&id=' . $id . '&success=true';
         if ($company == 'S.B. Panchal') {
             $redirect_url = _base_url_ . 'admin/?page=proforma_invoice/sbp_pi&id=' . $id . '&success=true';
+        } elseif ($company == 'Hugo Raipur') {
+            $redirect_url = _base_url_ . 'admin/?page=proforma_invoice/raipur_pi&id=' . $id . '&success=true';
         }
 
         echo '<script>
@@ -506,6 +508,7 @@ while($row = $item_query->fetch_assoc()) {
                     <option value="" disabled selected>Select a company</option>
                     <option value="Hugopharm" <?php echo (isset($company) && $company == 'Hugopharm') ? 'selected' : ''; ?>>Hugopharm</option>
                     <option value="S.B. Panchal" <?php echo (isset($company) && $company == 'S.B. Panchal') ? 'selected' : ''; ?>>S.B. Panchal</option>
+                    <option value="Hugo Raipur" <?php echo (isset($company) && $company == 'Hugo Raipur') ? 'selected' : ''; ?>>Hugo Raipur</option>
                 </select>
             </div>
         </div>

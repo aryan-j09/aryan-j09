@@ -52,6 +52,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $company = $_POST['company'];
     $material_delivery = isset($_POST['material_delivery']) ? trim($_POST['material_delivery']) : '';
     $material_delivery_other = isset($_POST['material_delivery_other']) ? trim($_POST['material_delivery_other']) : '';
+    if (stripos($company, 'raipur') !== false) {
+        $material_delivery = '408, Luxora Colony, Vidhan Sabha Road, Mowa, Raipur, Chhattisgarh 492014.';
+        $material_delivery_other = '';
+    }
     if ($material_delivery === 'OTHER') {
         if ($material_delivery_other === '') {
             $duplicate_po_message = 'Please enter custom material delivery address.';
@@ -305,6 +309,9 @@ while($row = $item_query->fetch_assoc()) {
     $item_arr[$row['supplier_id']][] = $row;
 }
 
+$raipur_fixed_material_delivery = '408, Luxora Colony, Vidhan Sabha Road, Mowa, Raipur, Chhattisgarh 492014.';
+$is_raipur_company = isset($company) && stripos($company, 'raipur') !== false;
+
 $material_delivery_option = isset($material_delivery) ? $material_delivery : '';
 $material_delivery_other = isset($material_delivery_other) ? $material_delivery_other : '';
 if (!empty($material_delivery_option) && !in_array($material_delivery_option, ['DOM', 'DDR', 'SELF', 'OTHER'], true)) {
@@ -381,6 +388,7 @@ if (!empty($material_delivery_option) && !in_array($material_delivery_option, ['
                     <option value="" disabled selected>Select a company</option>
                     <option value="Hugopharm" <?php echo (isset($company) && $company == 'Hugopharm') ? 'selected' : ''; ?>>Hugopharm</option>
                     <option value="S.B. Panchal" <?php echo (isset($company) && $company == 'S.B. Panchal') ? 'selected' : ''; ?>>S.B. Panchal</option>
+                    <option value="Hugo Raipur" <?php echo (isset($company) && $company == 'Hugo Raipur') ? 'selected' : ''; ?>>Hugo Raipur</option>
                 </select>
             </div>
         </div>
@@ -389,13 +397,16 @@ if (!empty($material_delivery_option) && !in_array($material_delivery_option, ['
     <div class="col-md-3">
         <div class="form-group">
             <label for="material_delivery">Material Delivery Location</label>
-            <select name="material_delivery" id="material_delivery" class="form-control" required>
+            <select name="material_delivery" id="material_delivery" class="form-control" required <?php echo $is_raipur_company ? 'style="display:none;" disabled' : ''; ?>>
                 <option value="">Select location</option>
                 <option value="DOM" <?php echo (isset($material_delivery_option) && $material_delivery_option == 'DOM') ? 'selected' : ''; ?>>Dombivli</option>
                 <option value="DDR" <?php echo (isset($material_delivery_option) && $material_delivery_option == 'DDR') ? 'selected' : ''; ?>>Dadar</option>
                 <option value="SELF" <?php echo (isset($material_delivery_option) && $material_delivery_option == 'SELF') ? 'selected' : ''; ?>>Self Pickup</option>
                 <option value="OTHER" <?php echo (isset($material_delivery_option) && $material_delivery_option == 'OTHER') ? 'selected' : ''; ?>>Others</option>
             </select>
+            <div id="material_delivery_raipur_wrap" class="mt-2 alert alert-light border" style="<?php echo $is_raipur_company ? '' : 'display:none;'; ?>">
+                <?php echo htmlspecialchars($raipur_fixed_material_delivery, ENT_QUOTES, 'UTF-8'); ?>
+            </div>
             <div id="material_delivery_other_wrap" class="mt-2" style="display:none;">
                 <label for="material_delivery_other">Custom Address</label>
                 <textarea name="material_delivery_other" id="material_delivery_other" class="form-control" rows="3" placeholder="Enter custom delivery address"><?php echo isset($material_delivery_other) ? htmlspecialchars($material_delivery_other, ENT_QUOTES, 'UTF-8') : ''; ?></textarea>
@@ -669,6 +680,70 @@ $(document).ready(function() {
             $('#material_delivery_other').val('');
         }
     }
+
+    function toggleRaipurMaterialDelivery(company) {
+        var isRaipur = company === 'Hugo Raipur';
+        $('#material_delivery').prop('disabled', isRaipur);
+        $('#material_delivery').prop('required', !isRaipur);
+        $('#material_delivery').toggle(!isRaipur);
+        $('#material_delivery_raipur_wrap').toggle(isRaipur);
+        if (isRaipur) {
+            $('#material_delivery_other_wrap').hide();
+            $('#material_delivery_other').prop('required', false).val('');
+        }
+    }
+
+    // Dynamic material delivery options per company
+    var deliveryOptionsByCompany = {
+        'Hugopharm': [
+            {v: 'DOM', t: 'Dombivli'},
+            {v: 'DDR', t: 'Dadar'},
+            {v: 'SELF', t: 'Self Pickup'},
+            {v: 'OTHER', t: 'Others'}
+        ],
+        'S.B. Panchal': [
+            {v: 'DOM', t: 'Dombivli'},
+            {v: 'DDR', t: 'Dadar'},
+            {v: 'SELF', t: 'Self Pickup'},
+            {v: 'OTHER', t: 'Others'}
+        ],
+        'Hugo Raipur': [
+            {v: 'RA_D', t: 'D'},
+            {v: 'RA_E', t: 'E'},
+            {v: 'RA_F', t: 'F'},
+            {v: 'OTHER', t: 'Others'}
+        ]
+    };
+
+    function populateDeliveryOptions(company, selected) {
+        var sel = $('#material_delivery');
+        if (!sel.length) return;
+        if (company === 'Hugo Raipur') {
+            toggleRaipurMaterialDelivery(company);
+            return;
+        }
+        var opts = deliveryOptionsByCompany[company] || deliveryOptionsByCompany['Hugopharm'];
+        sel.empty();
+        sel.append($('<option>', {value: '', text: 'Select location'}));
+        opts.forEach(function(o){
+            var option = $('<option>', {value: o.v, text: o.t});
+            if (selected && selected == o.v) option.prop('selected', true);
+            sel.append(option);
+        });
+        toggleMaterialDeliveryOtherField();
+    }
+
+    // Initialize material delivery options on load and when company changes
+    var initialCompany = '<?php echo isset($company) ? addslashes($company) : ''; ?>';
+    var initialDelivery = '<?php echo isset($material_delivery_option) ? addslashes($material_delivery_option) : ''; ?>';
+    if (initialCompany) {
+        populateDeliveryOptions(initialCompany, initialDelivery);
+    }
+    $('#company').on('change', function(){
+        var selectedCompany = $(this).val();
+        toggleRaipurMaterialDelivery(selectedCompany);
+        populateDeliveryOptions(selectedCompany, '');
+    });
 
     function togglePoCodeError(show) {
         poCodeExists = !!show;

@@ -37,13 +37,14 @@ $material_delivery_raw = isset($material_delivery) ? trim($material_delivery) : 
 $material_delivery_code = strtoupper($material_delivery_raw);
 $is_standard_material_delivery = in_array($material_delivery_code, ['DOM', 'DDR', 'SELF'], true);
 $is_custom_material_delivery = ($material_delivery_raw !== '' && !$is_standard_material_delivery);
+$raipur_fixed_material_delivery = '408, Luxora Colony, Vidhan Sabha Road, Mowa, Raipur, Chhattisgarh 492014.';
 
 // Determine company type from DB
 $company_type = 'SBP';
 if (isset($company)) {
     $c = strtolower($company);
     if (strpos($c, 'hugo') !== false) {
-        $company_type = 'HUGO';
+        $company_type = (strpos($c, 'raipur') !== false) ? 'RAIPUR' : 'HUGO';
     }
 }
 
@@ -295,7 +296,7 @@ while ($row = $item_query->fetch_assoc()) {
 
 <div class="header-container d-flex justify-content-between align-items-center print-header">
     <div class="header-left">
-        <?php if ($company_type == 'HUGO'): ?>
+        <?php if ($company_type == 'HUGO' || $company_type == 'RAIPUR'): ?>
             <img src="<?php echo base_url; ?>uploads/HUGO.png" alt="Company Logo" class="company-logo hugo-logo">
         <?php else: ?>
             <img src="<?php echo base_url; ?>uploads/SBLetter.png" alt="Company Logo" class="company-logo sbp-logo">
@@ -313,6 +314,19 @@ while ($row = $item_query->fetch_assoc()) {
                 Works: Plot No TS 20, MIDC Phase 2, Sagaon,<br>
                 Manpada Road, Dombivli (E) 421203</p>
             GSTIN:27AACCH1711N1ZM
+        </div>
+    <?php elseif ($company_type == 'RAIPUR'): ?>
+        <div class="header-middle text-center flex-grow-1">
+            <h1 style="font-size:70px">HUGOPHARM</h1>
+            <p style="font-size:30px; font-style: italic;">Systems Engineered with Mind and Spirit</p>
+        </div>
+        <div class="header-right text-left">
+            <p style="font-size: 18px;"><strong>Mumbai Office:</strong> 8, Jogani Industrial Estate,<br>
+                541 Senapati Bapat Marg, Dadar (W), Mumbai 400028<br>
+                Mob: 9869415083 Email: fluidbed@gmail.com<br>
+                <strong>Raipur Office:</strong> 408, Luxora Colony, Vidhan Sabha Road,<br>
+                Mowa, Raipur, Chhattisgarh 492014</p>
+            GSTIN:22AACCH1711N1ZW
         </div>
     <?php endif; ?>
 </div>
@@ -528,6 +542,8 @@ while ($row = $item_query->fetch_assoc()) {
                             // For Hugo, billing is always Dombivli
                             // Material delivery matches when DOM is selected
                             $billing_matches_material = ($material_delivery_code == 'DOM');
+                        } else if ($company_type == 'RAIPUR') {
+                            $billing_matches_material = true;
                         } else {
                             // For SBP, billing is always Dadar
                             // Material delivery matches when DDR is selected
@@ -547,6 +563,11 @@ while ($row = $item_query->fetch_assoc()) {
                                         Besides Sekhsaria Chemicals/ Arch Pharma<br>
                                         Dombivli (E) - 421 203<br>
                                         GSTIN/UIN : 27AACCH1711N1ZM
+                                    <?php elseif ($company_type == 'RAIPUR'): ?>
+                                        <u>Hugopharm Technologies Pvt. Ltd.</u><br>
+                                        408, Luxora Colony, Vidhan Sabha Road,<br>
+                                        Mowa, Raipur, Chhattisgarh 492014.<br>
+                                        GSTIN/UIN : 22AACCH1711N1ZW
                                     <?php else: ?>
                                         <u>S.B. Panchal & Company</u><br>
                                         8, Jogani Industrial Estate,<br>
@@ -569,6 +590,11 @@ while ($row = $item_query->fetch_assoc()) {
                                         Besides Sekhsaria Chemicals/ Arch Pharma<br>
                                         Dombivli (E) - 421 203<br>
                                         GSTIN/UIN : 27AACCH1711N1ZM
+                                    <?php elseif ($company_type == 'RAIPUR'): ?>
+                                        <u>Hugopharm Technologies Pvt. Ltd.</u><br>
+                                        408, Luxora Colony, Vidhan Sabha Road,<br>
+                                        Mowa, Raipur, Chhattisgarh 492014.<br>
+                                        GSTIN/UIN : 22AACCH1711N1ZW
                                     <?php else: ?>
                                         <u>S.B. Panchal & Company</u><br>
                                         8, Jogani Industrial Estate,<br>
@@ -583,7 +609,11 @@ while ($row = $item_query->fetch_assoc()) {
                                 <label class="control-label">Material delivery to:</label>
                                 <p>
                                     <?php
-                                    if ($material_delivery_code == 'DOM') {
+                                        if ($company_type == 'RAIPUR') {
+                                            echo "<u>Hugopharm Technologies Pvt. Ltd.</u><br>
+                                                 408, Luxora Colony, Vidhan Sabha Road,<br>
+                                                 Mowa, Raipur, Chhattisgarh 492014.";
+                                        } else if ($material_delivery_code == 'DOM') {
                                         if ($company_type == 'HUGO') {
                                             echo "<u>Hugopharm Technologies Pvt. Ltd.</u><br>
                                                  Plot No. TS 20, MIDC Phase 2,<br>
@@ -630,6 +660,10 @@ while ($row = $item_query->fetch_assoc()) {
                                     8, Jogani Industrial Estate,<br>
                                     541 Senapati Bapat Marg,<br>
                                     Dadar (W), Mumbai 400 028
+                                <?php elseif ($company_type == 'RAIPUR'): ?>
+                                    <u>Hugopharm Technologies Pvt. Ltd.</u><br>
+                                    408, Luxora Colony, Vidhan Sabha Road,<br>
+                                    Mowa, Raipur, Chhattisgarh 492014.
                                 <?php else: ?>
                                     <u>S.B. Panchal & Company</u><br>
                                     8, Jogani Industrial Estate,<br>
@@ -657,7 +691,7 @@ while ($row = $item_query->fetch_assoc()) {
                 </h5>
 
                 <p>Yours truly,<br>
-                    <label>For <?php echo ($company_type == 'HUGO') ? 'Hugopharm Technologies Pvt. Ltd.' : 'S.B. Panchal & Company'; ?></label>
+                    <label>For <?php echo ($company_type == 'HUGO' || $company_type == 'RAIPUR') ? 'Hugopharm Technologies Pvt. Ltd.' : 'S.B. Panchal & Company'; ?></label>
                 </p>
                 <div class="signature-block">
                     <h5><strong><?php echo isset($authorized_signatory) ? $authorized_signatory : ''; ?></strong></h5>
