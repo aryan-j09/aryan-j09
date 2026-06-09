@@ -16,7 +16,7 @@ $developer = [
     'name'     => 'Aryan Jain',
     'role'     => 'Backend Software Engineer',
     'status'   => 'Immediate Joiner (0-Day Notice)',
-    'focus'    => 'End-to-End B2B Architecture & API Development',
+    'focus'    => 'Scalable Backend Systems & API Development',
     'metrics'  => 'Architected B2B systems tracking ₹1.1Cr+ active financial flow'
 ];
 ```
