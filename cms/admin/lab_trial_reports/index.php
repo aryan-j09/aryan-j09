@@ -80,10 +80,35 @@ if ($chk && $chk->num_rows > 0) {
                                     $row_objective = substr($row_objective, 0, 120) . '...';
                                 }
                                 $row_trial_start_date = '-';
+                                $row_trial_sort_ts = 0;
                                 $row_trial_range = trim($row['trial_date_range'] ?? '');
                                 if ($row_trial_range !== '') {
                                     $trial_range_parts = explode(' to ', $row_trial_range);
                                     $row_trial_start_date = trim($trial_range_parts[0] ?? $row_trial_range);
+                                }
+                                if ($row_trial_start_date !== '-' && $row_trial_start_date !== '') {
+                                    $date_formats = ['Y-m-d', 'd-m-Y', 'd/m/Y', 'm/d/Y', 'd.m.Y', 'd M Y', 'd M, Y', 'M d, Y'];
+                                    foreach ($date_formats as $format) {
+                                        $dt = DateTime::createFromFormat($format, $row_trial_start_date);
+                                        if ($dt instanceof DateTime) {
+                                            $row_trial_sort_ts = $dt->getTimestamp();
+                                            break;
+                                        }
+                                    }
+
+                                    if ($row_trial_sort_ts === 0) {
+                                        $fallback_ts = strtotime($row_trial_start_date);
+                                        if ($fallback_ts !== false) {
+                                            $row_trial_sort_ts = $fallback_ts;
+                                        }
+                                    }
+                                }
+
+                                if ($row_trial_sort_ts === 0 && !empty($row['created_at'])) {
+                                    $created_ts = strtotime($row['created_at']);
+                                    if ($created_ts !== false) {
+                                        $row_trial_sort_ts = $created_ts;
+                                    }
                                 }
                             ?>
                             <tr>
@@ -92,7 +117,7 @@ if ($chk && $chk->num_rows > 0) {
                                 <td><?php echo htmlspecialchars($row_batch_trial); ?></td>
                                 <td><?php echo htmlspecialchars($row_objective); ?></td>
                                 <td><?php echo htmlspecialchars($row['client_name'] ?? '-'); ?></td>
-                                <td><?php echo htmlspecialchars($row_trial_start_date); ?></td>
+                                <td data-order="<?php echo (int)$row_trial_sort_ts; ?>"><?php echo htmlspecialchars($row_trial_start_date); ?></td>
                                 <td align="center">
                                     <button type="button" class="btn btn-flat btn-default btn-sm dropdown-toggle dropdown-icon" data-toggle="dropdown">
                                         Action
