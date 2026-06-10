@@ -14,8 +14,7 @@
 <?php
 $developer = [
     'name'     => 'Aryan Jain',
-    'role'     => 'Backend Software Engineer',
-    'status'   => 'Immediate Joiner (0-Day Notice)',
+    'role'     => 'FullStack Software Engineer',
     'focus'    => 'Scalable Backend Systems & API Development',
     'metrics'  => 'Architected B2B systems tracking ₹1.1Cr+ active financial flow'
 ];
