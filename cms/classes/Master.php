@@ -1704,6 +1704,21 @@ Class Master extends DBConnection {
             $delivery_date = $_POST['delivery_date'];
             $po_code = preg_replace('/[^A-Za-z0-9\-]/', '_', $_POST['po_code']); // Sanitize filename
 
+            // Load existing file names for update
+            $existing_bill = null;
+            $existing_challan = null;
+            $stmt_check = $this->conn->prepare("SELECT bill_file, challan_file FROM purchase_orders WHERE id = ?");
+            if($stmt_check) {
+                $stmt_check->bind_param('i', $po_id);
+                $stmt_check->execute();
+                $stmt_check->bind_result($existing_bill, $existing_challan);
+                $stmt_check->fetch();
+                $stmt_check->close();
+            }
+
+            $bill_fname = $existing_bill;
+            $challan_fname = $existing_challan;
+
             // Handle bill file
             if(isset($_FILES['bill_file']) && $_FILES['bill_file']['error'] == 0) {
                 $ext = pathinfo($_FILES['bill_file']['name'], PATHINFO_EXTENSION);
@@ -1714,7 +1729,11 @@ Class Master extends DBConnection {
                 if(!move_uploaded_file($_FILES['bill_file']['tmp_name'], $bill_path)) {
                     throw new Exception("Failed to save bill file. Path: " . $bill_path);
                 }
-            } else {
+
+                if(!empty($existing_bill) && is_file($upload_path . $existing_bill)) {
+                    @unlink($upload_path . $existing_bill);
+                }
+            } else if(empty($bill_fname)) {
                 throw new Exception("Bill file is required");
             }
 
@@ -1728,7 +1747,11 @@ Class Master extends DBConnection {
                 if(!move_uploaded_file($_FILES['challan_file']['tmp_name'], $challan_path)) {
                     throw new Exception("Failed to save challan file. Path: " . $challan_path);
                 }
-            } else {
+
+                if(!empty($existing_challan) && is_file($upload_path . $existing_challan)) {
+                    @unlink($upload_path . $existing_challan);
+                }
+            } else if(empty($challan_fname)) {
                 throw new Exception("Challan file is required");
             }
 
@@ -5366,6 +5389,54 @@ function delete_utility_supplier(){
         }
         exit;
     }
+
+    function fetch_po_data(){
+        header('Content-Type: application/json');
+        $resp = ['status' => 'failed', 'msg' => 'An error occurred'];
+        
+        try {
+            $po_id = isset($_GET['po_id']) ? intval($_GET['po_id']) : 0;
+            
+            if($po_id <= 0){
+                throw new Exception('Invalid PO ID');
+            }
+            
+            $sql = "SELECT id, po_code, actual_delivery_date, bill_file, challan_file FROM purchase_orders WHERE id = ?";
+            $stmt = $this->conn->prepare($sql);
+            
+            if(!$stmt){
+                throw new Exception('Database error: ' . $this->conn->error);
+            }
+            
+            $stmt->bind_param('i', $po_id);
+            
+            if(!$stmt->execute()){
+                throw new Exception('Query failed: ' . $stmt->error);
+            }
+            
+            $stmt->bind_result($id, $po_code, $actual_delivery_date, $bill_file, $challan_file);
+            
+            if($stmt->fetch()){
+                $resp['status'] = 'success';
+                $resp['data'] = [
+                    'id' => $id,
+                    'po_code' => $po_code,
+                    'actual_delivery_date' => $actual_delivery_date,
+                    'bill_file' => $bill_file,
+                    'challan_file' => $challan_file
+                ];
+            } else {
+                $resp['msg'] = 'PO not found';
+            }
+            
+            $stmt->close();
+        } catch(Exception $e) {
+            $resp['msg'] = $e->getMessage();
+        }
+        
+        echo json_encode($resp);
+        exit;
+    }
 }
 
 $Master = new Master();
@@ -5470,6 +5541,9 @@ switch ($action) {
     break;
     case 'delete_po_details':
     echo $Master->delete_po_details();
+    break;
+    case 'fetch_po_data':
+        echo $Master->fetch_po_data();
     break;    
     case 'complete_project':
         echo $Master->complete_project();

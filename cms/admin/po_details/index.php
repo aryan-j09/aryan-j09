@@ -414,6 +414,11 @@ $summary_data = $summary_qry->fetch_assoc();
                                             <span class="fa fa-check text-success"></span> Finish Project
                                         </a>
                                         <div class="dropdown-divider"></div>
+                                    <?php else: ?>
+                                        <a class="dropdown-item undo-completion" href="javascript:void(0);" data-id="<?php echo $row['id']; ?>" data-po="<?php echo $row['po_code']; ?>">
+                                            <span class="fa fa-undo text-warning"></span> Undo Completion
+                                        </a>
+                                        <div class="dropdown-divider"></div>
                                     <?php endif; ?>
                                     <a class="dropdown-item delete-po" href="javascript:void(0);" data-id="<?php echo $row['id']; ?>">
                                         <span class="fa fa-trash text-danger"></span> Delete
@@ -596,6 +601,48 @@ $summary_data = $summary_qry->fetch_assoc();
                         $('#po_code').val(po);
                         $('#projectCompletionModal').modal('show');
                     });
+
+                    // Rebind undo completion clicks after table redraws
+                    $('.undo-completion').off('click').on('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const id = $(this).data('id');
+                        const po = $(this).data('po');
+                        
+                        // Fetch existing completion data
+                        $.ajax({
+                            url: _base_url_ + "classes/Master.php?f=fetch_po_data",
+                            type: "GET",
+                            data: {
+                                po_id: id
+                            },
+                            dataType: 'json',
+                            success: function(resp) {
+                                if(resp.status === 'success' && resp.data) {
+                                    $('#projectCompletionForm')[0].reset();
+                                    $('#po_id').val(id);
+                                    $('#po_code').val(po);
+                                    
+                                    if (resp.data.actual_delivery_date) {
+                                        $('#delivery_date').val(resp.data.actual_delivery_date);
+                                    }
+                                } else {
+                                    $('#projectCompletionForm')[0].reset();
+                                    $('#po_id').val(id);
+                                    $('#po_code').val(po);
+                                }
+                                
+                                $('#projectCompletionModal').modal('show');
+                            },
+                            error: function() {
+                                $('#projectCompletionForm')[0].reset();
+                                $('#po_id').val(id);
+                                $('#po_code').val(po);
+                                $('#projectCompletionModal').modal('show');
+                            }
+                        });
+                    });
                 }
             });
 
@@ -728,13 +775,13 @@ $summary_data = $summary_qry->fetch_assoc();
                         </div>
 
                         <div class="form-group">
-                            <label for="bill_file">Bill Copy</label>
-                            <input type="file" class="form-control-file" name="bill_file" id="bill_file" accept=".pdf,.jpg,.jpeg,.png" required>
+                            <label for="bill_file">Bill Copy <span class="text-muted">(leave empty to keep existing file)</span></label>
+                            <input type="file" class="form-control-file" name="bill_file" id="bill_file" accept=".pdf,.jpg,.jpeg,.png">
                         </div>
 
                         <div class="form-group">
-                            <label for="challan_file">Delivery Challan</label>
-                            <input type="file" class="form-control-file" name="challan_file" id="challan_file" accept=".pdf,.jpg,.jpeg,.png" required>
+                            <label for="challan_file">Delivery Challan <span class="text-muted">(leave empty to keep existing file)</span></label>
+                            <input type="file" class="form-control-file" name="challan_file" id="challan_file" accept=".pdf,.jpg,.jpeg,.png">
                         </div>
                     </div>
                     <div class="modal-footer">
