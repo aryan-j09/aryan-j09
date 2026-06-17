@@ -1151,7 +1151,8 @@ while ($step = $steps_qry->fetch_assoc()) {
                 if (amount > 0) {
                     $('.payment-amount-group').show();
                     $('.max-amount').text('<?= getCurrencySymbol($po['currency'] ?? 'INR') ?> ' + amount.toLocaleString('en-IN'));
-                    $('input[name="payment_amount"]').attr('max', amount);
+                    $('input[name="payment_amount"]').removeAttr('max');
+                    $('input[name="payment_amount"]').attr('placeholder', 'Enter amount received (including excess)');
                     $('input[name="payment_type"]').val(paymentType);
                 } else {
                     $('.payment-amount-group').hide();

@@ -1292,6 +1292,116 @@ Class Master extends DBConnection {
         }
         return json_encode($resp);
     }
+
+    function recalculate_po_payment_summary($po_id){
+        $po_id = intval($po_id);
+        if($po_id <= 0){
+            return false;
+        }
+
+        $stmt = $this->conn->prepare(
+            "SELECT 
+                po.advance_received,
+                po.inspection_received,
+                po.installation_received,
+                po.credit_received,
+                po.shortfall_is_tds,
+                pil.total_amount,
+                pil.advance_payment_amount,
+                pil.inspection_payment_amount,
+                pil.installation_payment_amount,
+                pil.credit_payment_amount
+            FROM purchase_orders po
+            LEFT JOIN proforma_invoice_list pil ON po.po_code = pil.po_code
+            WHERE po.id = ?
+            LIMIT 1"
+        );
+
+        if(!$stmt){
+            return false;
+        }
+
+        $stmt->bind_param('i', $po_id);
+        if(!$stmt->execute()){
+            $stmt->close();
+            return false;
+        }
+
+        $stmt->bind_result(
+            $adv_received,
+            $insp_received,
+            $inst_received,
+            $cred_received,
+            $shortfall_is_tds,
+            $total_amount,
+            $adv_expected,
+            $insp_expected,
+            $inst_expected,
+            $cred_expected
+        );
+
+        $found = $stmt->fetch();
+        $stmt->close();
+
+        if(!$found){
+            return false;
+        }
+
+        $adv_received = (float)$adv_received;
+        $insp_received = (float)$insp_received;
+        $inst_received = (float)$inst_received;
+        $cred_received = (float)$cred_received;
+        $total_amount = (float)$total_amount;
+        $adv_expected = (float)$adv_expected;
+        $insp_expected = (float)$insp_expected;
+        $inst_expected = (float)$inst_expected;
+        $cred_expected = (float)$cred_expected;
+
+        $total_received = $adv_received + $insp_received + $inst_received + $cred_received;
+
+        $cum_expected = 0;
+        $cum_received = 0;
+
+        $cum_expected += $adv_expected;
+        $cum_received += $adv_received;
+        $adv_effective = min($adv_expected, max(0, $cum_received - ($cum_expected - $adv_expected)));
+        $adv_shortfall = max(0, $adv_expected - $adv_effective);
+
+        $cum_expected += $insp_expected;
+        $cum_received += $insp_received;
+        $insp_effective = min($insp_expected, max(0, $cum_received - ($cum_expected - $insp_expected)));
+        $insp_shortfall = max(0, $insp_expected - $insp_effective);
+
+        $cum_expected += $inst_expected;
+        $cum_received += $inst_received;
+        $inst_effective = min($inst_expected, max(0, $cum_received - ($cum_expected - $inst_expected)));
+        $inst_shortfall = max(0, $inst_expected - $inst_effective);
+
+        $cum_expected += $cred_expected;
+        $cum_received += $cred_received;
+        $cred_effective = min($cred_expected, max(0, $cum_received - ($cum_expected - $cred_expected)));
+        $cred_shortfall = max(0, $cred_expected - $cred_effective);
+
+        $total_shortfall = $adv_shortfall + $insp_shortfall + $inst_shortfall + $cred_shortfall;
+
+        $balance_amount = $total_amount - $total_received;
+        if((int)$shortfall_is_tds === 1){
+            $balance_amount = $balance_amount - $total_shortfall;
+        }
+        $balance_amount = max(0, $balance_amount);
+
+        $update_stmt = $this->conn->prepare("UPDATE purchase_orders SET balance_amount = ? WHERE id = ?");
+        if(!$update_stmt){
+            return false;
+        }
+
+        $update_stmt->bind_param('di', $balance_amount, $po_id);
+        $ok = $update_stmt->execute();
+        $update_stmt->close();
+
+        return $ok;
+    }
+
     function save_po_details() {
     try {
         extract($_POST);
@@ -2333,6 +2443,13 @@ function delete_activity(){
                 if(!$update) {
                     throw new Exception("Failed to update payment record");
                 }
+
+                // Recompute the same balance logic used by the PO details form so
+                // both editing paths stay consistent.
+                if(!$this->recalculate_po_payment_summary($po_id)) {
+                    throw new Exception("Failed to recalculate payment summary");
+                }
+
                 $payment_note = "Amount Received: ₹" . number_format($payment_amount, 2) . "\n\n";
                 $remarks = $payment_note . ($remarks ?? '');
             }
